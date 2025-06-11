@@ -1,0 +1,13 @@
+{
+    "collectionName": "components_shared_address",
+    "info": {
+      "displayName": "Address",
+      "icon": "map-pin"
+    },
+    "attributes": {
+      "street":   { "type": "string", "required": true },
+      "city":     { "type": "string", "required": true },
+      "zipCode":  { "type": "string", "required": true },
+      "country":  { "type": "string", "required": true }
+    }
+  }

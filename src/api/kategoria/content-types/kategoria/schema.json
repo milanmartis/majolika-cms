@@ -1,0 +1,28 @@
+{
+    "kind": "collectionType",
+    "collectionName": "kategorie",
+    "info": {
+      "singularName": "kategoria",
+      "pluralName": "kategorie",
+      "displayName": "Kategória"
+    },
+    "attributes": {
+      "name": {
+        "type": "string",
+        "required": true,
+        "unique": true
+      },
+      "slug": {
+        "type": "uid",
+        "targetField": "name",
+        "required": true,
+        "unique": true
+      },
+      "aktuality": {
+        "type": "relation",
+        "relation": "manyToMany",
+        "target": "api::aktualita.aktualita",
+        "mappedBy": "kategorie"
+      }
+    }
+  }

@@ -1,0 +1,68 @@
+{
+    "kind": "collectionType",
+    "collectionName": "events",
+    "info": {
+      "singularName": "event",
+      "pluralName": "events",
+      "displayName": "Dielne&Prehliadky"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "attributes": {
+      "type": {
+        "type": "enumeration",
+        "enum": ["tour", "workshop"],
+        "required": true
+      },
+      "name": {
+        "type": "string",
+        "required": true
+      },
+      "shortDescription": {
+        "type": "text",
+        "required": true
+      },
+      "longDescription": {
+        "type": "richtext",
+        "required": true
+      },
+      "date": {
+        "type": "date",
+        "required": true
+      },
+      "startTime": {
+        "type": "time",
+        "required": true
+      },
+      "endTime": {
+        "type": "time",
+        "required": true
+      },
+      "price": {
+        "type": "decimal",
+        "required": true
+      },
+      "sale_price": {
+        "type": "decimal",
+        "required": true
+      },
+      "capacity": {
+        "type": "integer",
+        "required": true
+      },
+      "status": {
+        "type": "enumeration",
+        "enum": ["draft", "published", "archived"],
+        "default": "draft",
+        "required": true
+      },
+      "featuredImage": {
+        "type": "media",
+        "multiple": false,
+        "required": false,
+        "allowedTypes": ["images, video"]
+      },
+      "pictures": { "type": "media", "multiple": true, "allowedTypes": ["images, video"] }
+    }
+  }

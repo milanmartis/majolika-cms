@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "slides",
+  "info": {
+    "singularName": "slide",
+    "pluralName": "slides",
+    "displayName": "Slide",
+    "description": "Carousel slide"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "mainField": "title"
+    }
+  },
+  "attributes": {
+    "title": {
+      "type": "string"
+    },
+    "video_external": {            
+     "type": "string"           
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "images": {
+      "type": "media",
+      "multiple": true,
+      "required": false,
+      "allowedTypes": ["images"]
+    },
+    "videos": {
+      "type": "media",
+      "multiple": true,
+      "required": false,
+      "allowedTypes": ["videos"]
+    },
+    "order": {
+      "type": "integer",
+      "default": 0,
+      "required": true
+    }
+  }
+}

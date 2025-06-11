@@ -1,0 +1,26 @@
+# Nezahrň node_modules – EB si ho zreštaluje na inštancii
+node_modules/
+
+# Git repozitár a špeciálne konfiguračné súbory lokálneho vývoja
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Lokálne build artefakty / cache
+dist/
+build/
+public/
+.tmp/
+.cache/
+logs/
+
+# Lokálne env súbory (ak máš .env, ale do EB používaj eb setenv)
+.env
+
+# OS-súbory a zálohy
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db

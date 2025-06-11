@@ -1,0 +1,62 @@
+{
+  "name": "majolika-cms",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Strapi application",
+  "scripts": {
+    "build": "strapi build",
+    "console": "strapi console",
+    "deploy": "strapi deploy",
+    "dev": "strapi develop",
+    "develop": "strapi develop",
+    "start": "strapi start",
+    "strapi": "strapi",
+    "upgrade": "npx @strapi/upgrade latest",
+    "upgrade:dry": "npx @strapi/upgrade latest --dry"
+  },
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.812.0",
+    "@aws-sdk/client-s3": "^3.208.0",
+    "@aws-sdk/lib-storage": "^3.208.0",
+    "@aws-sdk/middleware-flexible-checksums": "^3.208.0",
+    "@strapi/plugin-cloud": "5.13.0",
+    "@strapi/plugin-users-permissions": "5.13.0",
+    "@strapi/provider-upload-aws-s3": "^5.13.1",
+    "@strapi/strapi": "5.13.0",
+    "aws-sdk": "^2.1692.0",
+    "axios": "^1.9.0",
+    "better-sqlite3": "11.3.0",
+    "csv-parse": "^5.6.0",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^16.5.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.0.0",
+    "sharp": "^0.34.1",
+    "slugify": "^1.6.6",
+    "sqlite3": "^5.1.7",
+    "stripe": "^18.1.0",
+    "styled-components": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.7",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18.0.0 <=22.x.x",
+    "npm": ">=6.0.0"
+  },
+  "strapi": {
+    "uuid": "5f495dc7-18a9-47ca-9b9d-e054c61e881b",
+    "installId": "bf2839f124a2eda4e63a5f2513ec855f4a520eb7c4cd7c404cbdf7184b6f99be"
+  },
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

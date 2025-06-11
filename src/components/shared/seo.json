@@ -1,0 +1,20 @@
+{
+    "collectionName": "components_shared_seo",
+    "info": {
+      "name": "SEO",
+      "icon": "globe"
+    },
+    "attributes": {
+      "metaTitle": {
+        "type": "string"
+      },
+      "metaDescription": {
+        "type": "text"
+      },
+      "shareImage": {
+        "type": "media",
+        "multiple": false,
+        "allowedTypes": ["images"]
+      }
+    }
+  }

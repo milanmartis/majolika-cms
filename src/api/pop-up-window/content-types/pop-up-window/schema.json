@@ -1,0 +1,42 @@
+{
+  "kind": "collectionType",
+  "collectionName": "pop_up_windows",
+  "info": {
+    "singularName": "pop-up-window",
+    "pluralName": "pop-up-windows",
+    "displayName": "Pop Up Window"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "url_link": {
+      "type": "string"
+    },
+    "from": {
+      "type": "datetime"
+    },
+    "to": {
+      "type": "datetime"
+    },
+    "text": {
+      "type": "blocks"
+    },
+    "media": {
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ],
+      "type": "media",
+      "multiple": true
+    },
+    "visible": {
+      "type": "boolean"
+    },
+    "header": {
+      "type": "string"
+    }
+  }
+}

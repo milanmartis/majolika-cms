@@ -1,0 +1,30 @@
+{
+    "kind": "collectionType",
+    "collectionName": "customers",
+    "info": {
+      "singularName": "customer",
+      "pluralName": "customers",
+      "displayName": "Zákazníci",
+      "description": "Zákazníci e-shopu"
+    },
+    "options": {
+      "draftAndPublish": false,
+      "timestamps": true
+    },
+    "attributes": {
+      "name":  { "type": "string", "required": true },
+      "email": { "type": "email",  "required": true, "unique": true },
+      "phone": { "type": "string" },
+      "address": {
+        "type": "component",
+        "repeatable": false,
+        "component": "shared.address"
+      },
+      "orders": {
+        "type": "relation",
+        "relation": "oneToMany",
+        "target": "api::order.order",
+        "mappedBy": "customer"
+      }
+    }
+  }

@@ -1,0 +1,148 @@
+{
+  "kind": "collectionType",
+  "collectionName": "products",
+  "info": {
+    "singularName": "product",
+    "pluralName": "products",
+    "displayName": "Produkty"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {
+    "content-manager": {
+      "mainField": "name"
+    }
+  },
+  "attributes": {
+    "externalId": {
+      "type": "integer",
+      "required": true,
+      "unique": true
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "simple",
+        "variable",
+        "variation"
+      ],
+      "default": "simple"
+    },
+    "ean": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "slug": {
+      "type": "uid",
+      "targetField": "name",
+      "required": true,
+      "unique": true
+    },
+    "short": {
+      "type": "richtext"
+    },
+    "describe": {
+      "type": "richtext"
+    },
+    "public": {
+      "type": "boolean",
+      "default": false
+    },
+    "price": {
+      "type": "decimal"
+    },
+    "price_sale": {
+      "type": "decimal",
+      "description": "Zľavenná cena"
+    },
+    "vatPercentage": {
+      "type": "integer",
+      "default": 20,
+      "required": true,
+      "description": "DPH v percentách"
+    },
+    "inSale": {
+      "type": "boolean",
+      "default": false,
+      "description": "Produkt je v akcii (zľava)"
+    },
+    "isNew": {
+      "type": "boolean",
+      "default": false,
+      "description": "Novinka"
+    },
+    "isSoldOut": {
+      "type": "boolean",
+      "default": false,
+      "description": "Produkt vypredaný"
+    },
+    "isUnavailable": {
+      "type": "boolean",
+      "default": false,
+      "description": "Produkt dočasne nedostupný"
+    },
+    "isFeatured": {
+      "type": "boolean",
+      "default": false,
+      "description": "Tip / Odporúčaný produkt"
+    },
+    "category": {
+      "type": "string"
+    },
+    "tag": {
+      "type": "string"
+    },
+    "picture": {
+      "type": "string"
+    },
+    "picture_new": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "pictures_new": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images"
+      ]
+    },
+    "variable": {
+      "type": "string"
+    },
+    "parent": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::product.product",
+      "inversedBy": "variations"
+    },
+    "variations": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product.product",
+      "mappedBy": "parent"
+    },
+    "author": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "product"
+    },
+    "seo": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.seo"
+    },
+    "categories": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::category.category",
+      "inversedBy": "products"
+    }
+  }
+}

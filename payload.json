@@ -1,0 +1,10 @@
+{
+    "Records":[
+      {
+        "s3":{
+          "bucket":{"name":"medusa-majolika-s3"},
+          "object":{"key":"products/1747244620306_DSCF1289.jpg"}
+        }
+      }
+    ]
+  }
