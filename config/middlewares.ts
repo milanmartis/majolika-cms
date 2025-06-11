@@ -21,6 +21,7 @@ export default [
             'data:',
             'blob:',
             'https://market-assets.strapi.io',
+            'https://majolika-cms.appdesign.sk',
             'https://medusa-majolika-s3-us-east.s3.us-east-1.amazonaws.com',
           ],
         },
