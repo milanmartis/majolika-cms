@@ -117,7 +117,6 @@ yarn-error.log
 
 coverage
 
-
 ############################
 # Strapi
 ############################
@@ -130,7 +129,7 @@ dist
 build
 .strapi-updater.json
 .strapi-cloud.json
-
+# Elastic Beanstalk Files
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml

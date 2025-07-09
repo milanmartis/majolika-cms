@@ -1,11 +1,11 @@
 {
   "kind": "collectionType",
-  "collectionName": "slides",
+  "collectionName": "slide2s",
   "info": {
-    "singularName": "slide",
-    "pluralName": "slides",
-    "displayName": "Slide",
-    "description": "Carousel slide"
+    "singularName": "slide2",
+    "pluralName": "slide2s",
+    "displayName": "Slide2",
+    "description": "Carousel slide2"
   },
   "options": {
     "draftAndPublish": false
