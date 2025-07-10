@@ -25,11 +25,8 @@ export default factories.createCoreController('api::product.product', ({ strapi 
    * GET /api/products  (so stránkovaním & komplet populate)
    * ----------------------------------------------------------- */
   async find(ctx: any) {
-    ctx.query = {
-      ...ctx.query,
-      pagination: { pageSize: 2000 },
-      populate: productPopulate,
-    };
+    // zachováme všetky prijaté query-params vrátane pagination[start], limit, page, pageSize
+    ctx.query.populate = productPopulate;
     return super.find(ctx);
   },
 
