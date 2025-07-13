@@ -1,0 +1,4 @@
+********* QUERY **********
+COPY public.admin_permissions (id, document_id, action, action_parameters, subject, properties, conditions, created_at, updated_at, published_at, created_by_id, updated_by_id, locale) FROM stdin WITH NULL '';
+**************************
+
