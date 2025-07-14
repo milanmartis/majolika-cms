@@ -1,0 +1,30 @@
+{
+    "collectionName": "components_blocks_link_blocks",
+    "info": {
+      "displayName": "Link Block"
+    },
+    "options": {},
+    "attributes": {
+      "text": {
+        "type": "string",
+        "required": true
+      },
+      "url": {
+        "type": "string",
+        "required": true
+      },
+      "openInNewTab": {
+        "type": "boolean",
+        "default": false
+      },
+      "fontSize": {
+        "type": "integer",
+        "default": 16
+      },
+      "alignment": {
+        "type": "enumeration",
+        "enum": ["left","center","right"],
+        "default": "left"
+      }
+    }
+  }

@@ -1,0 +1,20 @@
+{
+    "collectionName": "components_blocks_text_blocks",
+    "info": {
+      "displayName": "Text Block"
+    },
+    "options": {},
+    "attributes": {
+      "richText": {
+        "type": "richtext"
+      },
+      "fontSize": {
+        "type": "integer"
+      },
+      "alignment": {
+        "type": "enumeration",
+        "enum": ["left","center","right"],
+        "default": "left"
+      }
+    }
+  }

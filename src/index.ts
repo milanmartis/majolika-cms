@@ -92,6 +92,41 @@ export default {
 
   async bootstrap({ strapi }: any) {
     // Lifecycle hook: remove original image, keep formats
+
+    await strapi.admin.services.role.createRolesIfNoneExist();
+
+    // 2) Definuj všetky predvolené permission záznamy, ktoré chceš seedovať
+    const defaultPermissions = [
+      { action: 'admin::create', subject: 'api::article.article', properties: {} },
+      { action: 'admin::read',   subject: 'api::article.article', properties: {} },
+      { action: 'admin::update', subject: 'api::article.article', properties: {} },
+      { action: 'admin::delete', subject: 'api::article.article', properties: {} },
+      // … doplň ďalšie podľa potreby …
+    ];
+
+    // 3) Bulk-insert cez createMany – na Postgres podporuješ skipDuplicates
+    try {
+      await strapi.db.query('admin::permission').createMany({
+        data: defaultPermissions,
+        skipDuplicates: true,    // preskočí PK kolízie (Postgres) :contentReference[oaicite:0]{index=0}
+      });
+      strapi.log.info('✅ Admin permissions seeded with createMany (duplicates skipped).');
+    } catch (err: any) {
+      strapi.log.warn('⚠️ Bulk seed zlyhalo, fallback na individuálne INSERTy: ', err.message);
+
+      // 4) Fallback – po jednom, najprv kontrola existencie
+      for (const perm of defaultPermissions) {
+        const exists = await strapi.db
+          .query('admin::permission')
+          .findOne({ where: { action: perm.action, subject: perm.subject } });
+        if (!exists) {
+          await strapi.db.query('admin::permission').create({ data: perm });
+          strapi.log.info(`    • permission created: ${perm.action} / ${perm.subject}`);
+        }
+      }
+    }
+
+    
     strapi.db.lifecycles.subscribe({
       models: ['plugin::upload.file'],
       async afterCreate(event: any) {

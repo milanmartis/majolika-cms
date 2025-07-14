@@ -1,0 +1,32 @@
+{
+    "collectionName": "components_blocks_video_blocks",
+    "info": {
+      "displayName": "Video Block"
+    },
+    "options": {},
+    "attributes": {
+      "videoUrl": {
+        "type": "string",
+        "required": true,
+        "description": "Embed URL (YouTube, Vimeo, ...)"
+      },
+      "caption": {
+        "type": "string"
+      },
+      "alignment": {
+        "type": "enumeration",
+        "enum": ["left","center","right"],
+        "default": "center"
+      },
+      "width": {
+        "type": "integer",
+        "default": 560,
+        "description": "Šírka videa v pixeloch"
+      },
+      "height": {
+        "type": "integer",
+        "default": 315,
+        "description": "Výška videa v pixeloch"
+      }
+    }
+  }

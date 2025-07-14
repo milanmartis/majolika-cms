@@ -1,0 +1,25 @@
+{
+    "collectionName": "components_blocks_heading_blocks",
+    "info": {
+      "displayName": "Heading Block"
+    },
+    "options": {},
+    "attributes": {
+      "text": {
+        "type": "string"
+      },
+      "level": {
+        "type": "enumeration",
+        "enum": ["H1","H2","H3","H4","H5","H6"],
+        "default": "H2"
+      },
+      "fontSize": {
+        "type": "integer"
+      },
+      "alignment": {
+        "type": "enumeration",
+        "enum": ["left","center","right"],
+        "default": "left"
+      }
+    }
+  }

@@ -1,0 +1,22 @@
+{
+    "collectionName": "components_blocks_image_blocks",
+    "info": {
+      "displayName": "Image Block"
+    },
+    "options": {},
+    "attributes": {
+      "media": {
+        "type": "media",
+        "multiple": false,
+        "required": true
+      },
+      "caption": {
+        "type": "string"
+      },
+      "alignment": {
+        "type": "enumeration",
+        "enum": ["left","center","right"],
+        "default": "center"
+      }
+    }
+  }

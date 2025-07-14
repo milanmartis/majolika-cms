@@ -1,7 +1,12 @@
-/**
- * article router
- */
+// src/api/article/routes/article.ts
 
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::article.article');
+export default {
+  routes: [
+    {
+      method: 'GET',
+      path: '/articles/:slug',
+      handler: 'article.findBySlug',   // stačí názovControlleru.metóda
+      config: { auth: false },
+    },
+  ],
+};

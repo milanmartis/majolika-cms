@@ -433,6 +433,15 @@ export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    content: Schema.Attribute.DynamicZone<
+      [
+        'blocks.heading-block',
+        'blocks.text-block',
+        'blocks.image-block',
+        'blocks.link-block',
+        'blocks.video-block',
+      ]
+    >;
     created: Schema.Attribute.DateTime;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -444,7 +453,10 @@ export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
-    text: Schema.Attribute.Blocks;
+    slug: Schema.Attribute.String &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

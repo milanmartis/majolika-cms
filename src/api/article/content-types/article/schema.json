@@ -10,11 +10,27 @@
     "draftAndPublish": false
   },
   "attributes": {
-    "text": {
-      "type": "blocks"
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "slug": {
+      "type": "string",
+      "required": true,
+      "unique": true
     },
     "created": {
       "type": "datetime"
+    },
+    "content": {
+      "type": "dynamiczone",
+      "components": [
+        "blocks.heading-block",
+        "blocks.text-block",
+        "blocks.image-block",
+        "blocks.link-block",
+        "blocks.video-block"
+      ]
     }
   }
 }
