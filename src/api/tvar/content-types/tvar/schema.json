@@ -1,0 +1,20 @@
+{
+    "kind": "collectionType",
+    "collectionName": "tvars",
+    "info": {
+      "singularName": "tvar",
+      "pluralName": "tvars",
+      "displayName": "Tvar"
+    },
+    "options": { "draftAndPublish": true },
+    "attributes": {
+      "nazov": { "type": "string", "required": true },
+      "objem_ml": { "type": "integer" },
+      "produkty": {
+        "type": "relation",
+        "relation": "oneToMany",
+        "target": "api::product.product",
+        "mappedBy": "tvar"
+      }
+    }
+  }

@@ -463,6 +463,33 @@ export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiAutorAutor extends Struct.CollectionTypeSchema {
+  collectionName: 'autors';
+  info: {
+    displayName: 'Autor';
+    pluralName: 'autors';
+    singularName: 'autor';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    bio: Schema.Attribute.Text;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::autor.autor'> &
+      Schema.Attribute.Private;
+    meno: Schema.Attribute.String & Schema.Attribute.Required;
+    produkty: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
   collectionName: 'categories';
   info: {
@@ -530,6 +557,33 @@ export interface ApiCustomerCustomer extends Struct.CollectionTypeSchema {
     name: Schema.Attribute.String & Schema.Attribute.Required;
     orders: Schema.Attribute.Relation<'oneToMany', 'api::order.order'>;
     phone: Schema.Attribute.String;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiDekorDekor extends Struct.CollectionTypeSchema {
+  collectionName: 'dekors';
+  info: {
+    displayName: 'Dekor';
+    pluralName: 'dekors';
+    singularName: 'dekor';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::dekor.dekor'> &
+      Schema.Attribute.Private;
+    nazov: Schema.Attribute.String & Schema.Attribute.Required;
+    popis: Schema.Attribute.Text;
+    produkty: Schema.Attribute.Relation<'manyToMany', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -738,6 +792,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'manyToOne',
       'plugin::users-permissions.user'
     >;
+    autor: Schema.Attribute.Relation<'manyToOne', 'api::autor.autor'>;
     categories: Schema.Attribute.Relation<
       'manyToMany',
       'api::category.category'
@@ -746,12 +801,14 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    dekory: Schema.Attribute.Relation<'manyToMany', 'api::dekor.dekor'>;
     describe: Schema.Attribute.RichText;
     ean: Schema.Attribute.String;
     externalId: Schema.Attribute.Integer &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
     favorites: Schema.Attribute.Relation<'oneToMany', 'api::favorite.favorite'>;
+    hlbka_cm: Schema.Attribute.Decimal;
     inSale: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     isFeatured: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     isNew: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
@@ -764,6 +821,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     name: Schema.Attribute.String;
+    objem_ml: Schema.Attribute.Integer;
     parent: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
     picture: Schema.Attribute.String;
     picture_new: Schema.Attribute.Media<'images'>;
@@ -774,20 +832,24 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     seo: Schema.Attribute.Component<'shared.seo', false>;
     short: Schema.Attribute.RichText;
+    sirka_cm: Schema.Attribute.Decimal;
     slug: Schema.Attribute.UID<'name'> &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
     tag: Schema.Attribute.String;
+    tvar: Schema.Attribute.Relation<'manyToOne', 'api::tvar.tvar'>;
     type: Schema.Attribute.Enumeration<['simple', 'variable', 'variation']> &
       Schema.Attribute.DefaultTo<'simple'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    vaha_g: Schema.Attribute.Integer;
     variable: Schema.Attribute.String;
     variations: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
     vatPercentage: Schema.Attribute.Integer &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<20>;
+    vyska_cm: Schema.Attribute.Decimal;
   };
 }
 
@@ -971,6 +1033,33 @@ export interface ApiTagTag extends Struct.CollectionTypeSchema {
     slug: Schema.Attribute.UID<'name'> &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiTvarTvar extends Struct.CollectionTypeSchema {
+  collectionName: 'tvars';
+  info: {
+    displayName: 'Tvar';
+    pluralName: 'tvars';
+    singularName: 'tvar';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::tvar.tvar'> &
+      Schema.Attribute.Private;
+    nazov: Schema.Attribute.String & Schema.Attribute.Required;
+    objem_ml: Schema.Attribute.Integer;
+    produkty: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
+    publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1494,8 +1583,10 @@ declare module '@strapi/strapi' {
       'admin::user': AdminUser;
       'api::aktualita.aktualita': ApiAktualitaAktualita;
       'api::article.article': ApiArticleArticle;
+      'api::autor.autor': ApiAutorAutor;
       'api::category.category': ApiCategoryCategory;
       'api::customer.customer': ApiCustomerCustomer;
+      'api::dekor.dekor': ApiDekorDekor;
       'api::event.event': ApiEventEvent;
       'api::favorite.favorite': ApiFavoriteFavorite;
       'api::kategoria.kategoria': ApiKategoriaKategoria;
@@ -1505,6 +1596,7 @@ declare module '@strapi/strapi' {
       'api::slide.slide': ApiSlideSlide;
       'api::slide2.slide2': ApiSlide2Slide2;
       'api::tag.tag': ApiTagTag;
+      'api::tvar.tvar': ApiTvarTvar;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

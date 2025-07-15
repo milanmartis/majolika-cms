@@ -1,0 +1,20 @@
+{
+    "kind": "collectionType",
+    "collectionName": "autors",
+    "info": {
+      "singularName": "autor",
+      "pluralName": "autors",
+      "displayName": "Autor"
+    },
+    "options": { "draftAndPublish": true },
+    "attributes": {
+      "meno": { "type": "string", "required": true },
+      "bio": { "type": "text" },
+      "produkty": {
+        "type": "relation",
+        "relation": "oneToMany",
+        "target": "api::product.product",
+        "mappedBy": "autor"
+      }
+    }
+  }

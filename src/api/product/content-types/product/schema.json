@@ -15,49 +15,25 @@
     }
   },
   "attributes": {
-    "externalId": {
-      "type": "integer",
-      "required": true,
-      "unique": true
-    },
+    "externalId": { "type": "integer", "required": true, "unique": true },
     "type": {
       "type": "enumeration",
-      "enum": [
-        "simple",
-        "variable",
-        "variation"
-      ],
+      "enum": ["simple", "variable", "variation"],
       "default": "simple"
     },
-    "ean": {
-      "type": "string"
-    },
-    "name": {
-      "type": "string"
-    },
+    "ean": { "type": "string" },
+    "name": { "type": "string" },
     "slug": {
       "type": "uid",
       "targetField": "name",
       "required": true,
       "unique": true
     },
-    "short": {
-      "type": "richtext"
-    },
-    "describe": {
-      "type": "richtext"
-    },
-    "public": {
-      "type": "boolean",
-      "default": false
-    },
-    "price": {
-      "type": "decimal"
-    },
-    "price_sale": {
-      "type": "decimal",
-      "description": "Zľavenná cena"
-    },
+    "short": { "type": "richtext" },
+    "describe": { "type": "richtext" },
+    "public": { "type": "boolean", "default": false },
+    "price": { "type": "decimal" },
+    "price_sale": { "type": "decimal", "description": "Zľavenná cena" },
     "vatPercentage": {
       "type": "integer",
       "default": 20,
@@ -69,11 +45,7 @@
       "default": false,
       "description": "Produkt je v akcii (zľava)"
     },
-    "isNew": {
-      "type": "boolean",
-      "default": false,
-      "description": "Novinka"
-    },
+    "isNew": { "type": "boolean", "default": false, "description": "Novinka" },
     "isSoldOut": {
       "type": "boolean",
       "default": false,
@@ -89,32 +61,20 @@
       "default": false,
       "description": "Tip / Odporúčaný produkt"
     },
-    "category": {
-      "type": "string"
-    },
-    "tag": {
-      "type": "string"
-    },
-    "picture": {
-      "type": "string"
-    },
+    "category": { "type": "string" },
+    "tag": { "type": "string" },
+    "picture": { "type": "string" },
     "picture_new": {
       "type": "media",
       "multiple": false,
-      "allowedTypes": [
-        "images"
-      ]
+      "allowedTypes": ["images"]
     },
     "pictures_new": {
       "type": "media",
       "multiple": true,
-      "allowedTypes": [
-        "images"
-      ]
+      "allowedTypes": ["images"]
     },
-    "variable": {
-      "type": "string"
-    },
+    "variable": { "type": "string" },
     "parent": {
       "type": "relation",
       "relation": "manyToOne",
@@ -127,7 +87,7 @@
       "target": "api::product.product",
       "mappedBy": "parent"
     },
-    "author": {
+    "author": {                     
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
@@ -149,6 +109,30 @@
       "relation": "oneToMany",
       "target": "api::favorite.favorite",
       "mappedBy": "product"
-    }
+    },
+
+    "autor": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::autor.autor",
+      "inversedBy": "produkty"
+    },
+    "tvar": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::tvar.tvar",
+      "inversedBy": "produkty"
+    },
+    "dekory": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::dekor.dekor",
+      "mappedBy": "produkty"
+    },
+    "vyska_cm":   { "type": "decimal", "description": "Výška v cm" },
+    "sirka_cm":   { "type": "decimal", "description": "Šírka v cm" },
+    "hlbka_cm":   { "type": "decimal", "description": "Hĺbka v cm" },
+    "objem_ml":   { "type": "integer", "description": "Objem v ml" },
+    "vaha_g":     { "type": "integer", "description": "Hmotnosť v g" }
   }
 }

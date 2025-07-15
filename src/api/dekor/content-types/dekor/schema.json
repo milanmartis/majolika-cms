@@ -1,0 +1,20 @@
+{
+    "kind": "collectionType",
+    "collectionName": "dekors",
+    "info": {
+      "singularName": "dekor",
+      "pluralName": "dekors",
+      "displayName": "Dekor"
+    },
+    "options": { "draftAndPublish": true },
+    "attributes": {
+      "nazov": { "type": "string", "required": true },
+      "popis": { "type": "text" },
+      "produkty": {
+        "type": "relation",
+        "relation": "manyToMany",
+        "target": "api::product.product",
+        "mappedBy": "dekory"
+      }
+    }
+  }
