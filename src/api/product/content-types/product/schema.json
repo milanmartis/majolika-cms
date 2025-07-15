@@ -127,7 +127,7 @@
       "type": "relation",
       "relation": "manyToMany",
       "target": "api::dekor.dekor",
-      "mappedBy": "produkty"
+      "inversedBy": "produkty"
     },
     "vyska_cm":   { "type": "decimal", "description": "Výška v cm" },
     "sirka_cm":   { "type": "decimal", "description": "Šírka v cm" },
