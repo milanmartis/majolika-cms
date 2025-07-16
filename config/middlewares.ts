@@ -63,7 +63,17 @@ export default [
   // ▸ Štandardné middlewares Strapi
   'strapi::poweredBy',
   'strapi::query',
-  'strapi::body',
+  {
+    name: 'strapi::body',    // <-- tento blok musí prísť iba RAZ
+    config: {
+      jsonLimit: '50mb',
+      formLimit: '50mb',
+      textLimit: '50mb',
+      formidable: {
+        maxFileSize: 50 * 1024 * 1024, // 50 MiB
+      },
+    },
+  },
   'strapi::session',
   'strapi::favicon',
   'strapi::public',
