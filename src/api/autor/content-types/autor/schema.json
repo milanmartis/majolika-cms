@@ -15,6 +15,12 @@
         "relation": "oneToMany",
         "target": "api::product.product",
         "mappedBy": "autor"
+      },
+      "fotografia": {
+        "type": "media",
+        "multiple": false,
+        "required": false,
+        "allowedTypes": ["images"]
       }
     }
   }

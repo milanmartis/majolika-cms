@@ -1,4 +1,7 @@
 // path: ./config/middlewares.ts
+// import { Strapi } from '@strapi/strapi';
+
+// path: ./config/middlewares.ts
 export default [
   'strapi::logger',
   'strapi::errors',
