@@ -1,0 +1,57 @@
+{
+    "kind": "collectionType",
+    "collectionName": "event_sessions",
+    "info": {
+      "singularName": "event-session",
+      "pluralName": "event-sessions",
+      "displayName": "Termín akcie",
+      "description": "Termíny workshopov a prehliadok naviazané na produkt"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "pluginOptions": {
+      "content-manager": {
+        "mainField": "startDateTime"
+      }
+    },
+    "attributes": {
+      "title": {
+        "type": "string",
+        "configurable": true
+      },
+      "type": {
+        "type": "enumeration",
+        "enum": ["workshop", "tour"],
+        "required": true
+      },
+      "startDateTime": {
+        "type": "datetime",
+        "required": true
+      },
+      "durationMinutes": {
+        "type": "integer",
+        "configurable": true
+      },
+      "maxCapacity": {
+        "type": "integer",
+        "required": true,
+        "default": 1,
+        "min": 1
+      },
+      "product": {
+        "type": "relation",
+        "relation": "manyToOne",
+        "target": "api::product.product",
+        "inversedBy": "event_sessions",
+        "required": true
+      },
+      "bookings": {
+        "type": "relation",
+        "relation": "oneToMany",
+        "target": "api::event-booking.event-booking",
+        "mappedBy": "session"
+      }
+    }
+  }
+  

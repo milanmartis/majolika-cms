@@ -592,6 +592,116 @@ export interface ApiDekorDekor extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiEventBookingEventBooking
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'event_bookings';
+  info: {
+    description: 'Rezerv\u00E1cie na term\u00EDny (workshop / prehliadka)';
+    displayName: 'Rezerv\u00E1cia';
+    pluralName: 'event-bookings';
+    singularName: 'event-booking';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  pluginOptions: {
+    'content-manager': {
+      mainField: 'customerName';
+    };
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    customerEmail: Schema.Attribute.Email;
+    customerName: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::event-booking.event-booking'
+    > &
+      Schema.Attribute.Private;
+    orderId: Schema.Attribute.String & Schema.Attribute.Configurable;
+    peopleCount: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<1>;
+    publishedAt: Schema.Attribute.DateTime;
+    session: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::event-session.event-session'
+    > &
+      Schema.Attribute.Required;
+    status: Schema.Attribute.Enumeration<
+      ['pending', 'paid', 'confirmed', 'cancelled']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'pending'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiEventSessionEventSession
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'event_sessions';
+  info: {
+    description: 'Term\u00EDny workshopov a prehliadok naviazan\u00E9 na produkt';
+    displayName: 'Term\u00EDn akcie';
+    pluralName: 'event-sessions';
+    singularName: 'event-session';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  pluginOptions: {
+    'content-manager': {
+      mainField: 'startDateTime';
+    };
+  };
+  attributes: {
+    bookings: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::event-booking.event-booking'
+    >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    durationMinutes: Schema.Attribute.Integer & Schema.Attribute.Configurable;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::event-session.event-session'
+    > &
+      Schema.Attribute.Private;
+    maxCapacity: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<1>;
+    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'> &
+      Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    startDateTime: Schema.Attribute.DateTime & Schema.Attribute.Required;
+    title: Schema.Attribute.String & Schema.Attribute.Configurable;
+    type: Schema.Attribute.Enumeration<['workshop', 'tour']> &
+      Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiEventEvent extends Struct.CollectionTypeSchema {
   collectionName: 'events';
   info: {
@@ -805,6 +915,10 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     dekory: Schema.Attribute.Relation<'manyToMany', 'api::dekor.dekor'>;
     describe: Schema.Attribute.RichText;
     ean: Schema.Attribute.String;
+    event_sessions: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::event-session.event-session'
+    >;
     externalId: Schema.Attribute.Integer &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
@@ -829,6 +943,11 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     pictures_new: Schema.Attribute.Media<'images', true>;
     price: Schema.Attribute.Decimal;
     price_sale: Schema.Attribute.Decimal;
+    productEventType: Schema.Attribute.Enumeration<
+      ['none', 'workshop', 'tour']
+    > &
+      Schema.Attribute.Configurable &
+      Schema.Attribute.DefaultTo<'none'>;
     public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     publishedAt: Schema.Attribute.DateTime;
     seo: Schema.Attribute.Component<'shared.seo', false>;
@@ -1588,6 +1707,8 @@ declare module '@strapi/strapi' {
       'api::category.category': ApiCategoryCategory;
       'api::customer.customer': ApiCustomerCustomer;
       'api::dekor.dekor': ApiDekorDekor;
+      'api::event-booking.event-booking': ApiEventBookingEventBooking;
+      'api::event-session.event-session': ApiEventSessionEventSession;
       'api::event.event': ApiEventEvent;
       'api::favorite.favorite': ApiFavoriteFavorite;
       'api::kategoria.kategoria': ApiKategoriaKategoria;

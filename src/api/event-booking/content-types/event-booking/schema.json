@@ -1,0 +1,51 @@
+{
+    "kind": "collectionType",
+    "collectionName": "event_bookings",
+    "info": {
+      "singularName": "event-booking",
+      "pluralName": "event-bookings",
+      "displayName": "Rezervácia",
+      "description": "Rezervácie na termíny (workshop / prehliadka)"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "pluginOptions": {
+      "content-manager": {
+        "mainField": "customerName"
+      }
+    },
+    "attributes": {
+      "peopleCount": {
+        "type": "integer",
+        "required": true,
+        "default": 1,
+        "min": 1
+      },
+      "status": {
+        "type": "enumeration",
+        "enum": ["pending", "paid", "confirmed", "cancelled"],
+        "default": "pending",
+        "required": true
+      },
+      "orderId": {
+        "type": "string",
+        "configurable": true,
+        "description": "ID objednávky z e-shopu"
+      },
+      "customerName": {
+        "type": "string"
+      },
+      "customerEmail": {
+        "type": "email"
+      },
+      "session": {
+        "type": "relation",
+        "relation": "manyToOne",
+        "target": "api::event-session.event-session",
+        "inversedBy": "bookings",
+        "required": true
+      }
+    }
+  }
+  

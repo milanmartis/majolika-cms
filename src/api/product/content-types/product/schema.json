@@ -87,7 +87,7 @@
       "target": "api::product.product",
       "mappedBy": "parent"
     },
-    "author": {                     
+    "author": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
@@ -110,7 +110,6 @@
       "target": "api::favorite.favorite",
       "mappedBy": "product"
     },
-
     "autor": {
       "type": "relation",
       "relation": "manyToOne",
@@ -129,10 +128,25 @@
       "target": "api::dekor.dekor",
       "inversedBy": "produkty"
     },
-    "vyska_cm":   { "type": "decimal", "description": "Výška v cm" },
-    "sirka_cm":   { "type": "decimal", "description": "Šírka v cm" },
-    "hlbka_cm":   { "type": "decimal", "description": "Hĺbka v cm" },
-    "objem_ml":   { "type": "integer", "description": "Objem v ml" },
-    "vaha_g":     { "type": "integer", "description": "Hmotnosť v g" }
+    "vyska_cm": { "type": "decimal", "description": "Výška v cm" },
+    "sirka_cm": { "type": "decimal", "description": "Šírka v cm" },
+    "hlbka_cm": { "type": "decimal", "description": "Hĺbka v cm" },
+    "objem_ml": { "type": "integer", "description": "Objem v ml" },
+    "vaha_g": { "type": "integer", "description": "Hmotnosť v g" },
+
+    "productEventType": {
+      "type": "enumeration",
+      "enum": ["none", "workshop", "tour"],
+      "default": "none",
+      "configurable": true,
+      "description": "Typ zážitku: workshop alebo prehliadka"
+    },
+    "event_sessions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::event-session.event-session",
+      "mappedBy": "product",
+      "description": "Termíny workshopov / prehliadok"
+    }
   }
 }
