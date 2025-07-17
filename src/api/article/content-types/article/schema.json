@@ -4,7 +4,7 @@
   "info": {
     "singularName": "article",
     "pluralName": "articles",
-    "displayName": "Články"
+    "displayName": "Podstránky"
   },
   "options": {
     "draftAndPublish": false

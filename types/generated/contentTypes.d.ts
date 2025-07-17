@@ -425,7 +425,7 @@ export interface ApiAktualitaAktualita extends Struct.CollectionTypeSchema {
 export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
   collectionName: 'articles';
   info: {
-    displayName: '\u010Cl\u00E1nky';
+    displayName: 'Podstr\u00E1nky';
     pluralName: 'articles';
     singularName: 'article';
   };
