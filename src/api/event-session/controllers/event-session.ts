@@ -14,3 +14,7 @@
 //     return { booked, available, max: session.maxCapacity };
 //   },
 // }));
+
+import { factories } from '@strapi/strapi';
+
+export default factories.createCoreController('api::event-session.event-session');
