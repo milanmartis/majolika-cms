@@ -5,48 +5,55 @@ const { createCoreController } = factories;
 
 export default createCoreController('api::favorite.favorite', ({ strapi }) => ({
   async find(ctx: Context) {
-    // cast na any, aby TS nevyhadzoval error
-    const user = (ctx.state as any).user;
-    if (!user) return ctx.unauthorized('Musíte byť prihlásený.');
+    const user = ctx.state.user as { id: number } | undefined;
+    if (!user) {
+      ctx.body = { data: [], meta: { pagination: { total: 0, page: 1, pageSize: 25, pageCount: 1 } } };
+      return;
+    }
 
-    const query = ctx.query as any;
     ctx.query = {
-      ...query,
+      ...(ctx.query as any),
       filters: {
-        ...(query.filters as any),
+        ...(ctx.query as any).filters,
         user: { id: user.id },
       },
     };
-    return super.find(ctx);
+    return await super.find(ctx);
   },
 
   async create(ctx: Context) {
-    const user = (ctx.state as any).user;
+    const user = ctx.state.user as { id: number } | undefined;
     if (!user) return ctx.unauthorized('Musíte byť prihlásený.');
 
     const body = ctx.request.body as any;
-    body.data = {
-      ...(body.data || {}),
-      user: user.id,
-    };
-    ctx.request.body = body;
-    return super.create(ctx);
+    const product = body?.data?.product;
+    if (!product) return ctx.badRequest('product field missing');
+
+    // zabráň duplicite
+    const existing = await strapi.db.query('api::favorite.favorite').findOne({
+      where: { user: user.id, product },
+      select: ['id'],
+    });
+    if (existing) return ctx.conflict('Už je v obľúbených.');
+
+    ctx.request.body = { data: { user: user.id, product } };
+    return await super.create(ctx);
   },
 
   async delete(ctx: Context) {
-    const user = (ctx.state as any).user;
+    const user = ctx.state.user as { id: number } | undefined;
     if (!user) return ctx.unauthorized('Musíte byť prihlásený.');
 
-    // cast na any, aby entita mala user
-    const fav = (await strapi.entityService.findOne(
-      'api::favorite.favorite',
-      ctx.params.id as string,
-      { populate: ['user'] }
-    )) as any;
+    // over vlastníctvo priamo v dotaze
+    const fav = await strapi.db.query('api::favorite.favorite').findOne({
+      where: { id: ctx.params.id, user: user.id },
+      select: ['id'],
+    });
 
-    if (!fav || fav.user.id !== user.id) {
+    if (!fav) {
       return ctx.unauthorized('Môžete mazať len svoje vlastné obľúbené.');
     }
-    return super.delete(ctx);
+
+    return await super.delete(ctx);
   },
 }));

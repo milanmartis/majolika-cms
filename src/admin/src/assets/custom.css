@@ -1,0 +1,5 @@
+[role="dialog"] [aria-label="Pagination"] {
+    position: relative;
+    z-index: 99999 !important;
+  }
+  

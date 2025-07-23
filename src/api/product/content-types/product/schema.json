@@ -106,7 +106,7 @@
     },
     "favorites": {
       "type": "relation",
-      "relation": "oneToMany",
+      "relation": "oneToMany",                  
       "target": "api::favorite.favorite",
       "mappedBy": "product"
     },

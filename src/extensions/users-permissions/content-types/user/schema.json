@@ -6,7 +6,7 @@
     "description": "",
     "singularName": "user",
     "pluralName": "users",
-    "displayName": "User"
+    "displayName": "User9"
   },
   "options": {
     "timestamps": true
@@ -65,9 +65,9 @@
       "inversedBy": "users",
       "configurable": false
     },
-    "Users": {
+    "favorites": {
       "type": "relation",
-      "relation": "oneToMany",
+      "relation": "oneToMany",              
       "target": "api::favorite.favorite",
       "mappedBy": "user"
     }

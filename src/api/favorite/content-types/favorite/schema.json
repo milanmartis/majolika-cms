@@ -1,24 +1,18 @@
 {
   "kind": "collectionType",
   "collectionName": "favorites",
-  "info": {
-    "singularName": "favorite",
-    "pluralName": "favorites",
-    "displayName": "Favorite"
-  },
-  "options": {
-    "draftAndPublish": true
-  },
+  "info": { "singularName": "favorite", "pluralName": "favorites", "displayName": "Favorite" },
+  "options": { "draftAndPublish": false },
   "attributes": {
     "user": {
       "type": "relation",
-      "relation": "manyToOne",
+      "relation": "manyToOne",               
       "target": "plugin::users-permissions.user",
-      "inversedBy": "Users"
+      "inversedBy": "favorites"              
     },
     "product": {
       "type": "relation",
-      "relation": "manyToOne",
+      "relation": "manyToOne",               
       "target": "api::product.product",
       "inversedBy": "favorites"
     }

@@ -750,7 +750,7 @@ export interface ApiFavoriteFavorite extends Struct.CollectionTypeSchema {
     singularName: 'favorite';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     createdAt: Schema.Attribute.DateTime;
@@ -1634,7 +1634,7 @@ export interface PluginUsersPermissionsUser
   collectionName: 'up_users';
   info: {
     description: '';
-    displayName: 'User';
+    displayName: 'User9';
     name: 'user';
     pluralName: 'users';
     singularName: 'user';
@@ -1659,6 +1659,7 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
+    favorites: Schema.Attribute.Relation<'oneToMany', 'api::favorite.favorite'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1687,7 +1688,6 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.SetMinMaxLength<{
         minLength: 3;
       }>;
-    Users: Schema.Attribute.Relation<'oneToMany', 'api::favorite.favorite'>;
   };
 }
 
