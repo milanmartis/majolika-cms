@@ -9,7 +9,24 @@ export default ({ env }) => ({
       defaultLocale: 'sk',
     },
   },
-
+  email: {
+    config: {
+      provider: 'nodemailer',   // ✅ názov provideru
+      providerOptions: {
+        host: env('SMTP_HOST', 'smtp.m1.websupport.sk'),
+        port: env.int('SMTP_PORT', 587),
+        secure: false,
+        auth: {
+          user: env('SMTP_USER'),
+          pass: env('SMTP_PASS'),
+        },
+      },
+      settings: {
+        defaultFrom: env('EMAIL_DEFAULT_FROM', 'info@appdesign.sk'),
+        defaultReplyTo: env('EMAIL_REPLY_TO', 'info@appdesign.sk'),
+      },
+    },
+  },
   // 2) Upload cez AWS S3
   upload: {
     config: {
