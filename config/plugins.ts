@@ -1,5 +1,7 @@
+// config/plugins.ts
 
-export default ({ env }: { env: (key: string, defaultValue?: any) => string }) => ({
+export default ({ env }) => ({
+  // 1) Internationalization
   i18n: {
     enabled: true,
     config: {
@@ -8,7 +10,7 @@ export default ({ env }: { env: (key: string, defaultValue?: any) => string }) =
     },
   },
 
-  
+  // 2) Upload cez AWS S3
   upload: {
     config: {
       provider: 'aws-s3',
@@ -20,12 +22,12 @@ export default ({ env }: { env: (key: string, defaultValue?: any) => string }) =
           Bucket: env('AWS_S3_BUCKET'),
         },
         rootPath: 'products',
-        baseUrl: env('AWS_S3_BASE_URL'),
+        baseUrl: env('AWS_S3_BASE_URL'), // URL cesta k bucketu
       },
       actionOptions: {
-        upload: { ACL: undefined },
+        upload:       { ACL: undefined },
         uploadStream: { ACL: undefined },
-        delete: {},
+        delete:       {},
       },
     },
   },
