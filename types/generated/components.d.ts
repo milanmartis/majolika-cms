@@ -85,16 +85,16 @@ export interface OrderItem extends Struct.ComponentSchema {
 }
 
 export interface SharedAddress extends Struct.ComponentSchema {
-  collectionName: 'components_shared_address';
+  collectionName: 'components_shared_addresses';
   info: {
+    description: 'User address';
     displayName: 'Address';
-    icon: 'map-pin';
   };
   attributes: {
-    city: Schema.Attribute.String & Schema.Attribute.Required;
-    country: Schema.Attribute.String & Schema.Attribute.Required;
-    street: Schema.Attribute.String & Schema.Attribute.Required;
-    zipCode: Schema.Attribute.String & Schema.Attribute.Required;
+    city: Schema.Attribute.String;
+    country: Schema.Attribute.String & Schema.Attribute.DefaultTo<'Slovakia'>;
+    street: Schema.Attribute.String;
+    zip: Schema.Attribute.String;
   };
 }
 

@@ -7,6 +7,7 @@ export default {
       path: '/articles/:slug',
       handler: 'article.findBySlug',   // stačí názovControlleru.metóda
       config: { auth: false },
+      info: { type: 'content-api' }
     },
   ],
 };

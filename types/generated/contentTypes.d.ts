@@ -1634,7 +1634,7 @@ export interface PluginUsersPermissionsUser
   collectionName: 'up_users';
   info: {
     description: '';
-    displayName: 'User9';
+    displayName: 'User';
     name: 'user';
     pluralName: 'users';
     singularName: 'user';
@@ -1649,8 +1649,10 @@ export interface PluginUsersPermissionsUser
       'api::aktualita.aktualita'
     >;
     blocked: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    city: Schema.Attribute.String;
     confirmationToken: Schema.Attribute.String & Schema.Attribute.Private;
     confirmed: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    country: Schema.Attribute.String;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1660,6 +1662,8 @@ export interface PluginUsersPermissionsUser
         minLength: 6;
       }>;
     favorites: Schema.Attribute.Relation<'oneToMany', 'api::favorite.favorite'>;
+    firstName: Schema.Attribute.String;
+    lastName: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1671,6 +1675,7 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
+    phone: Schema.Attribute.String;
     product: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
@@ -1679,6 +1684,7 @@ export interface PluginUsersPermissionsUser
       'manyToOne',
       'plugin::users-permissions.role'
     >;
+    street: Schema.Attribute.String;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1688,6 +1694,7 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.SetMinMaxLength<{
         minLength: 3;
       }>;
+    zip: Schema.Attribute.String;
   };
 }
 

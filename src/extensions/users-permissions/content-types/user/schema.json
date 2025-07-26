@@ -6,7 +6,7 @@
     "description": "",
     "singularName": "user",
     "pluralName": "users",
-    "displayName": "User9"
+    "displayName": "User"
   },
   "options": {
     "timestamps": true
@@ -65,11 +65,36 @@
       "inversedBy": "users",
       "configurable": false
     },
+
     "favorites": {
       "type": "relation",
-      "relation": "oneToMany",              
-      "target": "api::favorite.favorite",
-      "mappedBy": "user"
-    }
+      "relation": "oneToMany",
+      "target": "api::favorite.favorite"
+    },
+
+    "firstName": {
+      "type": "string",
+      "required": false
+    },
+
+    "lastName": {
+      "type": "string",
+      "required": false
+    },
+
+    "phone": {
+      "type": "string",
+      "required": false
+    },
+
+    "street": { "type": "string",
+    "required": false },
+"city": { "type":"string",
+"required": false },
+"zip": { "type": "string",
+"required": false},
+"country": { "type": "string",
+"required": false }
+
   }
 }

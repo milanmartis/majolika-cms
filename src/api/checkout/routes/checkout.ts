@@ -8,6 +8,8 @@ export default {
           // ak nechceš, aby tu bežala autorizácia:
           auth: false,
         },
+        info: { type: 'content-api' },
+
       },
     ],
   };

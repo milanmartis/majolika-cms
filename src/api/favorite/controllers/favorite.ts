@@ -43,17 +43,22 @@ export default createCoreController('api::favorite.favorite', ({ strapi }) => ({
   async delete(ctx: Context) {
     const user = ctx.state.user as { id: number } | undefined;
     if (!user) return ctx.unauthorized('Musíte byť prihlásený.');
-
-    // over vlastníctvo priamo v dotaze
+  
+    const favId = Number(ctx.params.id);
+  
+    // Over vlastníctvo
     const fav = await strapi.db.query('api::favorite.favorite').findOne({
-      where: { id: ctx.params.id, user: user.id },
+      where: { id: favId, user: user.id },
       select: ['id'],
     });
-
+  
     if (!fav) {
       return ctx.unauthorized('Môžete mazať len svoje vlastné obľúbené.');
     }
-
-    return await super.delete(ctx);
+  
+    // ✅ Strapi v5 - použijeme entityService
+    const deleted = await strapi.entityService.delete('api::favorite.favorite', favId);
+  
+    return { data: deleted };
   },
 }));

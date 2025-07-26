@@ -1,13 +1,26 @@
 {
-    "collectionName": "components_shared_address",
-    "info": {
-      "displayName": "Address",
-      "icon": "map-pin"
+  "collectionName": "components_shared_addresses",
+  "info": {
+    "displayName": "Address",
+    "description": "User address"
+  },
+  "attributes": {
+    "street": {
+      "type": "string",
+      "required": false
     },
-    "attributes": {
-      "street":   { "type": "string", "required": true },
-      "city":     { "type": "string", "required": true },
-      "zipCode":  { "type": "string", "required": true },
-      "country":  { "type": "string", "required": true }
+    "city": {
+      "type": "string",
+      "required": false
+    },
+    "zip": {
+      "type": "string",
+      "required": false
+    },
+    "country": {
+      "type": "string",
+      "required": false,
+      "default": "Slovakia"
     }
   }
+}
