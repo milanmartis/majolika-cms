@@ -14,24 +14,24 @@ export default ({ env }: { env: (key: string, defaultValue?: any) => any }) => (
   email: {
     config: {
       provider: {
-        async send(options) {
+        async send({ to, subject, text, html }) {
           const transporter = nodemailer.createTransport({
             host: env('SMTP_HOST', 'smtp.m1.websupport.sk'),
             port: Number(env('SMTP_PORT', 587)),
-            secure: false, // STARTTLS na porte 587
+            secure: false,
             auth: {
               user: env('SMTP_USER'),
               pass: env('SMTP_PASS'),
             },
           });
 
-          return transporter.sendMail({
+          await transporter.sendMail({
             from: env('EMAIL_DEFAULT_FROM', 'info@appdesign.sk'),
             replyTo: env('EMAIL_REPLY_TO', 'info@appdesign.sk'),
-            to: options.to,
-            subject: options.subject,
-            text: options.text,
-            html: options.html,
+            to,
+            subject,
+            text,
+            html,
           });
         },
       },
