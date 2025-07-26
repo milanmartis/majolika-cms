@@ -1,6 +1,6 @@
-// config/plugins.ts
+import nodemailer from 'nodemailer';
 
-export default ({ env }) => ({
+export default ({ env }: { env: (key: string, defaultValue?: any) => any }) => ({
   // 1) Internationalization
   i18n: {
     enabled: true,
@@ -9,25 +9,36 @@ export default ({ env }) => ({
       defaultLocale: 'sk',
     },
   },
+
+  // 2) Email provider pre Strapi 5
   email: {
     config: {
-      provider: 'nodemailer',
-      providerOptions: {
-        host: env('SMTP_HOST', 'smtp.m1.websupport.sk'),
-        port: env.int('SMTP_PORT', 587),
-        auth: {
-          user: env('SMTP_USER'),
-          pass: env('SMTP_PASS'),
+      provider: {
+        async send(options) {
+          const transporter = nodemailer.createTransport({
+            host: env('SMTP_HOST', 'smtp.m1.websupport.sk'),
+            port: Number(env('SMTP_PORT', 587)),
+            secure: false, // STARTTLS na porte 587
+            auth: {
+              user: env('SMTP_USER'),
+              pass: env('SMTP_PASS'),
+            },
+          });
+
+          return transporter.sendMail({
+            from: env('EMAIL_DEFAULT_FROM', 'info@appdesign.sk'),
+            replyTo: env('EMAIL_REPLY_TO', 'info@appdesign.sk'),
+            to: options.to,
+            subject: options.subject,
+            text: options.text,
+            html: options.html,
+          });
         },
-        secure: env('SMTP_SECURE'), // dôležité pre port 587 (STARTTLS)
-      },
-      settings: {
-        defaultFrom: env('EMAIL_DEFAULT_FROM', 'info@appdesign.sk'),
-        defaultReplyTo: env('EMAIL_REPLY_TO', 'info@appdesign.sk'),
       },
     },
   },
-  // 2) Upload cez AWS S3
+
+  // 3) Upload cez AWS S3
   upload: {
     config: {
       provider: 'aws-s3',
@@ -39,7 +50,7 @@ export default ({ env }) => ({
           Bucket: env('AWS_S3_BUCKET'),
         },
         rootPath: 'products',
-        baseUrl: env('AWS_S3_BASE_URL'), // URL cesta k bucketu
+        baseUrl: env('AWS_S3_BASE_URL'),
       },
       actionOptions: {
         upload:       { ACL: undefined },
