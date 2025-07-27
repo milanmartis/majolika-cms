@@ -1,41 +1,33 @@
 export default (plugin) => {
-    const originalRegister = plugin.controllers.auth.register;
+    // Override emailConfirmation endpoint
+    plugin.controllers.auth.emailConfirmation = async (ctx) => {
+      const { confirmation } = ctx.query;
   
-    plugin.controllers.auth.register = async (ctx, next) => {
-      // najprv spusti pôvodný register
-      await originalRegister(ctx, next);
+      if (!confirmation) {
+        return ctx.badRequest('Missing confirmation token');
+      }
   
-      const user = (ctx.response?.body as any)?.user;
+      // Nájdeme usera podľa confirmationToken
+      const user = await strapi
+        .query('plugin::users-permissions.user')
+        .findOne({ where: { confirmationToken: confirmation } });
   
       if (!user) {
-        return; // chyba pri registrácii
+        return ctx.badRequest('Invalid or expired token');
       }
   
-      // ak už potvrdený, nič neposielame
+      // Ak už je confirmed → vrátime "already_confirmed"
       if (user.confirmed) {
-        return;
+        return ctx.send({ status: 'already_confirmed' });
       }
   
-      // vygeneruj vlastný token ako Strapi
-      const jwt = await strapi
-        .service('plugin::users-permissions.jwt')
-        .issue({ id: user.id });
-  
-      // frontend URL
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-  
-      const confirmationLink = `${frontendUrl}/confirm-email?confirmation=${jwt}`;
-  
-      // pošli vlastný mail
-      await strapi.plugin('email').service('email').send({
-        to: user.email,
-        subject: '✅ Potvrďte svoj email',
-        text: `Kliknite na tento odkaz na potvrdenie účtu: ${confirmationLink}`,
-        html: `<p>Ďakujeme za registráciu.</p>
-               <p><a href="${confirmationLink}">➡ Kliknite sem pre potvrdenie emailu</a></p>`,
+      // Inak ho potvrdíme
+      await strapi.query('plugin::users-permissions.user').update({
+        where: { id: user.id },
+        data: { confirmed: true, confirmationToken: null },
       });
   
-      strapi.log.info(`📧 Custom confirmation email sent to ${user.email}`);
+      return ctx.send({ status: 'confirmed' });
     };
   
     return plugin;
