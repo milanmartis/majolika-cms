@@ -28,15 +28,15 @@ export default ({ env }) => ({
     },
   },
   // 2) Upload cez AWS S3
-  'users-permissions': {
-    config: {
-      emailConfirmation: {
-        enabled: true,
-        // toto sa vloží do mailu:
-        redirectUrl: `${env('FRONTEND_URL')}/confirm-email`
-      },
-    },
-  },
+  // 'users-permissions': {
+  //   config: {
+  //     emailConfirmation: {
+  //       enabled: true,
+  //       // toto sa vloží do mailu:
+  //    //   redirectUrl: `${env('FRONTEND_URL')}/confirm-email`
+  //     },
+  //   },
+  // },
   upload: {
     config: {
       provider: 'aws-s3',

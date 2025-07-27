@@ -1,27 +1,22 @@
-// path: ./config/middlewares.ts
-// import { Strapi } from '@strapi/strapi';
-
-// path: ./config/middlewares.ts
 export default [
   'strapi::logger',
   'strapi::errors',
 
-  // ▸ SECURITY + CSP
+  // ✅ SECURITY + CSP
   {
     name: 'strapi::security',
     config: {
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
-          /* 1. Skripty – YouTube player API potrebuje doménu youtube.com  */
+          /* Povolené skripty (napr. YouTube) */
           'script-src': [
             "'self'",
             "'unsafe-inline'",
             "'unsafe-eval'",
             'https://www.youtube.com',
           ],
-
-          /* 2. Obrázky – náhľady z i.ytimg.com + vaše S3 bucket-y         */
+          /* Povolené obrázky */
           'img-src': [
             "'self'",
             'data:',
@@ -31,8 +26,7 @@ export default [
             'https://medusa-majolika-s3-us-east.s3.us-east-1.amazonaws.com',
             'https://i.ytimg.com',
           ],
-
-          /* 3. Rámce (iframe) – samotný prehrávač                        */
+          /* Povolené iframe */
           'frame-src': [
             "'self'",
             'https://www.youtube.com',
@@ -43,34 +37,34 @@ export default [
     },
   },
 
-  // ▸ CORS
+  // ✅ CORS konfigurácia
   {
     name: 'strapi::cors',
     config: {
       origin: [
-        'http://localhost:4200',                                // Angular dev
-        'https://staging.d2y68xwoabt006.amplifyapp.com',        // staging FE
-        'https://majolika-cms.appdesign.sk',                    // produkčný admin
-        'https://eshop.majolika.sk',                            // produkčný FE
+        'http://localhost:4200',                         // Angular dev
+        'https://staging.d2y68xwoabt006.amplifyapp.com', // Staging FE
+        'https://majolika-cms.appdesign.sk',             // Backend/admin
+        'https://eshop.majolika.sk',                     // Produkčný FE
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      headers: ['Content-Type', 'Authorization', 'Accept', 'Cookie'],
-      credentials: true,
+      headers: ['Content-Type', 'Authorization', 'Accept', 'Origin'],
       keepHeaderOnError: true,
+      credentials: true,
     },
   },
 
-  // ▸ Štandardné middlewares Strapi
+  // ✅ Ostatné default middlewares
   'strapi::poweredBy',
   'strapi::query',
   {
-    name: 'strapi::body',    // <-- tento blok musí prísť iba RAZ
+    name: 'strapi::body',
     config: {
       jsonLimit: '50mb',
       formLimit: '50mb',
       textLimit: '50mb',
       formidable: {
-        maxFileSize: 50 * 1024 * 1024, // 50 MiB
+        maxFileSize: 50 * 1024 * 1024, // 50 MB
       },
     },
   },

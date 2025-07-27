@@ -1,46 +1,39 @@
-export default {
-    async register(ctx) {
-      // zober pôvodný controller z pluginu
-      const defaultAuthController = strapi.controller('plugin::users-permissions.auth').register;
-  
-      // zavoláme pôvodný register s fake next middleware
-      await defaultAuthController(ctx, async () => {});
-  
-      // 🔧 TS fix: pretypujeme ctx.response.body
-      const response = ctx.response.body as {
-        user?: {
-          id: number;
-          email: string;
-          confirmed: boolean;
-        };
-        jwt?: string;
-      };
-  
-      const user = response?.user;
-  
-      if (user && !user.confirmed) {
-        // token rovnaký ako používa default
-        const jwt = await strapi
-          .service('plugin::users-permissions.jwt')
-          .issue({ id: user.id });
-  
-        const frontendUrl =
-          process.env.FRONTEND_URL || 'http://localhost:4200';
-  
-        const confirmationLink = `${frontendUrl}/confirm-email?confirmation=${jwt}`;
-  
-        await strapi.plugin('email').service('email').send({
-          to: user.email,
-          subject: 'Potvrďte svoj email',
-          text: `Kliknite na tento odkaz pre potvrdenie účtu: ${confirmationLink}`,
-          html: `<p>Ďakujeme za registráciu!</p>
-                 <p><a href="${confirmationLink}">Kliknite sem pre potvrdenie emailu</a></p>`,
-        });
-  
-        strapi.log.info(`✅ Custom confirmation email sent to ${user.email}`);
+import pluginId from '@strapi/plugin-users-permissions/admin/src/pluginId';
+
+export default (plugin) => {
+  const defaultAuth = plugin.controllers.auth;
+
+  // override len emailConfirmation
+  plugin.controllers.auth.emailConfirmation = async (ctx) => {
+    const { confirmation } = ctx.query;
+
+    if (!confirmation) {
+      return ctx.badRequest('Missing confirmation token');
+    }
+
+    try {
+      const userService = strapi.plugins['users-permissions'].services.user;
+      const user = await userService.fetch({ confirmationToken: confirmation });
+
+      if (!user) {
+        return ctx.badRequest('Invalid token');
       }
-  
-      return response; // vraciame pôvodný výsledok
-    },
+
+      if (user.confirmed) {
+        return ctx.send({ status: 'already_confirmed' });
+      }
+
+      await userService.edit(user.id, {
+        confirmed: true,
+        confirmationToken: null,
+      });
+
+      return ctx.send({ status: 'confirmed' });
+    } catch (err) {
+      strapi.log.error('❌ Email confirmation failed', err);
+      return ctx.internalServerError('Something went wrong');
+    }
   };
-  
+
+  return plugin;
+};
