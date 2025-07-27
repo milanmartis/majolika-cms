@@ -30,10 +30,10 @@ export default ({ env }) => ({
   // 2) Upload cez AWS S3
   'users-permissions': {
     config: {
-      email: {
-        confirmation: {
-          url: `${env('FRONTEND_URL')}/confirm-email`, // ✅ frontendová route
-        },
+      emailConfirmation: {
+        enabled: true,
+        // toto sa vloží do mailu:
+        redirectUrl: `${env('FRONTEND_URL')}/confirm-email`,
       },
     },
   },
