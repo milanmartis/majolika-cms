@@ -1,25 +1,21 @@
 export default (plugin) => {
-    //
-    // 1️⃣ Override REGISTER → po registrácii pošleme VLASTNÝ email s frontend linkom
-    //
     const defaultRegister = plugin.controllers.auth.register;
   
     plugin.controllers.auth.register = async (ctx, next) => {
-      // ⬅ najprv zavoláme pôvodný register
+      // Spustí pôvodnú registráciu
       await defaultRegister(ctx, next);
   
       const user = ctx.response?.body?.user;
       if (!user || user.confirmed) return;
   
-      // vygeneruj potvrdenie (ako Strapi normálne robí)
-      const jwt = await strapi
-        .service('plugin::users-permissions.jwt')
-        .issue({ id: user.id });
+      // Vygeneruje token
+      const jwt = await strapi.service('plugin::users-permissions.jwt').issue({ id: user.id });
   
+      // FE URL
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
       const confirmationLink = `${frontendUrl}/confirm-email?confirmation=${jwt}`;
   
-      // pošli náš vlastný mail (už len FE link)
+      // Pošle vlastný email
       await strapi.plugin('email').service('email').send({
         to: user.email,
         subject: '✅ Confirm your email',
@@ -32,27 +28,19 @@ export default (plugin) => {
       strapi.log.info(`📧 Custom confirmation email sent to ${user.email}`);
     };
   
-    //
-    // 2️⃣ Override EMAIL CONFIRMATION → vždy vráti JSON, nikdy redirect
-    //
+    // Override emailConfirmation na JSON
     plugin.controllers.auth.emailConfirmation = async (ctx) => {
       const { confirmation } = ctx.query;
   
-      if (!confirmation) {
-        return ctx.badRequest('Missing confirmation token');
-      }
+      if (!confirmation) return ctx.badRequest('Missing confirmation token');
   
       const user = await strapi
         .query('plugin::users-permissions.user')
         .findOne({ where: { confirmationToken: confirmation } });
   
-      if (!user) {
-        return ctx.badRequest('Invalid or expired token');
-      }
+      if (!user) return ctx.badRequest('Invalid or expired token');
   
-      if (user.confirmed) {
-        return ctx.send({ status: 'already_confirmed' });
-      }
+      if (user.confirmed) return ctx.send({ status: 'already_confirmed' });
   
       await strapi.query('plugin::users-permissions.user').update({
         where: { id: user.id },
@@ -60,6 +48,11 @@ export default (plugin) => {
       });
   
       return ctx.send({ status: 'confirmed' });
+    };
+  
+    // ✅ Zablokuje defaultný Strapi mail
+    plugin.services.user.sendConfirmationEmail = async () => {
+      strapi.log.info('🚫 Skipping default Strapi confirmation email (custom override in use)');
     };
   
     return plugin;
