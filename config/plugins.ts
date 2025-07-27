@@ -28,6 +28,15 @@ export default ({ env }) => ({
     },
   },
   // 2) Upload cez AWS S3
+  'users-permissions': {
+    config: {
+      email: {
+        confirmation: {
+          url: `${env('FRONTEND_URL')}/confirm-email`, // ✅ frontendová route
+        },
+      },
+    },
+  },
   upload: {
     config: {
       provider: 'aws-s3',
