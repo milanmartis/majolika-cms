@@ -33,7 +33,7 @@ export default ({ env }) => ({
       emailConfirmation: {
         enabled: true,
         // toto sa vloží do mailu:
-        redirectUrl: `${env('FRONTEND_URL')}/confirm-email`,
+        redirectUrl: `${env('FRONTEND_URL')}/confirm-email`
       },
     },
   },
