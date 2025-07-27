@@ -42,12 +42,11 @@ export default [
     name: 'strapi::cors',
     config: {
       origin: [
-        'http://localhost:4200',                                
-        'https://staging.d2y68xwoabt006.amplifyapp.com',  // FE
-        'https://majolika-cms.appdesign.sk',              // BE
+        'http://localhost:4200',
+        'https://staging.d2y68xwoabt006.amplifyapp.com',
+        'https://majolika-cms.appdesign.sk'
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      headers: ['Content-Type', 'Authorization', 'Accept'],
       credentials: true,
       keepHeaderOnError: true,
     },
