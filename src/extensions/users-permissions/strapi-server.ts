@@ -1,21 +1,26 @@
 export default (plugin) => {
+    // 0️⃣ Najprv vypni defaultné posielanie confirm mailu
+    plugin.services.user.sendConfirmationEmail = async () => {
+      strapi.log.info('🚫 Default Strapi confirmation email disabled');
+      return;
+    };
+  
+    // 1️⃣ Override REGISTER → po registrácii pošleme VLASTNÝ email s frontend linkom
     const defaultRegister = plugin.controllers.auth.register;
   
     plugin.controllers.auth.register = async (ctx, next) => {
-      // Spustí pôvodnú registráciu
       await defaultRegister(ctx, next);
   
       const user = ctx.response?.body?.user;
       if (!user || user.confirmed) return;
   
-      // Vygeneruje token
+      // Vygeneruj JWT token
       const jwt = await strapi.service('plugin::users-permissions.jwt').issue({ id: user.id });
   
-      // FE URL
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
       const confirmationLink = `${frontendUrl}/confirm-email?confirmation=${jwt}`;
   
-      // Pošle vlastný email
+      // Pošli vlastný email
       await strapi.plugin('email').service('email').send({
         to: user.email,
         subject: '✅ Confirm your email',
@@ -28,7 +33,7 @@ export default (plugin) => {
       strapi.log.info(`📧 Custom confirmation email sent to ${user.email}`);
     };
   
-    // Override emailConfirmation na JSON
+    // 2️⃣ Override EMAIL CONFIRMATION → vždy vráti JSON
     plugin.controllers.auth.emailConfirmation = async (ctx) => {
       const { confirmation } = ctx.query;
   
@@ -48,11 +53,6 @@ export default (plugin) => {
       });
   
       return ctx.send({ status: 'confirmed' });
-    };
-  
-    // ✅ Zablokuje defaultný Strapi mail
-    plugin.services.user.sendConfirmationEmail = async () => {
-      strapi.log.info('🚫 Skipping default Strapi confirmation email (custom override in use)');
     };
   
     return plugin;
