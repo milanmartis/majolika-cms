@@ -1,12 +1,15 @@
 // src/api/auth/routes/google-token.ts
-
-export default [
-    {
-      method: 'POST',
-      path: '/auth/google-token',
-      handler: 'api::auth.google-token.exchange',
-      config: {
-        auth: false,
+export default {
+    routes: [
+      {
+        method: 'POST',
+        // bez ďalšieho "/api" v ceste
+        path: '/auth/google-token',
+        handler: 'google-token.callback',
+        config: {
+          auth: false,        // nepovolíte anonymný prístup?
+          policies: [],
+        },
       },
-    },
-  ];
+    ],
+  };
