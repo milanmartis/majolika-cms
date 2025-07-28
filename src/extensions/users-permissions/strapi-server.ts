@@ -1,43 +1,30 @@
-// src/extensions/users-permissions/strapi-server.ts
-
 import type { Context } from 'koa';
 
 export default (plugin: any) => {
-  // 1) Zobraz v logu, aké controllery plugin users-permissions má
-  strapi.log.info(
-    `📦 users-permissions controllers: ${Object.keys(plugin.controllers).join(', ')}`
-  );
-
-  // 2) Nájdeš si controller, ktorý obsahuje pôvodnú "callback" metódu
-  const controllerKey = Object.keys(plugin.controllers).find((key) =>
-    typeof plugin.controllers[key]?.callback === 'function'
-  );
-
-  if (!controllerKey) {
-    strapi.log.error('❌ users-permissions: nenašiel som žiadny controller s callback()');
+  // 1) Skontrolujme, že auth.callback existuje
+  if (typeof plugin.controllers.auth?.callback !== 'function') {
+    strapi.log.error('❌ users-permissions: auth.callback neexistuje');
     return plugin;
   }
 
-  const providerController = plugin.controllers[controllerKey];
+  // 2) Ulož originálnu metódu
+  const original = plugin.controllers.auth.callback.bind(plugin.controllers.auth);
 
-  // 3) Ulož originálnu metódu a prepíš ju
-  const originalCallback = providerController.callback.bind(providerController);
-
-  providerController.callback = async (ctx: Context & { state: any }) => {
-    const redirectUrl = ctx.query.redirect_url as string | undefined;
-
-    if (redirectUrl) {
-      ctx.state.redirectTo = redirectUrl;
-      strapi.log.info(`🔀 custom redirect_url = ${redirectUrl}`);
+  // 3) Prepíš callback
+  plugin.controllers.auth.callback = async (ctx: Context & { state: any }) => {
+    const target = ctx.query.redirect_url as string | undefined;
+    if (target) {
+      ctx.state.redirectTo = target;
+      strapi.log.info(`🔀 custom redirect_url = ${target}`);
     }
 
-    // Spusti originálny OAuth callback
-    await originalCallback(ctx);
+    // 4) Spusti pôvodnú logiku Strapi
+    await original(ctx);
 
-    // Nakoniec prepíš redirect, ak redirectUrl existuje
-    if (redirectUrl) {
-      strapi.log.info(`➡️ redirectujem užívateľa na ${redirectUrl}`);
-      ctx.redirect(redirectUrl);
+    // 5) Po úspechu prepíš redirect na front‑end
+    if (target) {
+      strapi.log.info(`➡️ redirectujem na ${target}`);
+      ctx.redirect(target);
     }
   };
 
