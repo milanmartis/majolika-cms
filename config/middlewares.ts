@@ -1,15 +1,16 @@
+// config/middlewares.ts
+
 export default [
-  'strapi::logger',
-  'strapi::errors',
+  // Rozšírené logovanie pre debug
   {
-    name: 'strapi::middleware',
+    name: 'strapi::logger',
     config: {
-      handler: async (ctx, next) => {
-        strapi.log.info(`⚙️  ctx.protocol = ${ctx.protocol}`);
-        await next();
-      },
+      level: 'debug',
     },
   },
+
+  'strapi::errors',
+
   // ✅ SECURITY + CSP
   {
     name: 'strapi::security',
@@ -52,7 +53,7 @@ export default [
       origin: [
         'http://localhost:4200',
         'https://staging.d2y68xwoabt006.amplifyapp.com',
-        'https://majolika-cms.appdesign.sk'
+        'https://majolika-cms.appdesign.sk',
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
@@ -63,6 +64,7 @@ export default [
   // ✅ Ostatné default middlewares
   'strapi::poweredBy',
   'strapi::query',
+
   {
     name: 'strapi::body',
     config: {
@@ -74,13 +76,15 @@ export default [
       },
     },
   },
+
   {
     name: 'strapi::session',
     config: {
-      secure: true,       // HTTPS only cookies
-      sameSite: 'none',   // umožní cross-origin cookies (napr. z frontend appky)
+      secure: true,     // cookie sa posiela len cez HTTPS
+      sameSite: 'none', // povolí cross‑origin cookies
     },
   },
+
   'strapi::favicon',
   'strapi::public',
 ];
