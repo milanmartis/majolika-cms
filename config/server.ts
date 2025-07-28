@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import fs from 'fs';
-import path from 'path';
 
 export default ({ env }: { env: any }) => ({
   host: env('HOST', '0.0.0.0'),
@@ -8,12 +7,11 @@ export default ({ env }: { env: any }) => ({
   url: env('SERVER_URL', 'https://majolika-cms.appdesign.sk'),
   proxy: true,
   app: {
-    keys: env.array('APP_KEYS', [
-      // … vaše kľúče …
-    ]),
+    keys: env.array('APP_KEYS', []),
   },
   ssl: {
-    cert: fs.readFileSync(env('SSL_CERT_PATH', path.resolve(__dirname, '../certs/fullchain.pem'))),
-    key:  fs.readFileSync(env('SSL_KEY_PATH',  path.resolve(__dirname, '../certs/privkey.pem'))),
+    // Načítaj výhradne z ENV – nebude sa pokúšať o relatívne cesty
+    cert: fs.readFileSync(env('SSL_CERT_PATH')),
+    key:  fs.readFileSync(env('SSL_KEY_PATH')),
   },
 });
