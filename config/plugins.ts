@@ -42,9 +42,10 @@ export default ({ env }) => {
         providers: {
           google: {
             enabled: true,
-            clientId:     env('GOOGLE_CLIENT_ID'),
+            clientId: env('GOOGLE_CLIENT_ID'),
             clientSecret: env('GOOGLE_CLIENT_SECRET'),
-            redirectUri:  `${env('PUBLIC_URL')}/api/connect/google/callback`,
+            redirectUri: REDIRECT_URI,
+            // scope: ['email','profile'], // voliteľné
           },
         },
       },
