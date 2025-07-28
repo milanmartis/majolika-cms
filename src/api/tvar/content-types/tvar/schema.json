@@ -7,6 +7,11 @@
       "displayName": "Tvar"
     },
     "options": { "draftAndPublish": true },
+    "pluginOptions": {
+      "i18n": {
+        "localized": true
+      }
+    },
     "attributes": {
       "nazov": { "type": "string", "required": true },
       "objem_ml": { "type": "integer" },

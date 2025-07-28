@@ -1169,13 +1169,17 @@ export interface ApiTvarTvar extends Struct.CollectionTypeSchema {
   options: {
     draftAndPublish: true;
   };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
   attributes: {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<'oneToMany', 'api::tvar.tvar'> &
-      Schema.Attribute.Private;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::tvar.tvar'>;
     nazov: Schema.Attribute.String & Schema.Attribute.Required;
     objem_ml: Schema.Attribute.Integer;
     produkty: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;

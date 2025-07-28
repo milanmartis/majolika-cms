@@ -1,30 +1,35 @@
+// src/extensions/users-permissions/strapi-server.ts
 import type { Context } from 'koa';
 
 export default (plugin: any) => {
-  // 1) Skontrolujme, že auth.callback existuje
-  if (typeof plugin.controllers.auth?.callback !== 'function') {
+  // 1) Zobrazíme, čo plugin controllers obsahuje
+  strapi.log.info(`📦 users-permissions controllers: ${Object.keys(plugin.controllers).join(', ')}`);
+
+  // 2) V Strapi v5 je to v plugin.controllers.auth
+  const authController = plugin.controllers.auth;
+  if (typeof authController.callback !== 'function') {
     strapi.log.error('❌ users-permissions: auth.callback neexistuje');
     return plugin;
   }
 
-  // 2) Ulož originálnu metódu
-  const original = plugin.controllers.auth.callback.bind(plugin.controllers.auth);
+  // 3) Uložíme originálnu metódu
+  const originalCallback = authController.callback.bind(authController);
 
-  // 3) Prepíš callback
-  plugin.controllers.auth.callback = async (ctx: Context & { state: any }) => {
-    const target = ctx.query.redirect_url as string | undefined;
-    if (target) {
-      ctx.state.redirectTo = target;
-      strapi.log.info(`🔀 custom redirect_url = ${target}`);
+  // 4) Prepíšeme ju
+  authController.callback = async (ctx: Context & { state: any }) => {
+    const redirectUrl = ctx.query.redirect_url as string | undefined;
+    if (redirectUrl) {
+      ctx.state.redirectTo = redirectUrl;
+      strapi.log.info(`🔀 custom redirect_url = ${redirectUrl}`);
     }
 
-    // 4) Spusti pôvodnú logiku Strapi
-    await original(ctx);
+    // Spustíme pôvodný callback (overenie u providera, vytvorenie session, cookie…)
+    await originalCallback(ctx);
 
-    // 5) Po úspechu prepíš redirect na front‑end
-    if (target) {
-      strapi.log.info(`➡️ redirectujem na ${target}`);
-      ctx.redirect(target);
+    // Nakoniec prepis presmerovania
+    if (redirectUrl) {
+      strapi.log.info(`➡️ redirectujem užívateľa na ${redirectUrl}`);
+      ctx.redirect(redirectUrl);
     }
   };
 
