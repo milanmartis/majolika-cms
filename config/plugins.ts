@@ -2,7 +2,7 @@
 
 export default ({ env }) => {
   // 1) Spočítame si redirect URI a vypíšeme ho do logu
-  const REDIRECT_URI = env('FRONTEND_URL') + '/signin/callback';
+  const REDIRECT_URI = env('FRONTEND_URL') + '/login-success';
   console.log('🔑 Strapi Google redirectUri:', REDIRECT_URI);
 
   // 2) Vrátime konfiguráciu všetkých pluginov
