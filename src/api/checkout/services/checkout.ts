@@ -4,7 +4,18 @@ import Stripe from 'stripe';
 import 'dotenv/config';
 
 export default {
-  async createSession({ items, customer }: { items: any[]; customer: { id: number; name: string; email: string; address: any } }) {
+  async createSession({ items, customer }: {
+    items: any[];
+    customer: {
+      id: number;
+      name: string;
+      email: string;
+      street: string;
+      city: string;
+      zip: string;
+      country: string;
+    };
+  }) {
     // 0) Over env
     const secret = process.env.STRIPE_SECRET;
     if (!secret) {
@@ -54,10 +65,15 @@ export default {
 
     // 5) Skladáme orderData vrátane customer
     const orderData = {
-      customer: customer.id,               // <-- povinné manyToOne pole
+      customer: customer.id,
       customerName: customer.name,
       customerEmail: customer.email,
-      shippingAddress: customer.address,
+      shippingAddress: {
+        street: customer.street,
+        city: customer.city,
+        zip: customer.zip,
+        country: customer.country,
+      },
       total: line_items.reduce(
         (sum, li) => sum + (li.price_data.unit_amount / 100) * li.quantity,
         0
