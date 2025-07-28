@@ -1,7 +1,15 @@
 export default [
   'strapi::logger',
   'strapi::errors',
-
+  {
+    name: 'strapi::middleware',
+    config: {
+      handler: async (ctx, next) => {
+        strapi.log.info(`⚙️  ctx.protocol = ${ctx.protocol}`);
+        await next();
+      },
+    },
+  },
   // ✅ SECURITY + CSP
   {
     name: 'strapi::security',
