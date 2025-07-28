@@ -66,7 +66,13 @@ export default [
       },
     },
   },
-  'strapi::session',
+  {
+    name: 'strapi::session',
+    config: {
+      secure: true,       // HTTPS only cookies
+      sameSite: 'none',   // umožní cross-origin cookies (napr. z frontend appky)
+    },
+  },
   'strapi::favicon',
   'strapi::public',
 ];
