@@ -44,6 +44,7 @@ export default ({ env }) => ({
           enabled: true,
           clientId: env('GOOGLE_CLIENT_ID'),
           clientSecret: env('GOOGLE_CLIENT_SECRET'),
+          redirectUri: env('FRONTEND_URL') + '/signin/callback', 
           // redirectUri: 'https://majolika-cms.appdesign.sk/api/connect/google/callback',
           // scope: ['email','profile'],
         },
