@@ -80,7 +80,7 @@ export default [
   {
     name: 'strapi::session',
     config: {
-      secure: true,       // cookie sa posiela iba cez HTTPS
+      secure: false,       // cookie sa posiela iba cez HTTPS
       sameSite: 'none',   // povolí cross‑origin cookies
       proxy: true,        // DÔVERUJ proxy hlavičkám (X-Forwarded-Proto)
     },
