@@ -37,6 +37,19 @@ export default ({ env }) => ({
   //     },
   //   },
   // },
+  'users-permissions': {
+    config: {
+      providers: {
+        google: {
+          enabled: true,
+          clientId: env('GOOGLE_CLIENT_ID'),
+          clientSecret: env('GOOGLE_CLIENT_SECRET'),
+          redirectUri: 'https://majolika-cms.appdesign.sk/api/connect/google/callback',
+          scope: ['email','profile'],
+        },
+      },
+    },
+  },
   upload: {
     config: {
       provider: 'aws-s3',
