@@ -2,8 +2,8 @@
 
 export default ({ env }) => {
   // 1) Spočítame si redirect URI a vypíšeme ho do logu
-  const REDIRECT_URI = env('FRONTEND_URL') + '/login-success';
-  console.log('🔑 Strapi Google redirectUri:', REDIRECT_URI);
+  const PUBLIC_URL = env('PUBLIC_URL');  
+  console.log('🔑 Strapi Google redirectUri:', PUBLIC_URL);
 
   // 2) Vrátime konfiguráciu všetkých pluginov
   return {
@@ -44,8 +44,8 @@ export default ({ env }) => {
             enabled: true,
             clientId: env('GOOGLE_CLIENT_ID'),
             clientSecret: env('GOOGLE_CLIENT_SECRET'),
-            redirectUri: REDIRECT_URI,
-            // scope: ['email','profile'], // voliteľné
+            // KDE: sem dáš presne tú istú URI, ktorú si zaregistroval v Google:
+            redirectUri: `${PUBLIC_URL}/connect/google/callback`,
           },
         },
       },
