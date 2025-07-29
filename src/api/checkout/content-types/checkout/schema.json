@@ -1,0 +1,48 @@
+{
+    "collectionName": "checkouts",
+    "info": {
+      "singularName": "checkout",
+      "pluralName": "checkouts",
+      "displayName": "Checkout",
+      "description": "Záznam o Stripe checkout objednávke"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "pluginOptions": {},
+    "attributes": {
+      "stripeSessionId": {
+        "type": "string",
+        "required": true
+      },
+      "customerId": {
+        "type": "integer"
+      },
+      "customerName": {
+        "type": "string"
+      },
+      "customerEmail": {
+        "type": "email"
+      },
+      "street": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "zip": {
+        "type": "string"
+      },
+      "country": {
+        "type": "string"
+      },
+      "products": {
+        "type": "json"
+      },
+      "status": {
+        "type": "string",
+        "default": "pending"
+      }
+    }
+  }
+  
