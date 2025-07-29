@@ -1,14 +1,24 @@
 'use strict';
 
+import Stripe from 'stripe';
+
 export default () => ({
   async createSession(payload) {
-    strapi.log.info('🧪 STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY);
-    strapi.log.info('🧪 FRONTEND_URL:', process.env.FRONTEND_URL);
+    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+    const FRONTEND_URL = process.env.FRONTEND_URL;
+
+    strapi.log.info('🧪 STRIPE_SECRET_KEY:', STRIPE_SECRET_KEY);
+    strapi.log.info('🧪 FRONTEND_URL:', FRONTEND_URL);
     strapi.log.info('✔ process.env keys available:', Object.keys(process.env));
 
-    const { customer, items } = payload;
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    if (!STRIPE_SECRET_KEY || !FRONTEND_URL) {
+      throw new Error('Missing STRIPE_SECRET_KEY or FRONTEND_URL in environment variables.');
+    }
 
+    const stripe = new Stripe(STRIPE_SECRET_KEY, {
+    });
+
+    const { customer, items } = payload;
     strapi.log.info('CHECKOUT PAYLOAD:', customer, items);
 
     // 1. Over zákazníka podľa e-mailu
@@ -67,8 +77,8 @@ export default () => ({
         },
         quantity: item.quantity,
       })),
-      success_url: `${process.env.FRONTEND_URL}/checkout/success`,
-      cancel_url: `${process.env.FRONTEND_URL}/checkout/cancel`,
+      success_url: `${FRONTEND_URL}/checkout/success`,
+      cancel_url: `${FRONTEND_URL}/checkout/cancel`,
       metadata: {
         customerId: String(customerId),
       },
@@ -92,8 +102,10 @@ export default () => ({
         paymentStatus: 'unpaid',
       },
     });
+
     strapi.log.info('👉 Stripe SESSION:', session);
     strapi.log.info('👉 Stripe URL:', session.url);
+
     return { checkoutUrl: session.url };
   },
 });
