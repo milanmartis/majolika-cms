@@ -7,6 +7,11 @@
       "displayName": "Aktualita",
       "description": "Novinky a oznámenia"
     },
+    "pluginOptions": {
+      "i18n": {
+        "localized": true
+      }
+    },
     "options": {
       "draftAndPublish": true,
       "timestamps": true
@@ -45,6 +50,14 @@
         "required": false,
         "allowedTypes": ["images"]
       },
+
+      "gallery": {
+        "type": "media",
+        "multiple": true,
+        "required": false,
+        "allowedTypes": ["images, videos"]
+      },
+
       "author": {
         "type": "relation",
         "relation": "manyToOne",

@@ -13,6 +13,7 @@ export default ({ env }) => {
       config: {
         locales: ['sk', 'en', 'de'],
         defaultLocale: 'sk',
+        syncPublishing: true,
       },
     },
 

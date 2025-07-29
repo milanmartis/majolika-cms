@@ -382,8 +382,13 @@ export interface ApiAktualitaAktualita extends Struct.CollectionTypeSchema {
     singularName: 'aktualita';
   };
   options: {
-    draftAndPublish: false;
+    draftAndPublish: true;
     timestamps: true;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: false;
+    };
   };
   attributes: {
     author: Schema.Attribute.Relation<
