@@ -1,24 +1,44 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: require('path').resolve(__dirname, '../../../../.env') });
+import Stripe from 'stripe';
+import { get } from 'env-var';
 
-// alebo ak si v dist, môžeš to podmieniť buildom:
-if (process.env.NODE_ENV === 'production') {
-  dotenv.config({ path: require('path').resolve(__dirname, '../../../../dist/.env') });
-}
+const stripe = new Stripe(get('STRIPE_SECRET_KEY').required().asString());
 
 export default {
   async create(ctx) {
-    console.log('CHECKOUT PAYLOAD:', ctx.request.body); // <- LOGNI SI DÁTA
     try {
-      const session = await strapi
-        .service('api::checkout.checkout')
-        .createSession(ctx.request.body);
+      const payload = ctx.request.body;
+      const { customer, items } = payload;
 
-      return { checkoutUrl: session.url };
+      if (!customer || !items || !Array.isArray(items)) {
+        ctx.throw(400, 'Missing or invalid checkout payload');
+      }
+
+      const line_items = items.map(item => ({
+        price_data: {
+          currency: 'eur',
+          product_data: {
+            name: `Product ${item.productId}`,
+          },
+          unit_amount: 1000, // TODO: nacitaj skutočnú cenu
+        },
+        quantity: item.quantity,
+      }));
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items,
+        customer_email: customer.email,
+        success_url: `${get('FRONTEND_URL').required().asString()}/success`,
+        cancel_url: `${get('FRONTEND_URL').required().asString()}/cancel`,
+        metadata: {
+          customerId: customer.id,
+        },
+      });
+
+      ctx.send({ url: session.url });
     } catch (err) {
-      console.error('Checkout error:', err);
-      ctx.throw(400, 'Bad Request');
+      ctx.throw(500, 'Checkout failed');
     }
   },
-  };
-  
+};
