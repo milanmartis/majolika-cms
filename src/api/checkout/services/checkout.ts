@@ -1,5 +1,7 @@
 'use strict';
 
+import type Stripe from 'stripe';
+
 export default () => ({
   async createSession(payload) {
     const { customer, items } = payload;
@@ -14,6 +16,8 @@ export default () => ({
     });
 
     let customerId;
+    // let customerId: string | number;
+    // let customerId: number = Number(newCustomer.id);
 
     if (existing.length > 0) {
       customerId = existing[0].id;
@@ -45,28 +49,29 @@ export default () => ({
 
     const totalAmount = orderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
-    // 3. Stripe Checkout session
-    const session = await stripe.checkout.sessions.create({
+    // 3. Stripe checkout session
+    const session: Stripe.Checkout.Session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
       line_items: orderItems.map((item) => ({
         price_data: {
           currency: 'eur',
+          unit_amount: Math.round(item.unitPrice * 100),
           product_data: {
             name: item.product.title,
+            description: item.product.description || '',
           },
-          unit_amount: Math.round(item.unitPrice * 100), // cena v centoch
         },
         quantity: item.quantity,
       })),
       success_url: `${process.env.FRONTEND_URL}/objednavka-uspesna`,
       cancel_url: `${process.env.FRONTEND_URL}/pokladna`,
       metadata: {
-        customerId: String(customerId),
+        customerId: customerId.toString(),
       },
     });
 
-    // 4. Ulož objednávku do DB
+    // 4. Ulož objednávku do Strapi
     await strapi.entityService.create('api::order.order', {
       data: {
         customer: customerId,
