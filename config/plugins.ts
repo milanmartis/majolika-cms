@@ -39,15 +39,15 @@ export default ({ env }) => {
     // Users & Permissions – Google OAuth
     'users-permissions': {
       config: {
-        providers: {
-          google: {
-            enabled: true,
+        providers: [
+          {
+            provider: 'google',
             clientId: env('GOOGLE_CLIENT_ID'),
             clientSecret: env('GOOGLE_CLIENT_SECRET'),
-            redirectUri: REDIRECT_URI,
-            // scope: ['email','profile'], // voliteľné
+            redirectUri: 'https://staging.d2y68xwoabt006.amplifyapp.com/login-success',
           },
-        },
+          // prípadne ďalší provider…
+        ],
       },
     },
 

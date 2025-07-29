@@ -8,7 +8,7 @@
       "description": "Novinky a oznámenia"
     },
     "options": {
-      "draftAndPublish": false,
+      "draftAndPublish": true,
       "timestamps": true
     },
     "attributes": {
