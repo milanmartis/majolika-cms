@@ -1,7 +1,5 @@
 'use strict';
 
-import type Stripe from 'stripe';
-
 export default () => ({
   async createSession(payload) {
     const { customer, items } = payload;
@@ -9,15 +7,13 @@ export default () => ({
 
     strapi.log.info('CHECKOUT PAYLOAD:', customer, items);
 
-    // 1. Over zákazníka
+    // 1. Over zákazníka podľa e-mailu
     const existing = await strapi.entityService.findMany('api::customer.customer', {
       filters: { email: customer.email },
       limit: 1,
     });
 
-    let customerId;
-    // let customerId: string | number;
-    // let customerId: number = Number(newCustomer.id);
+    let customerId: string | number;
 
     if (existing.length > 0) {
       customerId = existing[0].id;
@@ -35,7 +31,7 @@ export default () => ({
       customerId = newCustomer.id;
     }
 
-    // 2. Priprav položky
+    // 2. Priprav položky objednávky
     const orderItems = await Promise.all(
       items.map(async (item) => {
         const product = await strapi.entityService.findOne('api::product.product', item.productId);
@@ -49,29 +45,28 @@ export default () => ({
 
     const totalAmount = orderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
-    // 3. Stripe checkout session
-    const session: Stripe.Checkout.Session = await stripe.checkout.sessions.create({
+    // 3. Stripe session
+    const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
       line_items: orderItems.map((item) => ({
         price_data: {
           currency: 'eur',
-          unit_amount: Math.round(item.unitPrice * 100),
           product_data: {
-            name: item.product.title,
-            description: item.product.description || '',
+            name: item.product.name,
           },
+          unit_amount: Math.round(item.unitPrice * 100),
         },
         quantity: item.quantity,
       })),
       success_url: `${process.env.FRONTEND_URL}/objednavka-uspesna`,
       cancel_url: `${process.env.FRONTEND_URL}/pokladna`,
       metadata: {
-        customerId: customerId.toString(),
+        customerId: String(customerId),
       },
     });
 
-    // 4. Ulož objednávku do Strapi
+    // 4. Vytvor objednávku v DB
     await strapi.entityService.create('api::order.order', {
       data: {
         customer: customerId,
@@ -84,11 +79,7 @@ export default () => ({
           country: customer.country,
         },
         total: totalAmount,
-        items: orderItems.map((item) => ({
-          product: item.product.id,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-        })),
+        items: orderItems,
         paymentSessionId: session.id,
         paymentStatus: 'unpaid',
       },
