@@ -88,7 +88,8 @@ export default () => ({
         paymentStatus: 'unpaid',
       },
     });
-
+    strapi.log.info('👉 Stripe SESSION:', session);
+    strapi.log.info('👉 Stripe URL:', session.url);
     return { checkoutUrl: session.url };
   },
 });
