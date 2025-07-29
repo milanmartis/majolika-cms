@@ -2,6 +2,8 @@
 
 export default () => ({
   async createSession(payload) {
+    strapi.log.info('🧪 STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY);
+    strapi.log.info('🧪 FRONTEND_URL:', process.env.FRONTEND_URL);
     const { customer, items } = payload;
     const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
