@@ -1,10 +1,13 @@
-export default [
-  {
-    method: 'POST',
-    path: '/checkout',
-    handler: 'checkout.create',
-    config: {
-      policies: [],
+export default {
+  routes: [
+    {
+      method: 'POST',
+      path: '/checkout',
+      handler: 'api::checkout.checkout.create',
+      config: {
+        auth: false,
+      },
+      info: { type: 'content-api' },
     },
-  },
-];
+  ],
+};
