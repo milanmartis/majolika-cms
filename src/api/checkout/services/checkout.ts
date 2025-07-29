@@ -1,10 +1,11 @@
-// src/api/checkout/services/checkout.ts
-
 import Stripe from 'stripe';
 import 'dotenv/config';
 
 export default {
-  async createSession({ items, customer }: {
+  async createSession({
+    items,
+    customer,
+  }: {
     items: any[];
     customer: {
       id: number;
@@ -22,12 +23,12 @@ export default {
       throw new Error('Missing STRIPE_SECRET env var');
     }
 
-    // 1) Iniciálna Stripe inštancia
+    // 1) Stripe inštancia
     const stripe = new Stripe(secret, {
       apiVersion: '2025-04-30.basil',
     });
 
-    // 2) Načítame produkty cez Query Engine API
+    // 2) Načítanie produktov z DB
     const products = await Promise.all(
       items.map(async (i) => {
         const product = await strapi.db.query('api::product.product').findOne({
@@ -41,7 +42,7 @@ export default {
       })
     );
 
-    // 3) Pripravíme line_items pre Stripe
+    // 3) Príprava line_items pre Stripe
     const line_items = items.map((i) => {
       const p = products.find((p) => p.id === i.productId)!;
       return {
@@ -54,7 +55,7 @@ export default {
       };
     });
 
-    // 4) Vytvoríme Stripe Checkout Session
+    // 4) Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items,
@@ -63,17 +64,31 @@ export default {
       cancel_url: `${process.env.FRONTEND_URL}/cancel`,
     });
 
-    // 5) Skladáme orderData vrátane customer
+    // 5) Ak customer.id je 0, vytvoríme nového zákazníka
+    let customerId = customer.id;
+    if (!customerId || customerId === 0) {
+      const newCustomer = await strapi.entityService.create<'api::customer.customer', any>(
+        'api::customer.customer',
+        {
+          data: {
+            name: customer.name,
+            email: customer.email,
+            street: customer.street,
+            city: customer.city,
+            zip: customer.zip,
+            country: customer.country,
+          },
+        }
+      );
+      customerId = parseInt(newCustomer.id as unknown as string, 10);
+    }
+
+    // 6) Objednávka
     const orderData = {
-      customer: customer.id,
+      customer: customerId,
       customerName: customer.name,
       customerEmail: customer.email,
-      shippingAddress: {
-        street: customer.street,
-        city: customer.city,
-        zip: customer.zip,
-        country: customer.country,
-      },
+      shippingAddress: `${customer.street}, ${customer.zip} ${customer.city}, ${customer.country}`,
       total: line_items.reduce(
         (sum, li) => sum + (li.price_data.unit_amount / 100) * li.quantity,
         0
@@ -90,7 +105,6 @@ export default {
       paymentStatus: 'unpaid' as const,
     };
 
-    // 6) Vytvoríme objednávku cez Entity Service
     const order = await strapi.entityService.create('api::order.order', {
       data: orderData,
     });
