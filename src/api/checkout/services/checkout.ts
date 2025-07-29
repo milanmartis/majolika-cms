@@ -45,7 +45,7 @@ export default () => ({
 
     const totalAmount = orderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
-    // 3. Stripe session
+    // 3. Stripe Checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -55,18 +55,18 @@ export default () => ({
           product_data: {
             name: item.product.title,
           },
-          unit_amount: Math.round(item.unitPrice * 100),
+          unit_amount: Math.round(item.unitPrice * 100), // cena v centoch
         },
         quantity: item.quantity,
       })),
       success_url: `${process.env.FRONTEND_URL}/objednavka-uspesna`,
       cancel_url: `${process.env.FRONTEND_URL}/pokladna`,
       metadata: {
-        customerId,
+        customerId: String(customerId),
       },
     });
 
-    // 4. Objednávka v DB
+    // 4. Ulož objednávku do DB
     await strapi.entityService.create('api::order.order', {
       data: {
         customer: customerId,
@@ -79,7 +79,11 @@ export default () => ({
           country: customer.country,
         },
         total: totalAmount,
-        items: orderItems,
+        items: orderItems.map((item) => ({
+          product: item.product.id,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
         paymentSessionId: session.id,
         paymentStatus: 'unpaid',
       },
