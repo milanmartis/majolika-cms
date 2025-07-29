@@ -50,14 +50,12 @@
         "required": false,
         "allowedTypes": ["images"]
       },
-
       "gallery": {
         "type": "media",
         "multiple": true,
         "required": false,
         "allowedTypes": ["images", "videos"]
       },
-
       "author": {
         "type": "relation",
         "relation": "manyToOne",
