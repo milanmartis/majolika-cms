@@ -13,7 +13,7 @@ export default () => ({
       limit: 1,
     });
 
-    let customerId: string | number;
+    let customerId: number;
 
     if (existing.length > 0) {
       customerId = existing[0].id;
@@ -35,6 +35,10 @@ export default () => ({
     const orderItems = await Promise.all(
       items.map(async (item) => {
         const product = await strapi.entityService.findOne('api::product.product', item.productId);
+        if (!product || !product.price) {
+          throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
+        }
+
         return {
           product,
           quantity: item.quantity,
@@ -55,12 +59,12 @@ export default () => ({
           product_data: {
             name: item.product.name,
           },
-          unit_amount: Math.round(item.unitPrice * 100),
+          unit_amount: Math.round(item.unitPrice * 100), // centy
         },
         quantity: item.quantity,
       })),
-      success_url: `${process.env.FRONTEND_URL}/objednavka-uspesna`,
-      cancel_url: `${process.env.FRONTEND_URL}/pokladna`,
+      success_url: `${process.env.FRONTEND_URL}/checkout/success`,
+      cancel_url: `${process.env.FRONTEND_URL}/checkout/cancel`,
       metadata: {
         customerId: String(customerId),
       },
