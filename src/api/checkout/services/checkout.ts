@@ -13,7 +13,7 @@ export default () => ({
       limit: 1,
     });
 
-    let customerId: number;
+    let customerId: string | number;
 
     if (existing.length > 0) {
       customerId = existing[0].id;
