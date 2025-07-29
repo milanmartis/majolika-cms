@@ -1,5 +1,4 @@
 'use strict';
-require('dotenv').config({ path: '/home/ec2-user/majolika-cms/.env' });
 
 export default () => ({
   async createSession(payload) {
