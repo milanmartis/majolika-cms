@@ -1,43 +1,66 @@
 import { factories } from '@strapi/strapi';
 
-// spoločná definícia populate – aby sa neopakovala
 const productPopulate = {
   picture_new: true,
   pictures_new: true,
-
-  // Variácie a ich obrázky
+  categories: { populate: ['parent'] },
+  dekory: true,
+  tvar: true,
   variations: {
     populate: {
       picture_new: true,
       pictures_new: true,
+      categories: { populate: ['parent'] },
+      dekory: true,
+      tvar: true,
     },
-  },
-
-  // Tu sa pridávajú kategórie aj s rodičom (parent). 
-  // Ak by ste chceli aj podkategórie, môžete pridať 'children' rovnako.
-  categories: {
-    populate: ['parent']    // <-- vráti polia categories.data[i].attributes.parent.data
   },
 };
 
 export default factories.createCoreController('api::product.product', ({ strapi }) => ({
-  /* -------------------------------------------------------------
-   * GET /api/products  (so stránkovaním & komplet populate)
-   * ----------------------------------------------------------- */
-  async find(ctx: any) {
-    // zachováme všetky prijaté query-params vrátane pagination[start], limit, page, pageSize
+
+  async find(ctx) {
     ctx.query.populate = productPopulate;
     return super.find(ctx);
   },
 
-  /* -------------------------------------------------------------
-   * GET /api/products/:id  (detail produktu)
-   * ----------------------------------------------------------- */
-  async findOne(ctx: any) {
+  async findOne(ctx) {
     ctx.query = {
       ...ctx.query,
       populate: productPopulate,
     };
     return super.findOne(ctx);
   },
+
+  async findByCategory(ctx) {
+    const { slug } = ctx.params;
+
+    ctx.query = {
+      ...ctx.query,
+      populate: productPopulate,
+      filters: {
+        $or: [
+          {
+            categories: {
+              category_slug: {
+                $eq: slug,
+              },
+            },
+          },
+          {
+            variations: {
+              categories: {
+                category_slug: {
+                  $eq: slug,
+                },
+              },
+            },
+          },
+        ],
+      },
+    };
+
+    return await strapi.entityService.findMany('api::product.product', ctx.query);
+  }
+
 }));

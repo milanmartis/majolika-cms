@@ -10,6 +10,22 @@ export default factories.createCoreRouter('api::product.product');
 // 2.  Custom routy pre „event‑sessions“
 //     Uložené v tom istom súbore, exportované cez named export.
 //     Strapi načíta *všetky* exporty s vlastnosťou `routes`.
+
+
+export const categoryRoutes = {
+  routes: [
+    {
+      method: 'GET',
+      path: '/products/categories/:slug',
+      handler: 'product.findByCategory',
+      config: {
+        policies: [],
+        middlewares: [],
+      },
+    },
+  ],
+} as const;
+
 // -----------------------------
 export const eventSessionRoutes = {
   routes: [
