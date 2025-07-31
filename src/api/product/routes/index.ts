@@ -1,6 +1,5 @@
-import defaultRouter from './product'; // musí byť default export coreRouter
-import { categoryRoutes } from './product';
-import { eventSessionRoutes } from './product';
+import defaultRouter from './product';
+import { categoryRoutes, eventSessionRoutes } from './product';
 
 const defaultRoutes = typeof defaultRouter.routes === 'function'
   ? defaultRouter.routes()
@@ -9,7 +8,7 @@ const defaultRoutes = typeof defaultRouter.routes === 'function'
 export default {
   type: 'content-api',
   routes: [
-    ...defaultRoutes,
+    ...defaultRoutes, // ← teraz je to pole, nie router objekt!
     ...categoryRoutes.routes,
     ...eventSessionRoutes.routes,
   ],
