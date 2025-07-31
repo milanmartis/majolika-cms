@@ -4,19 +4,20 @@ import { factories } from '@strapi/strapi';
 const productPopulate = {
   picture_new: true,
   pictures_new: true,
-
-  // Variácie a ich obrázky
   variations: {
     populate: {
       picture_new: true,
       pictures_new: true,
+      products_dekory_lnk: {
+        populate: { dekor: true }
+      },
+      products_tvar_lnk: {
+        populate: { tvar: true }
+      }
     },
   },
-
-  // Tu sa pridávajú kategórie aj s rodičom (parent). 
-  // Ak by ste chceli aj podkategórie, môžete pridať 'children' rovnako.
   categories: {
-    populate: ['parent']    // <-- vráti polia categories.data[i].attributes.parent.data
+    populate: ['variations']
   },
 };
 
