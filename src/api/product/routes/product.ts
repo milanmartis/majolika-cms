@@ -1,16 +1,8 @@
-// -----------------------------
-// 1.  Štandardný REST router
-//     (nechávame predvolený core router, aby ostali endpointy find, findOne, create, ...)
-// -----------------------------
 import { factories } from '@strapi/strapi';
 
-export default factories.createCoreRouter('api::product.product');
+const coreRouter = factories.createCoreRouter('api::product.product');
 
-// -----------------------------
-// 2.  Custom routy pre „event‑sessions“
-//     Uložené v tom istom súbore, exportované cez named export.
-//     Strapi načíta *všetky* exporty s vlastnosťou `routes`.
-
+export default coreRouter;
 
 export const categoryRoutes = {
   routes: [
@@ -24,9 +16,8 @@ export const categoryRoutes = {
       },
     },
   ],
-} as const;
+};
 
-// -----------------------------
 export const eventSessionRoutes = {
   routes: [
     {

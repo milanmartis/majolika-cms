@@ -1,4 +1,4 @@
-import defaultRouter from './product';
+import defaultRouter from './product'; // musí byť default export coreRouter
 import { categoryRoutes } from './product';
 import { eventSessionRoutes } from './product';
 
