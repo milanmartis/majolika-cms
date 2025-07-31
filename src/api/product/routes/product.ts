@@ -1,18 +1,23 @@
 import { factories } from '@strapi/strapi';
 
-const coreRouter = factories.createCoreRouter('api::product.product');
-export default coreRouter;
+const defaultRouter = factories.createCoreRouter('api::product.product');
 
+export default defaultRouter;
+
+// 👇 TOTO PRIDAJ
 export const categoryRoutes = {
   routes: [
     {
       method: 'GET',
       path: '/products/categories/:slug',
       handler: 'product.findByCategory',
-      config: { policies: [], middlewares: [] },
+      config: {
+        policies: [],
+        middlewares: [],
+      },
     },
   ],
-};
+} as const;
 
 export const eventSessionRoutes = {
   routes: [
