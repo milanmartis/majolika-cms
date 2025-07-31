@@ -1,14 +1,13 @@
-import defaultRouter from './product';
-import { categoryRoutes, eventSessionRoutes } from './product';
+import coreRouter, { categoryRoutes, eventSessionRoutes } from './product';
 
-const defaultRoutes = typeof defaultRouter.routes === 'function'
-  ? defaultRouter.routes()
-  : defaultRouter.routes;
+const defaultRoutes = Array.isArray(coreRouter.routes)
+  ? coreRouter.routes
+  : coreRouter.routes();
 
 export default {
   type: 'content-api',
   routes: [
-    ...defaultRoutes, // ← teraz je to pole, nie router objekt!
+    ...defaultRoutes,
     ...categoryRoutes.routes,
     ...eventSessionRoutes.routes,
   ],
