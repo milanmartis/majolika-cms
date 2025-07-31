@@ -17,7 +17,7 @@ const productPopulate = {
     },
   },
   categories: {
-    populate: ['variations']
+    populate: ['parent']
   },
 };
 
