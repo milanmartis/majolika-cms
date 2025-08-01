@@ -387,7 +387,7 @@ export interface ApiAktualitaAktualita extends Struct.CollectionTypeSchema {
   };
   pluginOptions: {
     i18n: {
-      localized: false;
+      localized: true;
     };
   };
   attributes: {
@@ -404,12 +404,12 @@ export interface ApiAktualitaAktualita extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     featuredImage: Schema.Attribute.Media<'images'>;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    gallery: Schema.Attribute.Media<'images' | 'videos', true>;
+    locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'api::aktualita.aktualita'
-    > &
-      Schema.Attribute.Private;
+    >;
     publishedAt: Schema.Attribute.DateTime;
     seo: Schema.Attribute.Component<'shared.seo', false>;
     slug: Schema.Attribute.UID<'title'> &
@@ -591,6 +591,9 @@ export interface ApiDekorDekor extends Struct.CollectionTypeSchema {
     popis: Schema.Attribute.Text;
     produkty: Schema.Attribute.Relation<'manyToMany', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
+    slug: Schema.Attribute.UID<'nazov'> &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1189,6 +1192,9 @@ export interface ApiTvarTvar extends Struct.CollectionTypeSchema {
     objem_ml: Schema.Attribute.Integer;
     produkty: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
+    slug: Schema.Attribute.UID<'nazov'> &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

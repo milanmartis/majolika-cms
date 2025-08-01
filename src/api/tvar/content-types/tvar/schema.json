@@ -1,25 +1,31 @@
 {
-    "kind": "collectionType",
-    "collectionName": "tvars",
-    "info": {
-      "singularName": "tvar",
-      "pluralName": "tvars",
-      "displayName": "Tvar"
+  "kind": "collectionType",
+  "collectionName": "tvars",
+  "info": {
+    "singularName": "tvar",
+    "pluralName": "tvars",
+    "displayName": "Tvar"
+  },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": {
+    "i18n": {
+      "localized": true
+    }
+  },
+  "attributes": {
+    "nazov": { "type": "string", "required": true },
+    "slug": {
+      "type": "uid",
+      "targetField": "nazov",
+      "required": true,
+      "unique": true
     },
-    "options": { "draftAndPublish": true },
-    "pluginOptions": {
-      "i18n": {
-        "localized": true
-      }
-    },
-    "attributes": {
-      "nazov": { "type": "string", "required": true },
-      "objem_ml": { "type": "integer" },
-      "produkty": {
-        "type": "relation",
-        "relation": "oneToMany",
-        "target": "api::product.product",
-        "mappedBy": "tvar"
-      }
+    "objem_ml": { "type": "integer" },
+    "produkty": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::product.product",
+      "mappedBy": "tvar"
     }
   }
+}

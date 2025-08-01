@@ -1,3 +1,12 @@
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::dekor.dekor');
+export default {
+    routes: [
+      {
+        method: 'GET',
+        path: '/dekor/all',
+        handler: 'dekor.findAll',
+        config: {
+          policies: [],
+        },
+      },
+    ],
+  };

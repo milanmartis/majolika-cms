@@ -1,3 +1,12 @@
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::tvar.tvar');
+export default {
+    routes: [
+      {
+        method: 'GET',
+        path: '/tvar/all',
+        handler: 'tvar.findAll',
+        config: {
+          policies: [],
+        },
+      },
+    ],
+  };

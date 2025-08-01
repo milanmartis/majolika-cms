@@ -1,20 +1,26 @@
 {
-    "kind": "collectionType",
-    "collectionName": "dekors",
-    "info": {
-      "singularName": "dekor",
-      "pluralName": "dekors",
-      "displayName": "Dekor"
+  "kind": "collectionType",
+  "collectionName": "dekors",
+  "info": {
+    "singularName": "dekor",
+    "pluralName": "dekors",
+    "displayName": "Dekor"
+  },
+  "options": { "draftAndPublish": true },
+  "attributes": {
+    "nazov": { "type": "string", "required": true },
+    "slug": {
+      "type": "uid",
+      "targetField": "nazov",
+      "required": true,
+      "unique": true
     },
-    "options": { "draftAndPublish": true },
-    "attributes": {
-      "nazov": { "type": "string", "required": true },
-      "popis": { "type": "text" },
-      "produkty": {
-        "type": "relation",
-        "relation": "manyToMany",
-        "target": "api::product.product",
-        "mappedBy": "dekory"
-      }
+    "popis": { "type": "text" },
+    "produkty": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::product.product",
+      "mappedBy": "dekory"
     }
   }
+}
