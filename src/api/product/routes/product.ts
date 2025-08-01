@@ -1,49 +1,57 @@
+// -----------------------------
+// 1.  Štandardný REST router
+//     (nechávame predvolený core router, aby ostali endpointy find, findOne, create, ...)
+// -----------------------------
 import { factories } from '@strapi/strapi';
 
-// Dynamicky rozpoznaj, či je to funkcia alebo pole
-const coreRoutesMaybe = factories.createCoreRouter('api::product.product').routes;
-const coreRoutes = typeof coreRoutesMaybe === 'function' ? coreRoutesMaybe() : coreRoutesMaybe;
+export default factories.createCoreRouter('api::product.product');
 
-const categoryRoutes = [
-  {
-    method: 'GET',
-    path: '/products/categories/:slug',
-    handler: 'product.findByCategory',
-    config: {
-      policies: [],
-      middlewares: [],
+// -----------------------------
+// 2.  Custom routy pre „event‑sessions“
+//     Uložené v tom istom súbore, exportované cez named export.
+//     Strapi načíta *všetky* exporty s vlastnosťou `routes`.
+// -----------------------------
+export const eventSessionRoutes = {
+  routes: [
+    {
+      method: 'GET',
+      path: '/products/:id/event-sessions',
+      handler: 'product.eventSessions',
+      info: { type: 'content-api' },
+      config: {
+        policies: [],
+        middlewares: [],
+      },
     },
-  },
-];
-
-const eventSessionRoutes = [
-  {
-    method: 'GET',
-    path: '/products/:id/event-sessions',
-    handler: 'product.eventSessions',
-    config: { policies: [], middlewares: [] },
-  },
-  {
-    method: 'POST',
-    path: '/products/:id/event-sessions/:sessionId/book',
-    handler: 'product.bookEventSession',
-    config: { policies: [], middlewares: [] },
-  },
-  {
-    method: 'POST',
-    path: '/products/:id/event-sessions/:sessionId/confirm-paid',
-    handler: 'product.confirmPaidBooking',
-    config: { policies: [], middlewares: [] },
-  },
-  {
-    method: 'POST',
-    path: '/products/:id/event-sessions/:sessionId/cancel/:bookingId',
-    handler: 'product.cancelBooking',
-    config: { policies: [], middlewares: [] },
-  },
-];
-
-// ✅ Bez chyby: typovo správne spojené všetky routy
-export default {
-  routes: [...coreRoutes, ...categoryRoutes, ...eventSessionRoutes],
-};
+    {
+      method: 'POST',
+      path: '/products/:id/event-sessions/:sessionId/book',
+      handler: 'product.bookEventSession',
+      info: { type: 'content-api' },
+      config: {
+        policies: [],
+        middlewares: [],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/products/:id/event-sessions/:sessionId/confirm-paid',
+      handler: 'product.confirmPaidBooking',
+      info: { type: 'content-api' },
+      config: {
+        policies: [],
+        middlewares: [],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/products/:id/event-sessions/:sessionId/cancel/:bookingId',
+      handler: 'product.cancelBooking',
+      info: { type: 'content-api' },
+      config: {
+        policies: [],
+        middlewares: [],
+      },
+    },
+  ],
+} as const;
