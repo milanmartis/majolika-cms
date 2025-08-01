@@ -36,24 +36,24 @@ export default factories.createCoreController('api::product.product', ({ strapi 
     const { slug } = ctx.params;
     const dekoryRaw = ctx.query.dekory;
     const tvaryRaw = ctx.query.tvary;
-  
+
     const dekory = typeof dekoryRaw === 'string' ? dekoryRaw.split(',') : [];
     const tvary = typeof tvaryRaw === 'string' ? tvaryRaw.split(',') : [];
-  
+
     // 1. Získaj kategóriu podľa slug
     const [category] = await strapi.entityService.findMany('api::category.category', {
       filters: { category_slug: slug },
       fields: ['id'],
     });
-  
+
     if (!category) return ctx.send({ data: [] });
-  
-    // 2. Zostav filter pre variácie podľa dekory a tvary
+
+    // 2. Zostav filter pre variácie podľa dekory a tvary (slugy)
     const andFilters: any[] = [];
-    dekory.forEach((d) => andFilters.push({ dekory: { nazov: { $containsi: d } } }));
-    tvary.forEach((t) => andFilters.push({ tvar: { nazov: { $containsi: t } } }));
-  
-    // Ak nie sú žiadne filtre, netreba volať druhý dotaz — rovno vrátime všetky produkty v kategórii
+    dekory.forEach((d) => andFilters.push({ dekory: { slug: { $eqi: d } } }));
+    tvary.forEach((t) => andFilters.push({ tvar: { slug: { $eqi: t } } }));
+
+    // Ak nie sú žiadne filtre, rovno vráť všetky produkty v kategórii
     if (andFilters.length === 0) {
       const all = await strapi.entityService.findMany('api::product.product', {
         filters: {
@@ -64,17 +64,17 @@ export default factories.createCoreController('api::product.product', ({ strapi 
       });
       return ctx.send({ data: all });
     }
-  
-    // 3. Vyhľadaj všetky variácie, ktoré vyhovujú dekor/tvar filtrom
+
+    // 3. Vyhľadaj všetky variácie, ktoré vyhovujú slug filtrom
     const variations = await strapi.entityService.findMany('api::product.product', {
       filters: { $and: andFilters },
       populate: ['parent'],
     });
-  
+
     const parentIds = (variations as any[])
       .map((v) => v.parent?.id)
       .filter((id, i, arr) => id && arr.indexOf(id) === i); // distinct a truthy
-  
+
     // 4. Vyhľadaj parent produkty, ktoré sú v danej kategórii
     const products = await strapi.entityService.findMany('api::product.product', {
       filters: {
@@ -84,7 +84,7 @@ export default factories.createCoreController('api::product.product', ({ strapi 
       },
       populate: productPopulate,
     });
-  
+
     return ctx.send({ data: products });
   }
 
