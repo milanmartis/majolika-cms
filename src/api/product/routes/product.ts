@@ -1,64 +1,66 @@
 import { factories } from '@strapi/strapi';
 
+// Core router
 const coreRouter = factories.createCoreRouter('api::product.product');
 
-export default coreRouter;
+// Získaj core routy
+const coreRoutes = Array.isArray(coreRouter.routes)
+  ? coreRouter.routes
+  : coreRouter.routes();
 
-export const categoryRoutes = {
-  routes: [
-    {
-      method: 'GET',
-      path: '/products/categories/:slug',
-      handler: 'product.findByCategory',
-      config: {
-        policies: [],
-        middlewares: [],
-      },
+// Vlastné routy
+const categoryRoutes = [
+  {
+    method: 'GET',
+    path: '/products/categories/:slug',
+    handler: 'product.findByCategory',
+    config: {
+      policies: [],
+      middlewares: [],
     },
-  ],
+  },
+];
+
+const eventSessionRoutes = [
+  {
+    method: 'GET',
+    path: '/products/:id/event-sessions',
+    handler: 'product.eventSessions',
+    config: {
+      policies: [],
+      middlewares: [],
+    },
+  },
+  {
+    method: 'POST',
+    path: '/products/:id/event-sessions/:sessionId/book',
+    handler: 'product.bookEventSession',
+    config: {
+      policies: [],
+      middlewares: [],
+    },
+  },
+  {
+    method: 'POST',
+    path: '/products/:id/event-sessions/:sessionId/confirm-paid',
+    handler: 'product.confirmPaidBooking',
+    config: {
+      policies: [],
+      middlewares: [],
+    },
+  },
+  {
+    method: 'POST',
+    path: '/products/:id/event-sessions/:sessionId/cancel/:bookingId',
+    handler: 'product.cancelBooking',
+    config: {
+      policies: [],
+      middlewares: [],
+    },
+  },
+];
+
+// ✅ Export pre Strapi
+export default {
+  routes: [...coreRoutes, ...categoryRoutes, ...eventSessionRoutes],
 };
-
-export const eventSessionRoutes = {
-  routes: [
-    {
-      method: 'GET',
-      path: '/products/:id/event-sessions',
-      handler: 'product.eventSessions',
-      info: { type: 'content-api' },
-      config: {
-        policies: [],
-        middlewares: [],
-      },
-    },
-    {
-      method: 'POST',
-      path: '/products/:id/event-sessions/:sessionId/book',
-      handler: 'product.bookEventSession',
-      info: { type: 'content-api' },
-      config: {
-        policies: [],
-        middlewares: [],
-      },
-    },
-    {
-      method: 'POST',
-      path: '/products/:id/event-sessions/:sessionId/confirm-paid',
-      handler: 'product.confirmPaidBooking',
-      info: { type: 'content-api' },
-      config: {
-        policies: [],
-        middlewares: [],
-      },
-    },
-    {
-      method: 'POST',
-      path: '/products/:id/event-sessions/:sessionId/cancel/:bookingId',
-      handler: 'product.cancelBooking',
-      info: { type: 'content-api' },
-      config: {
-        policies: [],
-        middlewares: [],
-      },
-    },
-  ],
-} as const;
