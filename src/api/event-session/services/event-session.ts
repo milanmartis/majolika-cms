@@ -50,30 +50,30 @@ export default factories.createCoreService('api::event-session.event-session', (
     return await strapi.db.connection.transaction(async (trx: any) => {
       // Lock the session row to avoid race conditions
       const sessionRow = await trx('event_sessions')
-        .select('id', 'maxCapacity')
+        .select('id', 'max_capacity')
         .where({ id: sessionId })
         .forUpdate()
         .first();
 
-      if (!sessionRow) {
+        if (!sessionRow) {
         return { success: false, reason: 'Session not found' };
-      }
+        }
 
-      // Sum already booked (paid/confirmed)
-      const bookedRows = await trx('event_bookings')
+        // booked sum (ako bolo)
+        const bookedRows = await trx('event_bookings')
         .where({ session: sessionId })
         .whereIn('status', ['paid', 'confirmed'])
         .select(trx.raw('COALESCE(SUM("peopleCount"), 0) as total'));
 
-      const alreadyBooked = parseInt(bookedRows[0]?.total || '0', 10);
-      const maxCap = sessionRow.maxCapacity || 0;
-      const available = Math.max(0, maxCap - alreadyBooked);
+        const alreadyBooked = parseInt(bookedRows[0]?.total || '0', 10);
+        const maxCap = sessionRow.max_capacity || 0;
+        const available = Math.max(0, maxCap - alreadyBooked);
 
-      if (bookingData.peopleCount > available) {
+        if (bookingData.peopleCount > available) {
         return {
-          success: false,
-          reason: 'Not enough capacity',
-          capacity: { booked: alreadyBooked, available, max: maxCap },
+            success: false,
+            reason: 'Not enough capacity',
+            capacity: { booked: alreadyBooked, available, max: maxCap },
         };
       }
 
