@@ -1,4 +1,12 @@
-
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::event-session.event-session');
+const routes = [
+    {
+      method: 'GET',
+      path: '/event-sessions/for-day',
+      handler: 'event-session.listForDay',
+      config: {
+        auth: false, // uprav podle toho, jestli má být veřejné
+      },
+    },
+  ];
+  
+  export default { routes };
