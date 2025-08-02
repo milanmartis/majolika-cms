@@ -2,15 +2,13 @@ import { factories } from '@strapi/strapi';
 
 type BookingStatus = 'pending' | 'paid' | 'confirmed' | 'cancelled';
 
-interface Booking {
-  peopleCount?: number;
-  status?: BookingStatus;
-}
-
 interface EventSession {
   id?: number;
   maxCapacity?: number;
-  bookings?: Booking[];
+  bookings?: Array<{
+    peopleCount?: number;
+    status?: BookingStatus;
+  }>;
 }
 
 interface BookingInput {
@@ -43,53 +41,50 @@ export default factories.createCoreService('api::event-session.event-session', (
     return { booked, available, max: session.maxCapacity || 0 };
   },
 
-  /**
-   * Atomically creates a booking only if there's enough capacity.
-   */
   async createBookingIfAvailable(sessionId: number, bookingData: BookingInput) {
     return await strapi.db.connection.transaction(async (trx: any) => {
-      // Lock the session row to avoid race conditions
+      // správne názvy stĺpcov: max_capacity
       const sessionRow = await trx('event_sessions')
         .select('id', 'max_capacity')
         .where({ id: sessionId })
         .forUpdate()
         .first();
 
-        if (!sessionRow) {
+      if (!sessionRow) {
         return { success: false, reason: 'Session not found' };
-        }
+      }
 
-        // booked sum (ako bolo)
-        const bookedRows = await trx('event_bookings')
+      // spočítaj už zaplatené/confirmované rezervácie: people_count
+      const bookedRows = await trx('event_bookings')
         .where({ session: sessionId })
         .whereIn('status', ['paid', 'confirmed'])
-        .select(trx.raw('COALESCE(SUM("peopleCount"), 0) as total'));
+        .sum({ total: 'people_count' }); // Knex sum alias
 
-        const alreadyBooked = parseInt(bookedRows[0]?.total || '0', 10);
-        const maxCap = sessionRow.max_capacity || 0;
-        const available = Math.max(0, maxCap - alreadyBooked);
+      const alreadyBooked = parseInt(String(bookedRows[0]?.total || '0'), 10);
+      const maxCap = sessionRow.max_capacity || 0;
+      const available = Math.max(0, maxCap - alreadyBooked);
 
-        if (bookingData.peopleCount > available) {
+      if (bookingData.peopleCount > available) {
         return {
-            success: false,
-            reason: 'Not enough capacity',
-            capacity: { booked: alreadyBooked, available, max: maxCap },
+          success: false,
+          reason: 'Not enough capacity',
+          capacity: { booked: alreadyBooked, available, max: maxCap },
         };
       }
 
-      // Insert new booking
+      // vloženie bookingu – používa snake_case
       const [newBooking] = await trx('event_bookings')
         .insert({
-          peopleCount: bookingData.peopleCount,
+          people_count: bookingData.peopleCount,
           status: bookingData.status,
-          customerName: bookingData.customerName || null,
-          customerEmail: bookingData.customerEmail || null,
-          orderId: bookingData.orderId || null,
+          customer_name: bookingData.customerName || null,
+          customer_email: bookingData.customerEmail || null,
+          order_id: bookingData.orderId || null,
           session: sessionId,
           created_at: new Date(),
           updated_at: new Date(),
         })
-        .returning('*'); // PostgreSQL
+        .returning('*');
 
       return {
         success: true,
