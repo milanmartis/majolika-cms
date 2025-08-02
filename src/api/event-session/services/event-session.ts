@@ -1,4 +1,4 @@
-// path: src/api/event-session/services/event-session.ts
+// src/api/event-session/services/event-session.ts
 import { factories } from '@strapi/strapi';
 
 type BookingStatus = 'pending' | 'paid' | 'confirmed' | 'cancelled';
@@ -6,49 +6,58 @@ type BookingStatus = 'pending' | 'paid' | 'confirmed' | 'cancelled';
 interface BookingInput {
   peopleCount: number;
   status: BookingStatus;
-  customerName?: string;
-  customerEmail?: string;
-  orderId?: string;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  orderId?: string | null;
   session: number;
+}
+
+interface EventSessionRow {
+  id?: number;
+  max_capacity?: number;
 }
 
 export default factories.createCoreService('api::event-session.event-session', ({ strapi }) => ({
   /**
-   * Vrátí kapacitu: kolik je již zaplacených / potvrzených a kolik zbývá.
+   * Získa kapacitu (booked / available / max) pre danú session.
+   * Počíta len confirmed/paid bookingy.
    */
   async getCapacity(sessionId: number) {
-    // Načti session (pouze max_capacity) a její bookings přes join table
-    const session = await strapi.entityService.findOne(
-      'api::event-session.event-session',
-      sessionId,
-      {
-        fields: ['id', 'maxCapacity'], // v JS je camelCase, Strapi mapuje na DB snake_case
-        populate: {
-          bookings: {
-            fields: ['peopleCount', 'status'],
-          },
-        },
-      }
-    ) as any;
+    // najprv vyhľadaj session (pre istotu)
+    const session = await strapi.db.connection('event_sessions')
+      .select('id', 'max_capacity')
+      .where({ id: sessionId })
+      .first() as unknown as EventSessionRow;
 
-    if (!session) return null;
+    if (!session) {
+      return null;
+    }
 
-    const booked = (session.bookings || [])
-      .filter((b: any) => b.status === 'paid' || b.status === 'confirmed')
-      .reduce((sum: number, b: any) => sum + (b.peopleCount || 0), 0);
+    // spočítaj už rezervované (paid|confirmed) cez join link tabuľku
+    const bookedRows = await strapi.db.connection('event_bookings as eb')
+      .join(
+        'event_bookings_session_lnk as lnk',
+        'eb.id',
+        'lnk.event_booking_id'
+      )
+      .where('lnk.event_session_id', sessionId)
+      .whereIn('eb.status', ['paid', 'confirmed'])
+      .sum({ total: 'eb.people_count' })
+      .first();
 
-    const maxCap = session.maxCapacity || 0;
-    const available = Math.max(0, maxCap - booked);
-    return { booked, available, max: maxCap };
+    const alreadyBooked = parseInt(String(bookedRows?.total || '0'), 10);
+    const maxCap = session.max_capacity || 0;
+    const available = Math.max(0, maxCap - alreadyBooked);
+    return { booked: alreadyBooked, available, max: maxCap };
   },
 
   /**
-   * Atomicky vytvoří booking jen pokud je kapacita dostupná.
-   * Vrátí { success, booking?, capacity?, reason? }
+   * Atomicky vytvorí booking iba ak je kapacita dostupná.
+   * Vkladá do event_bookings a potom do link tabuľky.
    */
   async createBookingIfAvailable(sessionId: number, bookingData: BookingInput) {
     return await strapi.db.connection.transaction(async (trx: any) => {
-      // Lock session row (pozor: v DB je sloupec max_capacity)
+      // lock session row
       const sessionRow = await trx('event_sessions')
         .select('id', 'max_capacity')
         .where({ id: sessionId })
@@ -59,21 +68,20 @@ export default factories.createCoreService('api::event-session.event-session', (
         return { success: false, reason: 'Session not found' };
       }
 
-      const maxCap: number = sessionRow.max_capacity || 0;
-
-      // Spočítat už zarezervované (paid/confirmed) přes join table
-      const bookedResult = await trx('event_bookings as eb')
+      // spočítaj existujúce confirmed/paid bookingy cez link tabuľku
+      const bookedRows = await trx('event_bookings as eb')
         .join(
-          'event_bookings_session_lnk as l',
-          'l.event_booking_id',
-          'eb.id'
+          'event_bookings_session_lnk as lnk',
+          'eb.id',
+          'lnk.event_booking_id'
         )
-        .where('l.event_session_id', sessionId)
+        .where('lnk.event_session_id', sessionId)
         .whereIn('eb.status', ['paid', 'confirmed'])
-        .sum({ total: 'eb.people_count' })
+        .sum(trx.raw('COALESCE(eb.people_count, 0) as total'))
         .first();
 
-      const alreadyBooked = parseInt((bookedResult?.total || 0).toString(), 10);
+      const alreadyBooked = parseInt(String(bookedRows?.total || '0'), 10);
+      const maxCap = sessionRow.max_capacity || 0;
       const available = Math.max(0, maxCap - alreadyBooked);
 
       if (bookingData.peopleCount > available) {
@@ -84,8 +92,7 @@ export default factories.createCoreService('api::event-session.event-session', (
         };
       }
 
-      // Vložíme nový booking
-      const now = new Date();
+      // vlož nový booking
       const [newBooking] = await trx('event_bookings')
         .insert({
           people_count: bookingData.peopleCount,
@@ -93,17 +100,17 @@ export default factories.createCoreService('api::event-session.event-session', (
           customer_name: bookingData.customerName || null,
           customer_email: bookingData.customerEmail || null,
           order_id: bookingData.orderId || null,
-          created_at: now,
-          updated_at: now,
+          created_at: new Date(),
+          updated_at: new Date(),
           published_at: null,
         })
-        .returning('*'); // PostgreSQL vrací vložený řádek
+        .returning('*'); // PostgreSQL
 
-      // Vytvoříme link do join table
+      // vlož link medzi bookingom a session
       await trx('event_bookings_session_lnk').insert({
         event_booking_id: newBooking.id,
         event_session_id: sessionId,
-        event_booking_ord: 0, // případně uprav podle potřeby
+        event_booking_ord: 0, // ak nepotrebné, môže byť 0
       });
 
       return {
