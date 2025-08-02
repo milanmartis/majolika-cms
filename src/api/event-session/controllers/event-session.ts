@@ -1,6 +1,12 @@
 import { factories } from '@strapi/strapi';
 
 export default factories.createCoreController('api::event-session.event-session', ({ strapi }) => ({
+  // simple test endpoint to verify the controller/route is active
+  async ping(ctx) {
+    strapi.log.debug('ping invoked');
+    return ctx.send({ ok: true, ts: new Date().toISOString() });
+  },
+
   async listForDay(ctx) {
     const { date } = ctx.query;
     if (!date) {
@@ -12,12 +18,12 @@ export default factories.createCoreController('api::event-session.event-session'
       return ctx.badRequest('Invalid date');
     }
 
-    // Interpretuj jako místní den (bez UTC posunu)
+    // interpret as local day
     const localDayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
     const localDayEnd = new Date(localDayStart);
     localDayEnd.setDate(localDayEnd.getDate() + 1);
 
-    strapi.log.debug(`Filtering sessions between ${localDayStart.toISOString()} and ${localDayEnd.toISOString()}`);
+    strapi.log.debug(`listForDay invoked, filtering sessions between ${localDayStart.toISOString()} and ${localDayEnd.toISOString()}`);
 
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: {
