@@ -11,25 +11,23 @@ export default factories.createCoreController('api::event-session.event-session'
 
   async findByProduct(ctx) {
     const { slug } = ctx.query;
-if (!slug || typeof slug !== 'string') {
-  ctx.status = 400;
-  ctx.body = { error: 'Missing or invalid slug parameter' };
-  return;
-}
-
-// potom už je slug určite string:
-const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
-  filters: {
-    product: {
-      slug: { $eq: slug }
+    if (!slug || typeof slug !== 'string') {
+      ctx.status = 400;
+      ctx.body = { error: 'Missing or invalid slug parameter' };
+      return;
     }
-  },
-  populate: {
-    product: { fields: ['id', 'name', 'slug'] }
-  }
-});
-
-ctx.body = { data: sessions };
+    const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
+      filters: {
+        product: {
+          slug: { $eq: slug }
+        }
+      },
+      populate: {
+        product: { fields: ['id', 'name', 'slug'] }
+      }
+    });
+  
+    ctx.body = { data: sessions };
   },
 
   // Vráti sessions pre konkrétny deň aj s kapacitou
