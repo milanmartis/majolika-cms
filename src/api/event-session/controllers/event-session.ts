@@ -9,33 +9,35 @@ export default factories.createCoreController('api::event-session.event-session'
   },
 
 
-  async findByProductId(ctx) {
-    const { product_id } = ctx.query;
-    if (!product_id) {
-      ctx.status = 400;
-      ctx.body = { error: 'Missing product_id parameter' };
-      return;
-    }
+  async findByProductSlug(ctx) {
+    const { slug } = ctx.query;
+if (typeof slug !== 'string') {
+  ctx.status = 400;
+  ctx.body = { error: 'Missing or invalid slug parameter' };
+  return;
+}
   
-    // ID musí byť číslo
-    const pid = parseInt(product_id as string, 10);
-    if (isNaN(pid)) {
-      ctx.status = 400;
-      ctx.body = { error: 'Invalid product_id parameter' };
-      return;
-    }
-  
-    // STRAPI V5: Filter manyToOne cez id!
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
-      filters: {
-        product: { id: { $eq: pid } }, // <-- TOTO je správny zápis pre v5
-      },
+    
+      filters: { product: { slug: { $eq: slug } } },
+
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
       populate: {
         product: { fields: ['id', 'name', 'slug'] },
       },
+      sort: { startDateTime: 'asc' },
     });
   
-    ctx.body = { data: sessions };
+    // Pridaj kapacitu ku každej session ak potrebuješ
+    const sessionService = strapi.service('api::event-session.event-session');
+    const withCapacity = await Promise.all(
+      sessions.map(async (s: any) => {
+        const cap = await sessionService.getCapacity(s.id);
+        return { ...s, capacity: cap };
+      })
+    );
+  
+    ctx.body = { data: withCapacity };
   },
   
 
