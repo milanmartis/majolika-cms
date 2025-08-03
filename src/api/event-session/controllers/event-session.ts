@@ -1,24 +1,22 @@
 import { factories } from '@strapi/strapi';
 
 export default factories.createCoreController('api::event-session.event-session', ({ strapi }) => ({
-  // simple test endpoint to verify the controller/route is active
+
+  // Príklad test endpointu
   async ping(ctx) {
     strapi.log.debug('ping invoked');
     return ctx.send({ ok: true, ts: new Date().toISOString() });
   },
 
+  // Vráti sessions pre konkrétny deň aj s kapacitou
   async listForDay(ctx) {
     const { date } = ctx.query;
-    if (!date) {
-      return ctx.badRequest('Missing date query param');
-    }
+    if (!date) return ctx.badRequest('Missing date query param');
 
     const d = new Date(String(date));
-    if (isNaN(d.getTime())) {
-      return ctx.badRequest('Invalid date');
-    }
+    if (isNaN(d.getTime())) return ctx.badRequest('Invalid date');
 
-    // interpret as local day
+    // Od 0:00 do 23:59
     const localDayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
     const localDayEnd = new Date(localDayStart);
     localDayEnd.setDate(localDayEnd.getDate() + 1);
@@ -39,14 +37,12 @@ export default factories.createCoreController('api::event-session.event-session'
       sort: { startDateTime: 'asc' },
     });
 
+    // Dynamicky pridaj kapacitu
     const sessionService = strapi.service('api::event-session.event-session');
     const withCapacity = await Promise.all(
       sessions.map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
-        return {
-          ...s,
-          capacity: cap,
-        };
+        return { ...s, capacity: cap };
       })
     );
 
