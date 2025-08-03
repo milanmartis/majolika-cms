@@ -1,5 +1,8 @@
 import { factories } from '@strapi/strapi';
-
+interface UpdateBookingData {
+    status?: 'pending' | 'paid' | 'confirmed' | 'cancelled';
+    peopleCount?: number;
+  }
 export default factories.createCoreController('api::event-booking.event-booking', ({ strapi }) => ({
 
   // CREATE booking
@@ -36,24 +39,31 @@ export default factories.createCoreController('api::event-booking.event-booking'
   },
 
   // UPDATE booking (napr. cancel)
-  async update(ctx) {
+  // UPDATE booking (napr. cancel)
+async update(ctx) {
     const bookingId = ctx.params.id;
-    const { status } = ctx.request.body.data || {};
-
-    if (!status) {
-      return ctx.badRequest('Missing status');
+    const data = ctx.request.body.data as UpdateBookingData || {};
+  
+    // Povoliť zmenu status aj peopleCount (aj naraz, aj jednotlivo)
+    if (!data.status && data.peopleCount === undefined) {
+      return ctx.badRequest('Missing status or peopleCount');
     }
-
+  
+    const updateData: UpdateBookingData = {};
+    if (data.status) updateData.status = data.status;
+    if (data.peopleCount !== undefined) updateData.peopleCount = Number(data.peopleCount);
+  
     try {
       const updated = await strapi.entityService.update(
         'api::event-booking.event-booking',
         bookingId,
-        { data: { status } }
+        { data: updateData }
       );
       ctx.body = updated;
     } catch (e) {
-      strapi.log.error('Failed to update booking status', e);
+      strapi.log.error('Failed to update booking', e);
       return ctx.internalServerError('Failed to update booking');
     }
   },
+  
 }));
