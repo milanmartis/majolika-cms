@@ -25,10 +25,10 @@ const routes = [
     },
     {
         method: 'GET',
-        path: '/event-sessions/by-product',
-        handler: 'event-session.findByProduct',
+        path: '/event-sessions/by-product-id',
+        handler: 'event-session.findByProductId',
         config: { auth: false },
-      },
+      }
   ];
   
   export default { routes };

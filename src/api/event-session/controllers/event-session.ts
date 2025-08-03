@@ -9,26 +9,35 @@ export default factories.createCoreController('api::event-session.event-session'
   },
 
 
-  async findByProduct(ctx) {
-    const { slug } = ctx.query;
-    if (!slug || typeof slug !== 'string') {
+  async findByProductId(ctx) {
+    const { product_id } = ctx.query;
+    if (!product_id) {
       ctx.status = 400;
-      ctx.body = { error: 'Missing or invalid slug parameter' };
+      ctx.body = { error: 'Missing product_id parameter' };
       return;
     }
+  
+    // ID musí byť číslo
+    const pid = parseInt(product_id as string, 10);
+    if (isNaN(pid)) {
+      ctx.status = 400;
+      ctx.body = { error: 'Invalid product_id parameter' };
+      return;
+    }
+  
+    // STRAPI V5: Filter manyToOne cez id!
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: {
-        product: {
-          slug: { $eq: slug }
-        }
+        product: { id: { $eq: pid } }, // <-- TOTO je správny zápis pre v5
       },
       populate: {
-        product: { fields: ['id', 'name', 'slug'] }
-      }
+        product: { fields: ['id', 'name', 'slug'] },
+      },
     });
   
     ctx.body = { data: sessions };
   },
+  
 
   // Vráti sessions pre konkrétny deň aj s kapacitou
   async listForDay(ctx) {
