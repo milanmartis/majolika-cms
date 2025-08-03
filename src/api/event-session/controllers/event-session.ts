@@ -8,6 +8,21 @@ export default factories.createCoreController('api::event-session.event-session'
     return ctx.send({ ok: true, ts: new Date().toISOString() });
   },
 
+
+  async findByProduct(ctx) {
+    const { slug } = ctx.query;
+    if (!slug) {
+      ctx.status = 400;
+      ctx.body = { error: "Missing slug parameter" };
+      return;
+    }
+    const sessions = await strapi.db.query('api::event-session.event-session').findMany({
+      where: { product: { slug } },
+      populate: ['product'],
+    });
+    ctx.body = sessions;
+  },
+
   // Vráti sessions pre konkrétny deň aj s kapacitou
   async listForDay(ctx) {
     const { date } = ctx.query;

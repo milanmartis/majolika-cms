@@ -23,6 +23,12 @@ const routes = [
       handler: 'event-session.findOne',
       config: { auth: false },
     },
+    {
+        method: 'GET',
+        path: '/event-sessions/by-product',
+        handler: 'event-session.findByProduct',
+        config: { auth: false },
+      },
   ];
   
   export default { routes };
