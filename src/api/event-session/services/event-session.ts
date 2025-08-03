@@ -30,54 +30,49 @@ export default factories.createCoreService('api::event-session.event-session', (
    * available a max.
    */
   async getCapacity(sessionId: number) {
-    // Najprv získaj session row (len id + max_capacity)
+    // najprv nájdi session (len id + max_capacity)
     const session = await strapi.db.connection('event_sessions')
       .select('id', 'max_capacity')
       .where({ id: sessionId })
       .first() as EventSessionRow | undefined;
-
+  
     if (!session) {
       return null;
     }
-
+  
+    // načítaj všetky relevantné bookingy (paid, confirmed, a recent pending)
     const now = new Date();
     const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
-
-    // Získaj všetky bookingy pre session cez linking tabuľku
-    const bookingRows: BookingRow[] = await strapi.db.connection('event_bookings as eb')
-      .innerJoin(
-        'event_bookings_session_lnk as lnk',
-        'eb.id',
-        'lnk.event_booking_id'
-      )
+  
+    // join cez linking table
+    const bookings = await strapi.db.connection('event_bookings as eb')
+      .innerJoin('event_bookings_session_lnk as lnk', 'eb.id', 'lnk.event_booking_id')
       .where('lnk.event_session_id', sessionId)
       .select(
-        'eb.id',
         'eb.status',
         'eb.people_count',
         'eb.created_at'
       );
-
-    // Spočítaj "booked" vrátane recent pending (≤10 minút)
-    let bookedCount = 0;
-    bookingRows.forEach((b: any) => {
-      if (b.status === 'paid' || b.status === 'confirmed') {
-        bookedCount += Number(b.people_count || 0);
-        return;
-      }
-      if (b.status === 'pending') {
+  
+    let alreadyBooked = 0;
+    bookings.forEach((b: any) => {
+      const status: string = b.status;
+      const people = Number(b.people_count) || 0;
+      if (status === 'paid' || status === 'confirmed') {
+        alreadyBooked += people;
+      } else if (status === 'pending') {
         const created = new Date(b.created_at);
         if (created >= tenMinutesAgo) {
-          bookedCount += Number(b.people_count || 0);
+          alreadyBooked += people;
         }
       }
     });
-
+  
     const maxCap = session.max_capacity ?? 0;
-    const available = Math.max(0, maxCap - bookedCount);
-
+    const available = Math.max(0, maxCap - alreadyBooked);
+  
     return {
-      booked: bookedCount,
+      booked: alreadyBooked,
       available,
       max: maxCap,
     };
