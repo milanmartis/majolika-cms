@@ -17,21 +17,13 @@ export default factories.createCoreController('api::event-session.event-session'
       return;
     }
 
-    // Poznámka: v Strapi v5 používaš entityService a filteruješ podľa relácie product.slug
-    // Over si názov kolekcie, často je 'api::product.product' alebo podľa tvojej schémy
-    // Ak field product neexistuje, zmen názov podľa tvojho modelu (môže byť aj product_single alebo podobne)
-
-    // Skús najskôr, či funguje tento query:
+    // Musí tu byť populate: { product: { fields: [...] } }
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: {
-        product: {
-          slug: slug,
-        },
+        product: { slug }, // filteruj podľa naviazaného produktu
       },
       populate: {
-        product: {
-          fields: ['id', 'name', 'slug'],
-        },
+        product: { fields: ['id', 'name', 'slug'] },
       },
     });
 
