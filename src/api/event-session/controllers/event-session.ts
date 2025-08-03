@@ -13,22 +13,26 @@ export default factories.createCoreController('api::event-session.event-session'
     const { slug } = ctx.query;
     if (!slug) {
       ctx.status = 400;
-      ctx.body = { error: "Missing slug parameter" };
+      ctx.body = { error: 'Missing slug parameter' };
       return;
     }
 
-    // Správne filtrovanie cez entityService v Strapi v5
+    // Poznámka: v Strapi v5 používaš entityService a filteruješ podľa relácie product.slug
+    // Over si názov kolekcie, často je 'api::product.product' alebo podľa tvojej schémy
+    // Ak field product neexistuje, zmen názov podľa tvojho modelu (môže byť aj product_single alebo podobne)
+
+    // Skús najskôr, či funguje tento query:
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: {
         product: {
-          slug: slug
-        }
+          slug: slug,
+        },
       },
       populate: {
         product: {
-          fields: ['id', 'name', 'slug']
-        }
-      }
+          fields: ['id', 'name', 'slug'],
+        },
+      },
     });
 
     ctx.body = sessions;
