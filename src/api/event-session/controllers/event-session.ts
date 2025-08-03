@@ -32,7 +32,7 @@ export default factories.createCoreController('api::event-session.event-session'
     });
 
     ctx.body = sessions;
-  },,
+  },
 
   // Vráti sessions pre konkrétny deň aj s kapacitou
   async listForDay(ctx) {
