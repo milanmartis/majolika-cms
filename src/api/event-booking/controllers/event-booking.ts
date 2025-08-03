@@ -12,7 +12,7 @@ export default factories.createCoreController('api::event-booking.event-booking'
     const sessionService = strapi.service('api::event-session.event-session');
     const result = await sessionService.createBookingIfAvailable(Number(sessionId), {
       peopleCount: Number(peopleCount),
-      status: 'pending', // nebo 'paid' pokud už je zaplaceno
+      status: 'pending',
       customerName,
       customerEmail,
       orderId,
@@ -33,5 +33,28 @@ export default factories.createCoreController('api::event-booking.event-booking'
 
     ctx.status = 201;
     ctx.body = result.booking;
+  },
+
+  // nové: povolenie aktualizácie stavu rezervácie (napr. cancel)
+  async update(ctx) {
+    const bookingId = ctx.params.id;
+    const { status } = ctx.request.body.data || {};
+
+    if (!status) {
+      return ctx.badRequest('Missing status');
+    }
+
+    try {
+      // jednoduchá aktualizácia statusu
+      const updated = await strapi.entityService.update(
+        'api::event-booking.event-booking',
+        bookingId,
+        { data: { status } }
+      );
+      ctx.body = updated;
+    } catch (e) {
+      strapi.log.error('Failed to update booking status', e);
+      return ctx.internalServerError('Failed to update booking');
+    }
   },
 }));
