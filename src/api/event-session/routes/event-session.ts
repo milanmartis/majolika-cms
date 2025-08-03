@@ -19,8 +19,8 @@ const routes = [
     },
     {
         method: 'GET',
-        path: '/event-sessions/by-product-id',
-        handler: 'event-session.findByProductId',
+        path: '/event-sessions/by-product',
+        handler: 'event-session.findByProductSlug',
         config: { auth: false },
       },
     {
