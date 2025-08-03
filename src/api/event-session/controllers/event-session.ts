@@ -16,12 +16,23 @@ export default factories.createCoreController('api::event-session.event-session'
       ctx.body = { error: "Missing slug parameter" };
       return;
     }
-    const sessions = await strapi.db.query('api::event-session.event-session').findMany({
-      where: { product: { slug } },
-      populate: ['product'],
+
+    // Správne filtrovanie cez entityService v Strapi v5
+    const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
+      filters: {
+        product: {
+          slug: slug
+        }
+      },
+      populate: {
+        product: {
+          fields: ['id', 'name', 'slug']
+        }
+      }
     });
+
     ctx.body = sessions;
-  },
+  },,
 
   // Vráti sessions pre konkrétny deň aj s kapacitou
   async listForDay(ctx) {
