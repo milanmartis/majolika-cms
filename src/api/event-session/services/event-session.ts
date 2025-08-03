@@ -1,4 +1,4 @@
-// path: src/api/event-session/services/event-session.ts
+// src/api/event-session/services/event-session.ts
 import { factories } from '@strapi/strapi';
 
 type BookingStatus = 'pending' | 'paid' | 'confirmed' | 'cancelled';
@@ -6,6 +6,13 @@ type BookingStatus = 'pending' | 'paid' | 'confirmed' | 'cancelled';
 interface EventSessionRow {
   id: number;
   max_capacity?: number;
+}
+
+interface BookingRow {
+  id: number;
+  people_count?: number;
+  status?: BookingStatus;
+  created_at?: string;
 }
 
 interface BookingInput {
@@ -17,16 +24,13 @@ interface BookingInput {
   session: number;
 }
 
-/**
- * Core service pre event-session: kapacita + atomické vytváranie bookingov s hold logikou.
- */
 export default factories.createCoreService('api::event-session.event-session', ({ strapi }) => ({
   /**
-   * Vráti kapacitu: koľko je booked (paid/confirmed) + recent pending (<10m) ako držané,
-   * plus available a max.
+   * Vráti kapacitu: koľko je booked (paid/confirmed), plus recent pending <10min ako hold,
+   * available a max.
    */
   async getCapacity(sessionId: number) {
-    // načítaj session (len id + max_capacity)
+    // Najprv získaj session row (len id + max_capacity)
     const session = await strapi.db.connection('event_sessions')
       .select('id', 'max_capacity')
       .where({ id: sessionId })
@@ -36,49 +40,55 @@ export default factories.createCoreService('api::event-session.event-session', (
       return null;
     }
 
-    // načítaj všetky relevantné bookingy (paid/confirmed alebo recent pending)
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const now = new Date();
+    const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
 
-    // join cez linking tabuľku, získame všetky eb s ich statusom a created_at
-    const bookingRows: any[] = await strapi.db.connection('event_bookings as eb')
-      .innerJoin('event_bookings_session_lnk as lnk', 'eb.id', 'lnk.event_booking_id')
+    // Získaj všetky bookingy pre session cez linking tabuľku
+    const bookingRows: BookingRow[] = await strapi.db.connection('event_bookings as eb')
+      .innerJoin(
+        'event_bookings_session_lnk as lnk',
+        'eb.id',
+        'lnk.event_booking_id'
+      )
       .where('lnk.event_session_id', sessionId)
       .select(
+        'eb.id',
         'eb.status',
-        'eb.created_at',
-        strapi.db.connection.raw('COALESCE(eb.people_count, 0) as people_count')
+        'eb.people_count',
+        'eb.created_at'
       );
 
-    // spočítaj "booked" vrátane recent pending (<10m)
-    let bookedTotal = 0;
-    for (const b of bookingRows) {
+    // Spočítaj "booked" vrátane recent pending (≤10 minút)
+    let bookedCount = 0;
+    bookingRows.forEach((b: any) => {
       if (b.status === 'paid' || b.status === 'confirmed') {
-        bookedTotal += parseInt(b.people_count + '' || '0', 10);
-      } else if (b.status === 'pending') {
+        bookedCount += Number(b.people_count || 0);
+        return;
+      }
+      if (b.status === 'pending') {
         const created = new Date(b.created_at);
         if (created >= tenMinutesAgo) {
-          bookedTotal += parseInt(b.people_count + '' || '0', 10);
+          bookedCount += Number(b.people_count || 0);
         }
       }
-    }
+    });
 
     const maxCap = session.max_capacity ?? 0;
-    const available = Math.max(0, maxCap - bookedTotal);
+    const available = Math.max(0, maxCap - bookedCount);
 
     return {
-      booked: bookedTotal,
+      booked: bookedCount,
       available,
       max: maxCap,
     };
   },
 
   /**
-   * Atomicky vytvorí booking len ak je voľná kapacita (berie do úvahy paid/confirmed,
-   * ale *ne*počítá pending staršie než 10 minút ako hold tu – to sa rieši v getCapacity).
+   * Atomicky vytvorí booking len ak je voľná kapacita.
    */
   async createBookingIfAvailable(sessionId: number, bookingData: BookingInput) {
     return await strapi.db.connection.transaction(async (trx: any) => {
-      // uzamkneme session row
+      // Uzamkneme session row pre update-safe čítanie
       const sessionRow = await trx('event_sessions')
         .select('id', 'max_capacity')
         .where({ id: sessionId })
@@ -91,17 +101,38 @@ export default factories.createCoreService('api::event-session.event-session', (
 
       const maxCap = sessionRow.max_capacity || 0;
 
-      // spočítaj existujúce confirmed/paid rezervácie
-      const bookedRows = await trx('event_bookings as eb')
-        .innerJoin('event_bookings_session_lnk as lnk', 'eb.id', 'lnk.event_booking_id')
+      // Získaj existujúce bookingy vrátane recent pending ako hold
+      const now = new Date();
+      const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+
+      const bookingRows: any[] = await trx('event_bookings as eb')
+        .innerJoin(
+          'event_bookings_session_lnk as lnk',
+          'eb.id',
+          'lnk.event_booking_id'
+        )
         .where('lnk.event_session_id', sessionId)
-        .whereIn('eb.status', ['paid', 'confirmed'])
-        .sum({ total: trx.raw('COALESCE(eb.people_count, 0)') })
-        .limit(1);
+        .select(
+          'eb.status',
+          'eb.people_count',
+          'eb.created_at'
+        );
 
-      const alreadyBooked = Math.max(0, parseInt(((bookedRows[0]?.total || '0') + ''), 10));
+      let alreadyBooked = 0;
+      bookingRows.forEach(b => {
+        if (b.status === 'paid' || b.status === 'confirmed') {
+          alreadyBooked += Number(b.people_count || 0);
+          return;
+        }
+        if (b.status === 'pending') {
+          const created = new Date(b.created_at);
+          if (created >= tenMinutesAgo) {
+            alreadyBooked += Number(b.people_count || 0);
+          }
+        }
+      });
+
       const available = Math.max(0, maxCap - alreadyBooked);
-
       if (bookingData.peopleCount > available) {
         return {
           success: false,
@@ -114,7 +145,7 @@ export default factories.createCoreService('api::event-session.event-session', (
         };
       }
 
-      // vlož nový booking
+      // Vložíme nový booking
       const [newBooking] = await trx('event_bookings')
         .insert({
           people_count: bookingData.peopleCount,
@@ -127,7 +158,7 @@ export default factories.createCoreService('api::event-session.event-session', (
         })
         .returning('*');
 
-      // prepojenie cez link tabuľku (M:N)
+      // Prepojíme cez linking tabuľku
       await trx('event_bookings_session_lnk').insert({
         event_booking_id: newBooking.id,
         event_session_id: sessionId,
@@ -147,7 +178,7 @@ export default factories.createCoreService('api::event-session.event-session', (
   },
 
   /**
-   * Aktualizuje stav existujúcej rezervácie (napr. z pending na cancelled).
+   * Aktualizuje stav existujúcej rezervácie.
    */
   async updateBookingStatus(bookingId: number, status: BookingStatus) {
     const updated = await strapi.entityService.update(
