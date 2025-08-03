@@ -1,58 +1,64 @@
-// src/api/event-session/services/event-session.ts
+// path: src/api/event-session/services/event-session.ts
 import { factories } from '@strapi/strapi';
 
 type BookingStatus = 'pending' | 'paid' | 'confirmed' | 'cancelled';
 
-interface Booking {
-  people_count?: number;
-  status?: BookingStatus;
-}
-
-interface EventSession {
-  id?: number;
-  maxCapacity?: number;
-  bookings?: Booking[];
+interface EventSessionRow {
+  id: number;
+  max_capacity?: number;
 }
 
 interface BookingInput {
   peopleCount: number;
   status: BookingStatus;
-  customerName?: string;
-  customerEmail?: string;
-  orderId?: string;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  orderId?: string | null;
   session: number;
 }
 
 export default factories.createCoreService('api::event-session.event-session', ({ strapi }) => ({
   /**
-   * Zistí kapacitu (booked / available / max) pre danú session.
+   * Vráti kapacitu: koľko je booked (paid/confirmed), available a max.
    */
   async getCapacity(sessionId: number) {
-    const session = await strapi.entityService.findOne(
-      'api::event-session.event-session',
-      sessionId,
-      {
-        fields: ['id', 'maxCapacity'],
-        populate: { bookings: { fields: ['peopleCount', 'status'] } },
-      }
-    ) as unknown as EventSession;
+    // najprv nájdi session (len id + max_capacity)
+    const session = await strapi.db.connection('event_sessions')
+      .select('id', 'max_capacity')
+      .where({ id: sessionId })
+      .first() as EventSessionRow | undefined;
 
-    if (!session) return null;
+    if (!session) {
+      return null;
+    }
 
-    const booked = (session.bookings || [])
-      .filter((b) => b.status === 'paid' || b.status === 'confirmed')
-      .reduce((sum, b) => sum + (b.people_count || 0), 0);
+    // spočítaj už potvrdené / zaplatené rezervácie cez join
+    const bookedResult = await strapi.db.connection('event_bookings as eb')
+      .innerJoin('event_bookings_session_lnk as lnk', 'eb.id', 'lnk.event_booking_id')
+      .where('lnk.event_session_id', sessionId)
+      .whereIn('eb.status', ['paid', 'confirmed'])
+      .sum({ total: strapi.db.connection.raw('COALESCE(eb.people_count, 0)') })
+      .limit(1);
 
-    const available = Math.max(0, (session.maxCapacity || 0) - booked);
-    return { booked, available, max: session.maxCapacity || 0 };
+    // Knack: knex returns array with object like { total: '3' } or { total: null }
+    const alreadyBookedStr = (bookedResult[0] as any)?.total;
+    const alreadyBooked = Math.max(0, parseInt(alreadyBookedStr || '0', 10));
+    const maxCap = session.max_capacity ?? 0;
+    const available = Math.max(0, maxCap - alreadyBooked);
+
+    return {
+      booked: alreadyBooked,
+      available,
+      max: maxCap,
+    };
   },
 
   /**
-   * Atomicky vytvorí booking iba ak je ešte voľná kapacita.
+   * Atomicky vytvorí booking len ak je voľná kapacita.
    */
   async createBookingIfAvailable(sessionId: number, bookingData: BookingInput) {
     return await strapi.db.connection.transaction(async (trx: any) => {
-      // Zamkneme session riadok (snake_case názvy v SQL)
+      // uzamkneme session row
       const sessionRow = await trx('event_sessions')
         .select('id', 'max_capacity')
         .where({ id: sessionId })
@@ -63,31 +69,32 @@ export default factories.createCoreService('api::event-session.event-session', (
         return { success: false, reason: 'Session not found' };
       }
 
-      // Spočítame už potvrdené/paid rezervácie cez linking table
+      const maxCap = sessionRow.max_capacity || 0;
+
+      // spočítaj existujúce booked (paid/confirmed) rezervácie cez join
       const bookedRows = await trx('event_bookings as eb')
-        .innerJoin(
-          'event_bookings_session_lnk as lnk',
-          'eb.id',
-          'lnk.event_booking_id'
-        )
+        .innerJoin('event_bookings_session_lnk as lnk', 'eb.id', 'lnk.event_booking_id')
         .where('lnk.event_session_id', sessionId)
         .whereIn('eb.status', ['paid', 'confirmed'])
-        .select(trx.raw('COALESCE(SUM(eb.people_count), 0) as total'))
+        .sum({ total: trx.raw('COALESCE(eb.people_count, 0)') })
         .limit(1);
 
-      const alreadyBooked = parseInt(bookedRows[0]?.total || '0', 10);
-      const maxCap = sessionRow.max_capacity || 0;
+      const alreadyBooked = Math.max(0, parseInt((bookedRows[0]?.total || '0') + '', 10));
       const available = Math.max(0, maxCap - alreadyBooked);
 
       if (bookingData.peopleCount > available) {
         return {
           success: false,
           reason: 'Not enough capacity',
-          capacity: { booked: alreadyBooked, available, max: maxCap },
+          capacity: {
+            booked: alreadyBooked,
+            available,
+            max: maxCap,
+          },
         };
       }
 
-      // Vložíme nový booking (snake_case fields)
+      // vlož nový booking
       const [newBooking] = await trx('event_bookings')
         .insert({
           people_count: bookingData.peopleCount,
@@ -97,15 +104,14 @@ export default factories.createCoreService('api::event-session.event-session', (
           order_id: bookingData.orderId || null,
           created_at: new Date(),
           updated_at: new Date(),
-          published_at: null,
         })
-        .returning('*'); // PostgreSQL
+        .returning('*');
 
-      // Spojíme booking so session cez linking table
+      // prepojenie cez linking tabuľku (many-to-many)
       await trx('event_bookings_session_lnk').insert({
         event_booking_id: newBooking.id,
         event_session_id: sessionId,
-        event_booking_ord: 0, // ak poradie nepotrebujete, nechajte 0
+        event_booking_ord: 0, // ak potrebujete poradie, uprav podľa logiky
       });
 
       return {
@@ -118,5 +124,17 @@ export default factories.createCoreService('api::event-session.event-session', (
         },
       };
     });
+  },
+
+  /**
+   * Zruší / aktualizuje stav existujúcej rezervácie.
+   */
+  async updateBookingStatus(bookingId: number, status: BookingStatus) {
+    const updated = await strapi.entityService.update(
+      'api::event-booking.event-booking',
+      bookingId,
+      { data: { status } }
+    );
+    return updated;
   },
 }));
