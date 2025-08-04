@@ -18,11 +18,17 @@ const routes = [
       config: { auth: false },
     },
     {
-        method: 'GET',
-        path: '/event-sessions/by-product',
-        handler: 'event-session.findByProductSlug',
-        config: { auth: false },
-      },
+      method: 'GET',
+      path: '/event-sessions/by-product',
+      handler: 'event-session.findByProductSlug',
+      config: { auth: false },
+    },
+    {
+      method: 'GET',
+      path: '/event-sessions/by-range',
+      handler: 'event-session.byRange',
+      config: { auth: false },
+    },
     {
       method: 'GET',
       path: '/event-sessions/:id',
