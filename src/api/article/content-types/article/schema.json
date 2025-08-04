@@ -22,7 +22,12 @@
     "slug": {
       "type": "string",
       "required": true,
-      "unique": false
+      "unique": false,
+      "pluginOptions": {
+        "i18n": {
+          "localized": true
+        }
+      }
     },
     "created": {
       "type": "datetime"
