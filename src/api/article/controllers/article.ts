@@ -6,24 +6,32 @@ export default factories.createCoreController('api::article.article', ({ strapi 
     const { slug } = ctx.params;
     const locale = ctx.query.locale || 'en'; // default môže byť 'en'
 
-    const [article] = await strapi.entityService.findMany(
+    // Nájdi všetky články so slug a locale
+    const articles = await strapi.entityService.findMany(
       'api::article.article',
       {
         filters: { 
           slug,
-          locale   // filtruj podľa jazyka
+          locale
         },
         populate: {
           content: {
             populate: '*',
           },
         },
-        limit: 1,
       } as any
     );
 
-    if (!article) return ctx.notFound('Article not found');
+    if (articles.length === 0) {
+      return ctx.notFound('Article not found');
+    }
 
-    return this.transformResponse(article);
+    if (articles.length > 1) {
+      // Viacero rovnakých slug + locale nie je povolené
+      return ctx.badRequest('Multiple articles with the same slug and locale found');
+    }
+
+    // Presne jeden článok, vráť ho
+    return this.transformResponse(articles[0]);
   },
 }));
