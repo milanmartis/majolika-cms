@@ -4,20 +4,22 @@ import { Context } from 'koa';
 export default factories.createCoreController('api::article.article', ({ strapi }) => ({
   async findBySlug(ctx: Context) {
     const { slug } = ctx.params;
+    const locale = ctx.query.locale || 'en'; // default môže byť 'en'
 
     const [article] = await strapi.entityService.findMany(
       'api::article.article',
       {
-        filters: { slug },
+        filters: { 
+          slug,
+          locale   // filtruj podľa jazyka
+        },
         populate: {
-          /* ①  dynamic-zone  */
           content: {
-            /* ②  star = populuj VŠETKO na „druhej úrovni“  */
             populate: '*',
           },
         },
         limit: 1,
-      } as any         // ← obídeme prísny TS typ (viď predchádzajúce vysvetlenie)
+      } as any
     );
 
     if (!article) return ctx.notFound('Article not found');
