@@ -82,8 +82,6 @@ export default factories.createCoreController('api::event-session.event-session'
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return ctx.badRequest('Invalid date range');
     }
-
-    // Session od začiatku start do konca end
     const rangeEnd = new Date(endDate);
     rangeEnd.setHours(23, 59, 59, 999);
 
@@ -107,6 +105,7 @@ export default factories.createCoreController('api::event-session.event-session'
       })
     );
 
-    ctx.body = { data: withCapacity }; // <<<< SPRÁVNE, vždy vracaj objekt!
-  },
+    strapi.log.debug('by-range result', JSON.stringify(withCapacity));
+    ctx.body = { data: withCapacity };
+  }
 }));
