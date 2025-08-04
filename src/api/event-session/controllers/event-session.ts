@@ -2,11 +2,13 @@ import { factories } from '@strapi/strapi';
 
 export default factories.createCoreController('api::event-session.event-session', ({ strapi }) => ({
 
+  // Ping endpoint pre testovanie
   async ping(ctx) {
     strapi.log.debug('ping invoked');
-    return ctx.send({ ok: true, ts: new Date().toISOString() });
+    ctx.body = { ok: true, ts: new Date().toISOString() };
   },
 
+  // Sessions podľa slug produktu
   async findByProductSlug(ctx) {
     const { slug } = ctx.query;
     if (typeof slug !== 'string') {
@@ -14,18 +16,17 @@ export default factories.createCoreController('api::event-session.event-session'
       ctx.body = { error: 'Missing or invalid slug parameter' };
       return;
     }
+
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: { product: { slug: { $eq: slug } } },
       fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
-      populate: {
-        product: { fields: ['id', 'name', 'slug'] },
-      },
+      populate: { product: { fields: ['id', 'name', 'slug'] } },
       sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
     const withCapacity = await Promise.all(
-      sessions.map(async (s) => {
+      sessions.map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
         return { ...s, capacity: cap };
       })
@@ -34,6 +35,7 @@ export default factories.createCoreController('api::event-session.event-session'
     ctx.body = { data: withCapacity };
   },
 
+  // Sessions pre konkrétny deň
   async listForDay(ctx) {
     const { date } = ctx.query;
     if (!date) return ctx.badRequest('Missing date query param');
@@ -41,7 +43,6 @@ export default factories.createCoreController('api::event-session.event-session'
     const d = new Date(String(date));
     if (isNaN(d.getTime())) return ctx.badRequest('Invalid date');
 
-    // Od 0:00 do 23:59 dňa
     const localDayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
     const localDayEnd = new Date(localDayStart);
     localDayEnd.setDate(localDayEnd.getDate() + 1);
@@ -56,54 +57,56 @@ export default factories.createCoreController('api::event-session.event-session'
         },
       },
       fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
-      populate: {
-        product: { fields: ['name', 'slug'] },
-      },
+      populate: { product: { fields: ['name', 'slug'] } },
       sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
     const withCapacity = await Promise.all(
-      sessions.map(async (s) => {
+      sessions.map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
         return { ...s, capacity: cap };
       })
     );
 
-    ctx.body = withCapacity;
+    ctx.body = { data: withCapacity };
   },
 
-  // NOVÝ ENDPOINT /by-range
-  async byRange(ctx) {
+  // Sessions pre rozsah dátumov
+  async listForRange(ctx) {
     const { start, end } = ctx.query;
-    if (!start || !end) return ctx.badRequest('Missing start or end parameter');
+    if (!start || !end) return ctx.badRequest('Missing start or end query param');
 
     const startDate = new Date(String(start));
     const endDate = new Date(String(end));
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return ctx.badRequest('Invalid date');
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return ctx.badRequest('Invalid date range');
+    }
+
+    // Session od začiatku start do konca end
+    const rangeEnd = new Date(endDate);
+    rangeEnd.setHours(23, 59, 59, 999);
 
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: {
         startDateTime: {
           $gte: startDate.toISOString(),
-          $lt: endDate.toISOString(),
+          $lte: rangeEnd.toISOString(),
         },
       },
       fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
-      populate: {
-        product: { fields: ['name', 'slug'] },
-      },
+      populate: { product: { fields: ['name', 'slug'] } },
       sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
     const withCapacity = await Promise.all(
-      sessions.map(async (s) => {
+      sessions.map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
         return { ...s, capacity: cap };
       })
     );
 
-    ctx.body = withCapacity;
+    ctx.body = { data: withCapacity }; // <<<< SPRÁVNE, vždy vracaj objekt!
   },
 }));

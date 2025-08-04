@@ -13,8 +13,8 @@ const routes = [
     },
     {
       method: 'GET',
-      path: '/event-sessions',
-      handler: 'event-session.find',
+      path: '/event-sessions/by-range',
+      handler: 'event-session.listForRange',
       config: { auth: false },
     },
     {
@@ -25,8 +25,8 @@ const routes = [
     },
     {
       method: 'GET',
-      path: '/event-sessions/by-range',
-      handler: 'event-session.byRange',
+      path: '/event-sessions',
+      handler: 'event-session.find',
       config: { auth: false },
     },
     {
@@ -34,7 +34,7 @@ const routes = [
       path: '/event-sessions/:id',
       handler: 'event-session.findOne',
       config: { auth: false },
-    }
+    },
   ];
   
   export default { routes };
