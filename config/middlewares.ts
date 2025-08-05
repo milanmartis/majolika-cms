@@ -73,8 +73,10 @@ export default [
   {
     name: 'strapi::body',
     config: {
-      include: ['/stripe/webhook'],
-      raw: { include: ['/stripe/webhook'] }, // <<<<<<<<<<<<<<
+      include: [],
+      raw: {
+        include: ['/api/stripe/webhook'], // sem dávaj raw endpointy
+      },
       jsonLimit: '1mb',
       formLimit: '56kb',
       textLimit: '56kb',
