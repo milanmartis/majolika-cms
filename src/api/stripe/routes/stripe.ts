@@ -1,3 +1,5 @@
+// src/api/stripe/routes/stripe.ts
+
 export default {
   routes: [
     {
@@ -8,12 +10,12 @@ export default {
         auth: false,
         policies: [],
         middlewares: [
-          // RAW body pre Stripe signature
+          // RAW BODY iba na tomto route!
           async (ctx: any, next: any) => {
             ctx.req.body = await new Promise(resolve => {
               let data = '';
               ctx.req.on('data', chunk => (data += chunk));
-              ctx.req.on('end', () => resolve(data));
+              ctx.req.on('end', () => resolve(Buffer.from(data))); // Buffer!
             });
             await next();
           },
