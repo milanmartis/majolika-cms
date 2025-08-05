@@ -2,7 +2,7 @@
 
 export default [
     // VLASTNÝ DEBUG MIDDLEWARE
-     { resolve: './src/middlewares/stripe-raw', config: {} },
+    // { resolve: './src/middlewares/stripe-raw', config: {} },
 
   // Rozšírené logovanie pre debug
   {
@@ -68,18 +68,23 @@ export default [
   // ✅ Ostatné default middlewares
   'strapi::poweredBy',
   'strapi::query',
-{
-  name: 'strapi::body',
-  config: {
-    // Strapi v4 už nepodporuje „include/raw“ takto – 
-    // namiesto toho:
-    exclude: ['/api/stripe/webhook'],
-    jsonLimit: '1mb',
-    formLimit: '56kb',
-    textLimit: '56kb',
-    formidable: { maxFileSize: 50 * 1024 * 1024 },
+  {
+    name: 'strapi::body',
+    config: {
+      parser: {
+        enabled: true,
+        jsonLimit: '1mb',
+        formLimit: '56kb',
+        textLimit: '56kb',
+        formidable: { maxFileSize: 50 * 1024 * 1024 },
+
+        // → Všetko pod týmto endpointom príde ako `Buffer`
+        raw: {
+          include: ['/api/stripe/webhook'],
+        },
+      },
+    },
   },
-},
 
   {
     name: 'strapi::session',
