@@ -21,7 +21,8 @@
     "src/**/*.json",
     "src/types/**/*.d.ts",
     "src/plugins/**/*.ts",
-    "src/extensions/**/*.ts"
+    "src/extensions/**/*.ts",
+    "src/types/global.d.ts"
 , "config/server.ts", "config/server.js"  ],
   "exclude": [
     "node_modules",
