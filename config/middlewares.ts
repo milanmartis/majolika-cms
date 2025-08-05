@@ -65,19 +65,15 @@ export default [
   'strapi::poweredBy',
   'strapi::query',
 
+  { resolve: './src/middlewares/stripeRawBody' },
   {
     name: 'strapi::body',
     config: {
-      include: ['/api/stripe/webhook'],
-      raw: { include: ['/api/stripe/webhook'] }, // <<<<<<<<<<<<<<
-      jsonLimit: '1mb',
-      formLimit: '56kb',
-      textLimit: '56kb',
-      enableTypes: ['json', 'form', 'text'],
-      encoding: 'utf-8',
-      strict: true,
+      jsonLimit: '50mb',
+      formLimit: '50mb',
+      textLimit: '50mb',
       formidable: {
-        maxFileSize: 50 * 1024 * 1024,
+        maxFileSize: 50 * 1024 * 1024, // 50 MB
       },
     },
   },
