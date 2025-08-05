@@ -1,5 +1,5 @@
 // config/middlewares.ts
-
+console.log('MIDDLEWARE HIT');
 export default [
   // Rozšírené logovanie pre debug
   {
@@ -68,7 +68,7 @@ export default [
   {
     name: 'strapi::body',
     config: {
-      include: ['/api/stripe/webhook'],
+      include: ['/stripe/webhook'],
       jsonLimit: '1mb',
       formLimit: '56kb',
       textLimit: '56kb',
@@ -80,7 +80,7 @@ export default [
         maxFileSize: 50 * 1024 * 1024, // 50 MB
       },
       raw: {
-        include: ['/api/stripe/webhook'], 
+        include: ['/stripe/webhook'], 
       },
     },
   },

@@ -1,33 +1,32 @@
 import Stripe from 'stripe';
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 export default {
-  async webhook(ctx: any) {
+    async webhook(ctx: any) {
+    strapi.log.info('WEBHOOK HIT', { headers: ctx.request.headers });
     const sig = ctx.request.headers['stripe-signature'];
     let event;
+
     try {
       event = stripe.webhooks.constructEvent(
-        ctx.req.body,  // POZOR: už je Buffer!
+        ctx.req.body, // Buffer!
         sig!,
         process.env.STRIPE_WEBHOOK_SECRET!
       );
     } catch (err: any) {
-      strapi.log.error('Stripe webhook error:', err.message);
-      ctx.response.status = 400;
-      ctx.response.body = `Webhook Error: ${err.message}`;
+      ctx.status = 400;
+      ctx.body = `Webhook Error: ${err.message}`;
       return;
     }
 
-    // Stručné spracovanie
+    // Tu tvoja logika...
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-
-      // ⬇️ Rob len niečo jednoduché na test!
-      strapi.log.info(`Stripe PAID, session: ${session.id}`);
+      // Tu si sprav log alebo DB operáciu
+      strapi.log.info('Stripe checkout.session.completed webhook received:', session.id);
     }
 
-    // Musíš vždy odpovedať Stripe, aj keď sa nič neurobí
-    ctx.response.status = 200;
-    ctx.response.body = { received: true };
-  }
+    ctx.status = 200;
+    ctx.body = { received: true };
+  },
 };
