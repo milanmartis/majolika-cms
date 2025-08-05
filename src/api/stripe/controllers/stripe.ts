@@ -3,6 +3,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
 export default {
   async webhook(ctx: any) {
+    console.log('WEBHOOK CONTROLLER CALLED!');
+    strapi.log.info('WEBHOOK CONTROLLER CALLED!');
     const sig = ctx.request.headers['stripe-signature'];
     let event;
 

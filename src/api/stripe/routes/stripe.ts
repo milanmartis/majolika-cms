@@ -2,8 +2,8 @@ export default {
   routes: [
     {
       method: 'POST',
-      path: '/stripe/webhook',
-      handler: 'stripe.webhook',
+      path: '/api/stripe/webhook',
+      handler: '/api/stripe.webhook',
       config: {
         auth: false,
         policies: [],
