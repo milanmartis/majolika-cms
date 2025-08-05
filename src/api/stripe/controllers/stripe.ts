@@ -3,32 +3,38 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
 export default {
   async webhook(ctx: any) {
-    strapi.log.info('––– STRIPE WEBHOOK –––');
+    const sig = ctx.request.headers['stripe-signature']!;
+    let event: Stripe.Event;
 
-    // Jedna deklarácia signature headeru
-    const sig = ctx.request.headers['stripe-signature'];
-    strapi.log.info('Stripe signature header:', sig);
-    strapi.log.info('Using webhook secret:', process.env.STRIPE_WEBHOOK_SECRET);
-
-    if (!Buffer.isBuffer(ctx.request.body)) {
-      ctx.status = 400;
-      ctx.body = { error: 'Body is not a Buffer' };
-      return;
-    }
-    
     try {
-      const event = stripe.webhooks.constructEvent(
-        ctx.request.body,             // Buffer z raw parsera
-        sig as string,                // stripe-signature header
+      event = stripe.webhooks.constructEvent(
+        ctx.request.body,
+        sig,
         process.env.STRIPE_WEBHOOK_SECRET!
       );
-      strapi.log.info('Stripe event: ' + event.type);
-      ctx.status = 200;
-      ctx.body = { received: true };
     } catch (err: any) {
-      strapi.log.error('💥 Webhook Error: ' + err.message);
+      strapi.log.error(`Webhook signature verification failed: ${err.message}`);
       ctx.status = 400;
-      ctx.body = { error: err.message };
+      return;
     }
+
+    strapi.log.info(`✅ Received event: ${event.type}`);
+
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        // tu spracuj payment_intent.succeeded...
+        break;
+      case 'checkout.session.completed':
+        // tu spracuj checkout.session.completed...
+        break;
+      // ... ďalšie prípady, ktoré ťa zaujímajú
+      default:
+        strapi.log.info(`⚠️  No handler for event type ${event.type}, ignoring.`);
+        break;
+    }
+
+    // vždy vráť 200 ak sa ti podarilo parse a si v poriadku
+    ctx.status = 200;
+    ctx.body = { received: true };
   },
 };
