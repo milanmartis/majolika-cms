@@ -2,12 +2,28 @@
 
 export default [
     // VLASTNÝ DEBUG MIDDLEWARE
-    { resolve: './src/middlewares/stripe-raw', config: {} },
+    // { resolve: './src/middlewares/stripe-raw', config: {} },
     {
       resolve: './src/middlewares/debug-webhook', // relatívne od koreňa projektu!
       config: {},
     },
   // Rozšírené logovanie pre debug
+
+  {
+    name: 'strapi::body',
+    config: {
+      json: { limit: '1mb' },
+      form: { limit: '56kb' },
+      text: { limit: '56kb' },
+      raw: {
+        enable: true,
+        include: ['/api/stripe/webhook'],
+      },
+    },
+  },
+
+
+
   {
     name: 'strapi::logger',
     config: {
@@ -72,7 +88,7 @@ export default [
   'strapi::poweredBy',
   'strapi::query',
 
- 'strapi::body',
+
 
   {
     name: 'strapi::session',
