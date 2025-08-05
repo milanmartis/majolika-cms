@@ -92,10 +92,6 @@ export default [
 
   'strapi::favicon',
   'strapi::public',
-  {
-    resolve: './src/middlewares/debug-webhook',
-    config: {
-      exclude: ['/api/stripe/webhook'],
-    },
-  },
+  { resolve: './src/middlewares/debug-webhook', config: {} },
+
 ];
