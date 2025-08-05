@@ -1,29 +1,34 @@
 import Stripe from 'stripe';
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
 export default {
   async webhook(ctx: any) {
-    strapi.log.info('WEBHOOK CONTROLLER CALLED!');
-    strapi.log.info('typeof body: ' + typeof ctx.request.body);
-    strapi.log.info('isBuffer: ' + Buffer.isBuffer(ctx.request.body));
-    strapi.log.debug('WH_SECRET:', process.env.STRIPE_WEBHOOK_SECRET);
-    strapi.log.debug('Body is buffer?', Buffer.isBuffer(ctx.request.body));
-    strapi.log.debug('Raw body length:', ctx.request.body?.length);
+    strapi.log.info('––– STRIPE WEBHOOK –––');
     const sig = ctx.request.headers['stripe-signature'];
-    let event;
+    strapi.log.info('Stripe signature header:', sig);
+    strapi.log.info('Using webhook secret:', process.env.STRIPE_WEBHOOK_SECRET);
+
+    if (!Buffer.isBuffer(ctx.request.body)) {
+      strapi.log.error('Body is not Buffer:', ctx.request.body);
+      return ctx.badRequest('Body is not a Buffer');
+    }
+
     try {
-      event = stripe.webhooks.constructEvent(
-        ctx.request.body, // MUSÍ BYŤ Buffer!
+      const event = stripe.webhooks.constructEvent(
+        ctx.request.body,
         sig!,
         process.env.STRIPE_WEBHOOK_SECRET!
       );
+      strapi.log.info('▶️ Event type:', event.type);
+      ctx.status = 200;
+      ctx.body = { received: true };
     } catch (err: any) {
-      ctx.status = 400;
-      ctx.body = `Webhook Error: ${err.message}`;
-      return;
+      strapi.log.error('❌ Webhook error:', err.message);
+      strapi.log.error(err); // celý stack
+      ctx.status = err.message.startsWith('Invalid signature')
+        ? 400
+        : 500;
+      ctx.body = { error: err.message };
     }
-    strapi.log.info('Stripe event: ' + event.type);
-    ctx.status = 200;
-    ctx.body = { received: true };
   },
 };
