@@ -1,13 +1,24 @@
 // src/middlewares/stripe-raw.ts
-import { raw } from 'koa-bodyparser';
+import getRawBody from 'raw-body';
+import type { Context, Next } from 'koa';
 
 export default (config, { strapi }) => {
-  const stripeRaw = raw({ type: 'application/json' });
-  return async (ctx, next) => {
+  return async (ctx: Context, next: Next) => {
     if (ctx.request.url === '/api/stripe/webhook') {
-      await stripeRaw(ctx, next);
-    } else {
-      await next();
+      try {
+        // parsovanie Bufferu
+        const raw = await getRawBody(ctx.req as NodeJS.ReadableStream, {
+          length: ctx.request.headers['content-length'] ?? undefined,
+          limit: '1mb',
+          encoding: null,            // NULL = Buffer
+        });
+        // prepíšeme telo
+        ctx.request.body = raw;
+      } catch (err) {
+        strapi.log.error('Cannot read raw body', err);
+        ctx.throw(400, 'Cannot read webhook body');
+      }
     }
+    await next();
   };
 };
