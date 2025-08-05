@@ -1,20 +1,37 @@
 // config/middlewares.ts
 
 export default [
-    // VLASTNÝ DEBUG MIDDLEWARE
-    {
-      resolve: './src/middlewares/debug-webhook', // relatívne od koreňa projektu!
-      config: {},
-    },
-  // Rozšírené logovanie pre debug
-  {
-    name: 'strapi::logger',
-    config: {
-      level: 'debug',
-    },
+  // --- DEBUG na úplne prvé miesto ---
+  async (ctx, next) => {
+    if (ctx.request.url.includes('stripe/webhook')) {
+      console.log('--- ALL HEADERS ---');
+      console.log(ctx.request.headers);
+      console.log('--- RAW BODY ---');
+      console.log(ctx.request.body);
+      console.log('--- IS BUFFER ---');
+      console.log(Buffer.isBuffer(ctx.request.body));
+    }
+    return next();
   },
 
+  // Potom ostatné middleware...
   'strapi::errors',
+  {
+    name: 'strapi::body',
+    config: {
+      include: ['/api/stripe/webhook'],
+      raw: { include: ['/api/stripe/webhook'] },
+      jsonLimit: '1mb',
+      formLimit: '56kb',
+      textLimit: '56kb',
+      enableTypes: ['json', 'form', 'text'],
+      encoding: 'utf-8',
+      strict: true,
+      formidable: {
+        maxFileSize: 50 * 1024 * 1024,
+      },
+    },
+  },
 
   // ✅ SECURITY + CSP
   {
@@ -70,24 +87,6 @@ export default [
   'strapi::poweredBy',
   'strapi::query',
 
-  {
-    name: 'strapi::body',
-    config: {
-      include: [],
-      raw: {
-        include: ['/api/stripe/webhook'], // sem dávaj raw endpointy
-      },
-      jsonLimit: '1mb',
-      formLimit: '56kb',
-      textLimit: '56kb',
-      enableTypes: ['json', 'form', 'text'],
-      encoding: 'utf-8',
-      strict: true,
-      formidable: {
-        maxFileSize: 50 * 1024 * 1024,
-      },
-    },
-  },
 
   {
     name: 'strapi::session',
