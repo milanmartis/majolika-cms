@@ -3,7 +3,7 @@ export default {
     {
       method: 'POST',
       path: '/api/stripe/webhook',
-      handler: '/api/stripe.webhook',
+      handler: 'stripe.webhook',
       config: {
         auth: false,
         policies: [],
