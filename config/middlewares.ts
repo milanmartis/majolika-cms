@@ -8,22 +8,6 @@ export default [
       config: {},
     },
   // Rozšírené logovanie pre debug
-
-  {
-    name: 'strapi::body',
-    config: {
-      json: { limit: '1mb' },
-      form: { limit: '56kb' },
-      text: { limit: '56kb' },
-      raw: {
-        enable: true,
-        include: ['/api/stripe/webhook'],
-      },
-    },
-  },
-
-
-
   {
     name: 'strapi::logger',
     config: {
@@ -87,8 +71,18 @@ export default [
   // ✅ Ostatné default middlewares
   'strapi::poweredBy',
   'strapi::query',
-
-
+{
+  name: 'strapi::body',
+  config: {
+    // Strapi v4 už nepodporuje „include/raw“ takto – 
+    // namiesto toho:
+    exclude: ['/stripe/webhook'],
+    jsonLimit: '1mb',
+    formLimit: '56kb',
+    textLimit: '56kb',
+    formidable: { maxFileSize: 50 * 1024 * 1024 },
+  },
+},
 
   {
     name: 'strapi::session',
