@@ -23,11 +23,9 @@ export default {
       ctx.status = 200;
       ctx.body = { received: true };
     } catch (err: any) {
-      strapi.log.error('❌ Webhook error:', err.message);
-      strapi.log.error(err); // celý stack
-      ctx.status = err.message.startsWith('Invalid signature')
-        ? 400
-        : 500;
+      strapi.log.error('❌ Webhook constructEvent failed:', err.message);
+      strapi.log.error(err.stack);
+      ctx.status = 400;
       ctx.body = { error: err.message };
     }
   },
