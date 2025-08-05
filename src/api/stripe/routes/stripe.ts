@@ -7,7 +7,6 @@ export default {
       config: {
         auth: false,
         policies: [],
-        // Tento middleware spraví z req.body Buffer
         middlewares: [
           async (ctx, next) => {
             ctx.req.body = await new Promise(resolve => {
