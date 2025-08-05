@@ -24,3 +24,4 @@ export default {
     ctx.body = { received: true };
   }
 };
+
