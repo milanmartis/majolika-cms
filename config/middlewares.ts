@@ -3,10 +3,7 @@
 export default [
     // VLASTNÝ DEBUG MIDDLEWARE
      { resolve: './src/middlewares/stripe-raw', config: {} },
-    {
-      resolve: './src/middlewares/debug-webhook', // relatívne od koreňa projektu!
-      config: {},
-    },
+
   // Rozšírené logovanie pre debug
   {
     name: 'strapi::logger',
@@ -76,7 +73,7 @@ export default [
   config: {
     // Strapi v4 už nepodporuje „include/raw“ takto – 
     // namiesto toho:
-    exclude: ['/stripe/webhook'],
+    exclude: ['/api/stripe/webhook'],
     jsonLimit: '1mb',
     formLimit: '56kb',
     textLimit: '56kb',
@@ -95,4 +92,10 @@ export default [
 
   'strapi::favicon',
   'strapi::public',
+  {
+    resolve: './src/middlewares/debug-webhook',
+    config: {
+      exclude: ['/api/stripe/webhook'],
+    },
+  },
 ];
