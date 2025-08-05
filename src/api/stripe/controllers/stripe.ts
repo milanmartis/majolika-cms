@@ -1,8 +1,8 @@
 import Stripe from 'stripe';
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
+
 export default {
-    async webhook(ctx: any) {
+  async webhook(ctx: any) {
     strapi.log.info('WEBHOOK HIT', { headers: ctx.request.headers });
     const sig = ctx.request.headers['stripe-signature'];
     let event;
@@ -26,7 +26,7 @@ export default {
       strapi.log.info('Stripe checkout.session.completed webhook received:', session.id);
     }
 
-    ctx.status = 200;
-    ctx.body = { received: true };
+    ctx.response.status = 200;
+    ctx.response.body = { received: true };
   },
 };
