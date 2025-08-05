@@ -73,7 +73,6 @@ export default [
   {
   name: 'strapi::body',
   config: {
-    include: [],
     raw: {
       include: ['/api/stripe/webhook'], // sem dávaj raw endpointy
     },
