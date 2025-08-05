@@ -7,12 +7,14 @@ export default [
       config: {},
     },
   // Rozšírené logovanie pre debug
+  { resolve: './src/middlewares/stripe-raw', config: {} },
   {
     name: 'strapi::logger',
     config: {
       level: 'debug',
     },
   },
+
 
   'strapi::errors',
 
@@ -70,23 +72,7 @@ export default [
   'strapi::poweredBy',
   'strapi::query',
 
-  {
-  name: 'strapi::body',
-  config: {
-    raw: {
-      include: ['/api/stripe/webhook'], // sem dávaj raw endpointy
-    },
-    jsonLimit: '1mb',
-    formLimit: '56kb',
-    textLimit: '56kb',
-    enableTypes: ['json', 'form', 'text'],
-    encoding: 'utf-8',
-    strict: true,
-    formidable: {
-      maxFileSize: 50 * 1024 * 1024,
-    },
-  },
-},
+ 'strapi::body',
 
   {
     name: 'strapi::session',
