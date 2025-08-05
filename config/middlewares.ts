@@ -1,6 +1,19 @@
 // config/middlewares.ts
 
 export default [
+  // 🔎 DEBUG MIDDLEWARE AKO PRVÝ!
+  (ctx, next) => {
+    if (ctx.request.url.includes('stripe/webhook')) {
+      console.log('--- ALL HEADERS ---');
+      console.log(ctx.request.headers);
+      console.log('--- RAW BODY ---');
+      console.log(ctx.request.body);
+      console.log('--- IS BUFFER ---');
+      console.log(Buffer.isBuffer(ctx.request.body));
+    }
+    return next();
+  },
+
   // Rozšírené logovanie pre debug
   {
     name: 'strapi::logger',
