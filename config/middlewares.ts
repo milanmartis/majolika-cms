@@ -6,6 +6,22 @@ export default [
 
   // Rozšírené logovanie pre debug
   {
+    name: 'strapi::body',
+    config: {
+      parser: {
+        enabled: true,
+        jsonLimit: '1mb',
+        formLimit: '56kb',
+        textLimit: '56kb',
+        formidable: { maxFileSize: 50 * 1024 * 1024 },
+        raw: {
+          // ← TU musí byť cesta *bez* /api prefixu
+          include: ['/stripe/webhook'],
+        },
+      },
+    },
+  },
+  {
     name: 'strapi::logger',
     config: {
       level: 'debug',
@@ -68,23 +84,23 @@ export default [
   // ✅ Ostatné default middlewares
   'strapi::poweredBy',
   'strapi::query',
-  {
-    name: 'strapi::body',
-    config: {
-      parser: {
-        enabled: true,
-        jsonLimit: '1mb',
-        formLimit: '56kb',
-        textLimit: '56kb',
-        formidable: { maxFileSize: 50 * 1024 * 1024 },
+  // {
+  //   name: 'strapi::body',
+  //   config: {
+  //     parser: {
+  //       enabled: true,
+  //       jsonLimit: '1mb',
+  //       formLimit: '56kb',
+  //       textLimit: '56kb',
+  //       formidable: { maxFileSize: 50 * 1024 * 1024 },
 
-        // → Všetko pod týmto endpointom príde ako `Buffer`
-        raw: {
-          include: ['/api/stripe/webhook'],
-        },
-      },
-    },
-  },
+  //       // → Všetko pod týmto endpointom príde ako `Buffer`
+  //       raw: {
+  //         include: ['/api/stripe/webhook'],
+  //       },
+  //     },
+  //   },
+  // },
 
   {
     name: 'strapi::session',
