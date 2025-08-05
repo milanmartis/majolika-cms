@@ -6,7 +6,9 @@ export default {
     strapi.log.info('WEBHOOK CONTROLLER CALLED!');
     strapi.log.info('typeof body: ' + typeof ctx.request.body);
     strapi.log.info('isBuffer: ' + Buffer.isBuffer(ctx.request.body));
-
+    strapi.log.debug('WH_SECRET:', process.env.STRIPE_WEBHOOK_SECRET);
+    strapi.log.debug('Body is buffer?', Buffer.isBuffer(ctx.request.body));
+    strapi.log.debug('Raw body length:', ctx.request.body?.length);
     const sig = ctx.request.headers['stripe-signature'];
     let event;
     try {
