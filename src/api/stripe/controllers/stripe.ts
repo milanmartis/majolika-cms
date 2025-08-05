@@ -1,29 +1,31 @@
-// napr. src/api/stripe/controllers/webhook.ts
+// src/api/stripe/controllers/stripe.ts (alebo kde máte webhook)
+
 import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
 export default {
   async webhook(ctx: any) {
     const sig = ctx.request.headers['stripe-signature']!;
-    let event: Stripe.Event;
+    const rawBody: Buffer = ctx.request.body;
 
+    let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(
-        ctx.request.body,
+        rawBody,
         sig,
         process.env.STRIPE_WEBHOOK_SECRET!
       );
+      strapi.log.info(`✅ stripe event parsed: ${event.type}`);
     } catch (err: any) {
-      // detailný log
-      strapi.log.error('💥 Webhook signature verification failed:', err);
+      strapi.log.error('Webhook signature verification failed:', err.message);
       ctx.status = 400;
-      ctx.body = { error: err.message, stack: err.stack };
       return;
     }
 
-    strapi.log.info(`✅ Received event: ${event.type}`);
-
-    // ... spracovanie podľa event.type ...
+    // len ukážka
+    if (event.type === 'payment_intent.succeeded') {
+      // … spracujte úspešnú platbu …
+    }
 
     ctx.status = 200;
     ctx.body = { received: true };
