@@ -68,8 +68,8 @@ export default [
   {
     name: 'strapi::body',
     config: {
-      // Použi PRESNE túto cestu, ktorú máš v route!
       include: ['/api/stripe/webhook'],
+      raw: { include: ['/api/stripe/webhook'] }, // <<<<<<<<<<<<<<
       jsonLimit: '1mb',
       formLimit: '56kb',
       textLimit: '56kb',
@@ -78,9 +78,6 @@ export default [
       strict: true,
       formidable: {
         maxFileSize: 50 * 1024 * 1024,
-      },
-      raw: {
-        include: ['/api/stripe/webhook'], // !!! musí sa zhodovať s route path!
       },
     },
   },

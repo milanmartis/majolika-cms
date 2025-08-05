@@ -2,11 +2,12 @@ export default {
   routes: [
     {
       method: 'POST',
-      path: '/stripe/webhook',
+      path: '/api/stripe/webhook',
       handler: 'stripe.webhook',
       config: {
         auth: false,
         policies: [],
+        // žiaden vlastný middleware tu!
       },
     },
   ],

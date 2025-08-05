@@ -9,7 +9,7 @@ export default {
 
     try {
       event = stripe.webhooks.constructEvent(
-        ctx.request.body, // TOTO BUDE Buffer, ak je raw body middleware správne nastavený!
+        ctx.request.body, // toto musí byť Buffer, ak je RAW middleware správne
         sig!,
         process.env.STRIPE_WEBHOOK_SECRET!
       );
