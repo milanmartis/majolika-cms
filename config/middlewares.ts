@@ -76,7 +76,7 @@ export default [
   config: {
     // Strapi v4 už nepodporuje „include/raw“ takto – 
     // namiesto toho:
-    exclude: ['/api/stripe/webhook'],
+    exclude: ['/stripe/webhook'],
     jsonLimit: '1mb',
     formLimit: '56kb',
     textLimit: '56kb',
