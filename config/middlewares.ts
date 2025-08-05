@@ -2,12 +2,12 @@
 
 export default [
     // VLASTNÝ DEBUG MIDDLEWARE
+    { resolve: './src/middlewares/stripe-raw', config: {} },
     {
       resolve: './src/middlewares/debug-webhook', // relatívne od koreňa projektu!
       config: {},
     },
   // Rozšírené logovanie pre debug
-  { resolve: './src/middlewares/stripe-raw', config: {} },
   {
     name: 'strapi::logger',
     config: {
