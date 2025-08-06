@@ -31,7 +31,7 @@ export default {
       strapi.log.info(`🔎 Looking for order with paymentSessionId: ${session.id}`);
 
       // 1. Nájdi objednávku podľa session.id
-      const order = await strapi.db.query('api::order.order').findOne({
+      let order = await strapi.db.query('api::order.order').findOne({
         where: { paymentSessionId: session.id },
       });
 
@@ -40,26 +40,29 @@ export default {
         return ctx.send({ received: true, order: null });
       }
 
-      // 2. Update status objednávky na "paid"
+      // 2. PATCH: Doplň temporaryId do order, ak chýba, zo session.metadata
+      if (!order.temporaryId && session.metadata && session.metadata.temporaryId) {
+        await strapi.db.query('api::order.order').update({
+          where: { id: order.id },
+          data: { temporaryId: session.metadata.temporaryId },
+        });
+        order.temporaryId = session.metadata.temporaryId;
+        strapi.log.info(`[PATCH] temporaryId doplnený z metadata do order: ${order.temporaryId}`);
+      }
+
+      // 3. Update status objednávky na "paid"
       await strapi.db.query('api::order.order').update({
         where: { id: order.id },
         data: { paymentStatus: 'paid' },
       });
       strapi.log.info(`✅ Updated order #${order.id} to paid`);
 
-      // 3. Získaj temporaryId (ideálne z order alebo session.metadata)
-      let temporaryId = order.temporaryId;
-      // Ak nemáš temporaryId v order, môžeš ho skúsiť vytiahnuť zo Stripe session metadata
-      if (!temporaryId && session.metadata && session.metadata.temporaryId) {
-        temporaryId = session.metadata.temporaryId;
-      }
-
+      // 4. Najskôr update bookings podľa temporaryId a orderId == null
       let bookingsUpdatedByTemporaryId = 0;
-      if (temporaryId) {
-        // 4A. Update bookings podľa temporaryId a orderId je null
+      if (order.temporaryId) {
         const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
           where: {
-            temporaryId,
+            temporaryId: order.temporaryId,
             orderId: null,
           },
           data: {
@@ -68,12 +71,12 @@ export default {
           },
         });
         bookingsUpdatedByTemporaryId = res.count;
-        strapi.log.info(`✅ Updated ${res.count} bookings (temporaryId=${temporaryId}) → orderId=${order.id}, status=paid`);
+        strapi.log.info(`✅ Updated ${res.count} bookings (temporaryId=${order.temporaryId}) → orderId=${order.id}, status=paid`);
       } else {
         strapi.log.warn('⚠️ No temporaryId found for this order/session, skipping temporaryId bookings update.');
       }
 
-      // 4B. Update bookings už viazané na orderId
+      // 5. Potom update bookings už spárované na orderId (všetky)
       const res2 = await strapi.db.query('api::event-booking.event-booking').updateMany({
         where: { orderId: String(order.id) },
         data: { status: 'paid' },
