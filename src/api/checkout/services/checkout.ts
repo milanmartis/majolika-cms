@@ -15,11 +15,10 @@ export default () => ({
       throw new Error('Missing STRIPE_SECRET_KEY or FRONTEND_URL in environment variables.');
     }
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY, {
-    });
+    const stripe = new Stripe(STRIPE_SECRET_KEY, {});
 
-    const { customer, items } = payload;
-    strapi.log.info('CHECKOUT PAYLOAD:', customer, items);
+    const { customer, items, temporaryId } = payload;
+    strapi.log.info('CHECKOUT PAYLOAD:', customer, items, temporaryId);
 
     // 1. Over zákazníka podľa e-mailu
     const existing = await strapi.entityService.findMany('api::customer.customer', {
@@ -27,8 +26,7 @@ export default () => ({
       limit: 1,
     });
 
-    let customerId: string | number;
-
+    let customerId;
     if (existing.length > 0) {
       customerId = existing[0].id;
     } else {
@@ -63,7 +61,27 @@ export default () => ({
 
     const totalAmount = orderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
-    // 3. Stripe session
+    // 3. Najprv vytvor dočasnú objednávku (pre orderId do metadata)
+    const tempOrder = await strapi.entityService.create('api::order.order', {
+      data: {
+        customer: customerId,
+        customerName: customer.name,
+        customerEmail: customer.email,
+        shippingAddress: {
+          street: customer.street,
+          city: customer.city,
+          zip: customer.zip,
+          country: customer.country,
+        },
+        total: totalAmount,
+        items: orderItems,
+        paymentStatus: 'unpaid',
+        paymentSessionId: '', // zatiaľ prázdne
+        temporaryId: temporaryId || null,   // <-- DÔLEŽITÉ
+      },
+    });
+
+    // 4. Stripe session – s metadata!
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'payment',
@@ -80,27 +98,16 @@ export default () => ({
       success_url: `${FRONTEND_URL}/checkout/success`,
       cancel_url: `${FRONTEND_URL}/checkout/cancel`,
       metadata: {
-        customerId: String(customerId),
+        orderId: tempOrder.id,
+        temporaryId: temporaryId || '',
+        customerEmail: customer.email,
       },
     });
 
-    // 4. Vytvor objednávku v DB
-    await strapi.entityService.create('api::order.order', {
-      data: {
-        customer: customerId,
-        customerName: customer.name,
-        customerEmail: customer.email,
-        shippingAddress: {
-          street: customer.street,
-          city: customer.city,
-          zip: customer.zip,
-          country: customer.country,
-        },
-        total: totalAmount,
-        items: orderItems,
-        paymentSessionId: session.id,
-        paymentStatus: 'unpaid',
-      },
+    // 5. Update objednávky s paymentSessionId
+    await strapi.db.query('api::order.order').update({
+      where: { id: tempOrder.id },
+      data: { paymentSessionId: session.id },
     });
 
     strapi.log.info('👉 Stripe SESSION:', session);
