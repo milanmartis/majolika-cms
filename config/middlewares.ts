@@ -16,7 +16,7 @@ export default [
         formidable: { maxFileSize: 50 * 1024 * 1024 },
         raw: {
           // ← TU musí byť cesta *bez* /api prefixu
-          include: ['/stripe/webhook'],
+          include: ['/api/stripe/webhook'],
         },
       },
     },
