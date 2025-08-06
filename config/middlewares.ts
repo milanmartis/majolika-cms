@@ -3,11 +3,7 @@
 export default [
     // VLASTNÝ DEBUG MIDDLEWARE
     // { resolve: './src/middlewares/stripe-raw', config: {} },
-    {
-      name: 'global::stripe-raw',
-      resolve: './src/middlewares/stripe-raw',
-      config: {},
-    },
+
   // Rozšírené logovanie pre debug
   {
     name: 'strapi::body',
