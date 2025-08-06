@@ -8,15 +8,16 @@ export default [
   {
     name: 'strapi::body',
     config: {
+      includeUnparsed: true,      // << enable unparsed raw bodies
       parser: {
-        enabled: true,
-        jsonLimit: '1mb',
-        formLimit: '56kb',
-        textLimit: '56kb',
+        enabled:    true,
+        jsonLimit:  '1mb',
+        formLimit:  '56kb',
+        textLimit:  '56kb',
         formidable: { maxFileSize: 50 * 1024 * 1024 },
+        // Only treat this endpoint as raw; everything else stays JSON/form/text
         raw: {
-          // ← TU musí byť cesta *bez* /api prefixu
-          include: ['/api/stripe/webhook'],
+          include: ['/stripe/webhook'],  // << **no** leading `/api`
         },
       },
     },
