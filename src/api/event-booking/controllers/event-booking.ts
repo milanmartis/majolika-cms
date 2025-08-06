@@ -42,7 +42,7 @@ export default factories.createCoreController('api::event-booking.event-booking'
         customerEmail,
         orderId,
         session: Number(sessionId),
-        temporaryId, // ← Tu ulož aj temporaryId!
+       // temporaryId, // ← Tu ulož aj temporaryId!
       }
     });
 
