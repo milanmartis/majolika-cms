@@ -45,6 +45,11 @@
         "target": "api::event-session.event-session",
         "inversedBy": "bookings",
         "required": true
+      },
+      "temporaryId": {
+        "type": "string",
+        "configurable": false,
+        "description": "Dočasný identifikátor z frontendu (napárovanie pred platbou)"
       }
     }
   }

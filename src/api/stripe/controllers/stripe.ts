@@ -1,3 +1,5 @@
+// src/api/stripe/controllers/stripe.ts
+
 import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
@@ -24,12 +26,11 @@ export default {
       return ctx.badRequest(err.message);
     }
 
-    // Len naozaj pre checkout.session.completed
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
       strapi.log.info(`🔎 Looking for order with paymentSessionId: ${session.id}`);
 
-      // 1. Nájdi objednávku podľa session id (uložené v paymentSessionId)
+      // Nájdi objednávku podľa session id
       const order = await strapi.db.query('api::order.order').findOne({
         where: { paymentSessionId: session.id },
       });
@@ -39,14 +40,14 @@ export default {
         return ctx.send({ received: true, order: null });
       }
 
-      // 2. Nastav paymentStatus na paid
+      // Update paymentStatus na paid
       await strapi.db.query('api::order.order').update({
         where: { id: order.id },
         data: { paymentStatus: 'paid' },
       });
       strapi.log.info(`✅ Updated order #${order.id} to paid`);
 
-      // 3. Všetky bookings s orderId = order.id nastav na paid
+      // Nájde a update všetky bookings, ktoré majú orderId == order.id
       const updatedBookings = await strapi.db.query('api::event-booking.event-booking').updateMany({
         where: { orderId: String(order.id) },
         data: { status: 'paid' },

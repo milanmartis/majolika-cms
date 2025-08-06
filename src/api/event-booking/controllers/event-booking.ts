@@ -1,19 +1,30 @@
+// src/api/event-booking/controllers/event-booking.ts
+
 import { factories } from '@strapi/strapi';
+
 interface UpdateBookingData {
-    status?: 'pending' | 'paid' | 'confirmed' | 'cancelled';
-    peopleCount?: number;
-  }
+  status?: 'pending' | 'paid' | 'confirmed' | 'cancelled';
+  peopleCount?: number;
+  temporaryId?: string;
+}
+
 export default factories.createCoreController('api::event-booking.event-booking', ({ strapi }) => ({
 
-  // CREATE booking
   async create(ctx) {
-    const { session: sessionId, peopleCount, customerName, customerEmail, orderId } = ctx.request.body.data || {};
+    const {
+      session: sessionId,
+      peopleCount,
+      customerName,
+      customerEmail,
+      orderId,
+      temporaryId, // ← Pridane
+    } = ctx.request.body.data || {};
 
     if (!sessionId || !peopleCount) {
       return ctx.badRequest('Missing required fields: session and peopleCount');
     }
 
-    // Kontrola kapacity (dynamicky)
+    // Kapacitná kontrola
     const sessionService = strapi.service('api::event-session.event-session');
     const cap = await sessionService.getCapacity(Number(sessionId));
     if (cap.available < Number(peopleCount)) {
@@ -22,7 +33,7 @@ export default factories.createCoreController('api::event-booking.event-booking'
       return;
     }
 
-    // Vytvor booking
+    // Vytvor booking vrátane temporaryId
     const booking = await strapi.entityService.create('api::event-booking.event-booking', {
       data: {
         peopleCount: Number(peopleCount),
@@ -31,6 +42,7 @@ export default factories.createCoreController('api::event-booking.event-booking'
         customerEmail,
         orderId,
         session: Number(sessionId),
+        temporaryId, // ← Tu ulož aj temporaryId!
       }
     });
 
@@ -38,21 +50,18 @@ export default factories.createCoreController('api::event-booking.event-booking'
     ctx.body = booking;
   },
 
-  // UPDATE booking (napr. cancel)
-  // UPDATE booking (napr. cancel)
-async update(ctx) {
+  async update(ctx) {
     const bookingId = ctx.params.id;
     const data = ctx.request.body.data as UpdateBookingData || {};
-  
-    // Povoliť zmenu status aj peopleCount (aj naraz, aj jednotlivo)
+
     if (!data.status && data.peopleCount === undefined) {
       return ctx.badRequest('Missing status or peopleCount');
     }
-  
+
     const updateData: UpdateBookingData = {};
     if (data.status) updateData.status = data.status;
     if (data.peopleCount !== undefined) updateData.peopleCount = Number(data.peopleCount);
-  
+
     try {
       const updated = await strapi.entityService.update(
         'api::event-booking.event-booking',
@@ -65,5 +74,5 @@ async update(ctx) {
       return ctx.internalServerError('Failed to update booking');
     }
   },
-  
+
 }));
