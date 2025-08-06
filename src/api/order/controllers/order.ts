@@ -3,6 +3,8 @@ import { sendEmail } from '../../../utils/email';
 
 export default factories.createCoreController('api::order.order', ({ strapi }) => ({
   async create(ctx) {
+    console.log('🟢🟢🟢🟢🟢🟢  [ORDER CONTROLLER]   ----  CREATE ORDER CALLED ----');
+
     // 1. Vytvor objednávku cez core controller
     const response = await super.create(ctx);
 
