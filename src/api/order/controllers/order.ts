@@ -3,10 +3,10 @@ import { sendEmail } from '../../../utils/email';
 
 export default factories.createCoreController('api::order.order', ({ strapi }) => ({
   async create(ctx) {
-    // Vytvor objednávku cez core controller
+    // 1. Vytvor objednávku cez core controller
     const response = await super.create(ctx);
 
-    // Pošli potvrdenie emailom
+    // 2. Pošli potvrdenie emailom
     const { customerEmail, customerName } = response.data.attributes;
     await sendEmail({
       to: customerEmail || 'milanmartis@gmail.com',
@@ -14,7 +14,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       html: `<p>Vaša objednávka bola prijatá.</p>`,
     });
 
-    // Zisti temporaryId z FE, ak prišiel v payload-e
+    // 3. Priprav dáta z FE
     const { temporaryId } = ctx.request.body.data || {};
     const items = response.data.attributes.items || [];
     const orderId = response.data.id;
@@ -22,41 +22,41 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     strapi.log.info('===> [ORDER] incoming FE payload temporaryId:', temporaryId);
     strapi.log.info('===> [ORDER] incoming FE payload customerEmail:', customerEmail);
 
-    // 1. SPOJ BOOKINGY CEZ temporaryId
-    if (temporaryId && customerEmail) {
-      // Najprv zisti, ktoré bookingy by sa mali spárovať
-      const pendingBookings = await strapi.db.query('api::event-booking.event-booking').findMany({
+    // --- Hlavný update podľa orderId ---
+    let updatedCount = 0;
+    if (orderId) {
+      const updateResult = await strapi.db.query('api::event-booking.event-booking').updateMany({
+        where: {
+          orderId: String(orderId),
+          status: 'pending',
+        },
+        data: { status: 'paid' },
+      });
+      updatedCount = updateResult.count;
+      strapi.log.info(`===> [ORDER] Updated ${updatedCount} booking(s) to 'paid' for orderId=${orderId}`);
+    }
+
+    // --- Fallback podľa temporaryId + customerEmail, ak nič nebolo updatnuté ---
+    if (updatedCount === 0 && temporaryId && customerEmail) {
+      const fallbackResult = await strapi.db.query('api::event-booking.event-booking').updateMany({
         where: {
           temporaryId,
           customerEmail,
-          orderId: null, // len tie, ktoré ešte nie sú spárované s objednávkou
-        }
+          status: 'pending',
+        },
+        data: {
+          status: 'paid',
+          orderId: String(orderId)
+        },
       });
-
-      strapi.log.info(`===> [ORDER] Počet pending bookingov na spárovanie (temporaryId=${temporaryId}): ${pendingBookings.length}`);
-      if (pendingBookings.length > 0) {
-        // Spáruj všetky
-        await strapi.db.query('api::event-booking.event-booking').updateMany({
-          where: {
-            temporaryId,
-            customerEmail,
-            orderId: null,
-          },
-          data: { orderId: String(orderId) }
-        });
-        strapi.log.info(`✅ Bookingy s temporaryId=${temporaryId} spárované s orderId=${orderId}`);
-      } else {
-        strapi.log.warn(`[ORDER] Žiadne pending bookingy na spárovanie s temporaryId=${temporaryId} a email=${customerEmail}!`);
-      }
-    } else {
-      strapi.log.warn(`[ORDER] temporaryId alebo customerEmail nebol zadaný, skipping booking update.`);
+      const fallbackCount = fallbackResult.count;
+      strapi.log.info(`===> [ORDER] Fallback: Updated ${fallbackCount} booking(s) to 'paid' and set orderId=${orderId} (temporaryId+email)`);
     }
 
-    // 2. PRE ISTOTU fallback: Páruj ešte raz podľa sessionId + email (ak temporaryId nebol/nie je použitý)
+    // --- (voliteľne) fallback podľa sessionId + email ---
     for (const item of items) {
       if (item.type === 'event-session' && item.sessionId) {
         strapi.log.info(`===> [ORDER] Fallback hľadám booking pre sessionId=${item.sessionId}, email=${customerEmail}`);
-        // Skús nájsť existujúci booking bez orderId pre session+email
         const existingBooking = await strapi.db.query('api::event-booking.event-booking').findOne({
           where: {
             session: Number(item.sessionId),
@@ -73,23 +73,23 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
               orderId: String(orderId),
               peopleCount: item.peopleCount || 1,
               customerName,
-              status: 'pending',
+              status: 'paid',
             },
           });
-          strapi.log.info(`✅ Fallback: Booking #${existingBooking.id} priradený k orderId=${orderId}`);
+          strapi.log.info(`✅ Fallback: Booking #${existingBooking.id} priradený k orderId=${orderId} a status 'paid'`);
         } else {
           // Ak nenájdem booking, vytvor nový
           const createdBooking = await strapi.entityService.create('api::event-booking.event-booking', {
             data: {
               peopleCount: item.peopleCount || 1,
-              status: 'pending',
+              status: 'paid',
               customerName,
               customerEmail,
               orderId: String(orderId),
               session: Number(item.sessionId),
             }
           });
-          strapi.log.info(`✅ Nový booking vytvorený pre orderId=${orderId}, sessionId=${item.sessionId}, bookingId=${createdBooking.id}`);
+          strapi.log.info(`✅ Nový booking vytvorený pre orderId=${orderId}, sessionId=${item.sessionId}, bookingId=${createdBooking.id}, status 'paid'`);
         }
       }
     }
