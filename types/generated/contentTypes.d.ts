@@ -412,9 +412,7 @@ export interface ApiAktualitaAktualita extends Struct.CollectionTypeSchema {
     >;
     publishedAt: Schema.Attribute.DateTime;
     seo: Schema.Attribute.Component<'shared.seo', false>;
-    slug: Schema.Attribute.UID<'title'> &
-      Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+    slug: Schema.Attribute.UID<'title'> & Schema.Attribute.Required;
     status: Schema.Attribute.Enumeration<['draft', 'published', 'archived']> &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'draft'>;
@@ -437,6 +435,11 @@ export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
   options: {
     draftAndPublish: false;
   };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
   attributes: {
     content: Schema.Attribute.DynamicZone<
       [
@@ -451,16 +454,19 @@ export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'api::article.article'
-    > &
-      Schema.Attribute.Private;
+    >;
     publishedAt: Schema.Attribute.DateTime;
     slug: Schema.Attribute.String &
       Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     title: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -650,6 +656,7 @@ export interface ApiEventBookingEventBooking
     > &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'pending'>;
+    temporaryId: Schema.Attribute.String;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
