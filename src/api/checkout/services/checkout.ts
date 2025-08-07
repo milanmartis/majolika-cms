@@ -1,5 +1,6 @@
 'use strict';
-import { sendEmail } from '../../../utils/email';
+import { sendEmail } from '../../../utils/email'; // uprav cestu podľa reálneho umiestnenia
+
 import Stripe from 'stripe';
 
 export default () => ({
@@ -21,8 +22,8 @@ export default () => ({
     strapi.log.info('CHECKOUT PAYLOAD:', customer, items, temporaryId);
 
     // 1. Over zákazníka podľa e-mailu
-    const existing = await strapi.db.query('api::customer.customer').findMany({
-      where: { email: customer.email },
+    const existing = await strapi.entityService.findMany('api::customer.customer', {
+      filters: { email: customer.email },
       limit: 1,
     });
 
@@ -30,7 +31,7 @@ export default () => ({
     if (existing.length > 0) {
       customerId = existing[0].id;
     } else {
-      const newCustomer = await strapi.db.query('api::customer.customer').create({
+      const newCustomer = await strapi.entityService.create('api::customer.customer', {
         data: {
           name: customer.name,
           email: customer.email,
@@ -46,9 +47,7 @@ export default () => ({
     // 2. Priprav položky objednávky
     const orderItems = await Promise.all(
       items.map(async (item) => {
-        const product = await strapi.db.query('api::product.product').findOne({
-          where: { id: item.productId },
-        });
+        const product = await strapi.entityService.findOne('api::product.product', item.productId);
         if (!product || !product.price) {
           throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
         }
@@ -64,7 +63,7 @@ export default () => ({
     const totalAmount = orderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
     // 3. Najprv vytvor dočasnú objednávku (pre orderId do metadata)
-    const tempOrder = await strapi.db.query('api::order.order').create({
+    const tempOrder = await strapi.entityService.create('api::order.order', {
       data: {
         customer: customerId,
         customerName: customer.name,
@@ -79,7 +78,7 @@ export default () => ({
         items: orderItems,
         paymentStatus: 'unpaid',
         paymentSessionId: '', // zatiaľ prázdne
-        temporaryId: temporaryId || null,
+        temporaryId: temporaryId || null,   // <-- DÔLEŽITÉ
       },
     });
 
@@ -115,19 +114,23 @@ export default () => ({
     strapi.log.info('👉 Stripe SESSION:', session);
     strapi.log.info('👉 Stripe URL:', session.url);
 
+
+
     // 6. POŠLI EMAIL ZÁKAZNÍKOVI
+
     await sendEmail({
       to: customer.email,
       subject: 'Potvrdenie objednávky',
       html: `<p>Dobrý deň, ${customer.name},<br>Vaša objednávka bola prijatá. Ďakujeme!</p>`,
     });
 
-    // 7. POŠLI EMAIL ADMINOVI
+    // 7. POŠLI EMAIL ADMINOVI (adresu nastav podľa svojho admin emailu)
     await sendEmail({
       to: 'info@appdesign.sk',
       subject: 'Nová objednávka',
       html: `<p>Bola prijatá nová objednávka od: ${customer.name} (${customer.email})</p>`,
     });
+
 
     return { checkoutUrl: session.url };
   },
