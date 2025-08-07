@@ -118,18 +118,6 @@ export default () => ({
 
     // 6. POŠLI EMAIL ZÁKAZNÍKOVI
 
-    await sendEmail({
-      to: customer.email,
-      subject: 'Potvrdenie objednávky',
-      html: `<p>Dobrý deň, ${customer.name},<br>Vaša objednávka bola prijatá. Ďakujeme!</p>`,
-    });
-
-    // 7. POŠLI EMAIL ADMINOVI (adresu nastav podľa svojho admin emailu)
-    await sendEmail({
-      to: 'info@appdesign.sk',
-      subject: 'Nová objednávka',
-      html: `<p>Bola prijatá nová objednávka od: ${customer.name} (${customer.email})</p>`,
-    });
 
 
     return { checkoutUrl: session.url };
