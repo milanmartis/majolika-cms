@@ -61,8 +61,11 @@ export default factories.createCoreController('api::event-session.event-session'
         },
       },
       fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
-      populate: { product: { fields: ['name', 'slug'] } },
-      sort: { startDateTime: 'asc' },
+      populate: {
+        product: {
+          fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale']
+        }
+      },      sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
@@ -97,8 +100,11 @@ export default factories.createCoreController('api::event-session.event-session'
         },
       },
       fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
-      populate: { product: { fields: ['name', 'slug'] } },
-      sort: { startDateTime: 'asc' },
+      populate: {
+        product: {
+          fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale']
+        }
+      },      sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
