@@ -125,6 +125,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
         id: order.id,
         createdAt: order.createdAt,
         status: order.status,
+        paymentStatus: order.paymentStatus,
         total: order.total,
         items: (order as any).items  
       })),
