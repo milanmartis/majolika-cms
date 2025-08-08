@@ -1,7 +1,8 @@
 export default {
   async create(ctx) {
-    // Log, payload, atď.
-    const result = await strapi.service('api::checkout.checkout').createSession(ctx.request.body);
+    const { body } = ctx.request;
+
+    const result = await strapi.service('api::checkout.checkout').createSession(body);
     ctx.send(result);
   },
 };
