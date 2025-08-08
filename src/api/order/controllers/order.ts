@@ -107,4 +107,30 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     // 7. Vráť response
     return response;
   },
+  async my(ctx) {
+    const user = ctx.state.user;
+    if (!user) return ctx.unauthorized();
+  
+    // nájde objednávky, kde customer.id je rovný id užívateľa
+    const orders = await strapi.entityService.findMany('api::order.order', {
+      filters: {
+        customer: { id: user.id }
+      },
+      sort: 'createdAt:desc',
+      populate: ['items'],  // repeatable component
+    });
+  
+    const totalSpent = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  
+    return {
+      orders: orders.map(order => ({
+        id: order.id,
+        createdAt: order.createdAt,
+        status: order.status,
+        total: order.total,
+        items: (order as any).items  
+      })),
+      totalSpent
+    };
+  }
 }));
