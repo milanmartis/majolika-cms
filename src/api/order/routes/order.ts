@@ -4,7 +4,7 @@ export default {
         method: 'GET',
         path: '/orders/my',
         handler: 'order.my',
-        config: { auth: true }
+        config: { auth: {} } 
       }
     ]
   };
