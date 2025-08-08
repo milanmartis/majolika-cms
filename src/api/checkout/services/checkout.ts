@@ -51,12 +51,11 @@ export default () => ({
         if (!product || !product.price) {
           throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
         }
-
         return {
-          product: product.id,             
-          productName: product.name,      
+          product: product.id,
+          productName: product.name,         // <- musíš pridať!
           quantity: item.quantity,
-          unitPrice: product.price
+          unitPrice: product.price,
         };
       })
     );
@@ -91,9 +90,9 @@ export default () => ({
         price_data: {
           currency: 'eur',
           product_data: {
-            name: item.product.name,
+            name: item.productName,     // <-- používaš priamo productName, ktorý je vždy string!
           },
-          unit_amount: Math.round(item.unitPrice * 100), // centy
+          unit_amount: Math.round(item.unitPrice * 100), // v centoch
         },
         quantity: item.quantity,
       })),
