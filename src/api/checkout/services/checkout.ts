@@ -55,7 +55,7 @@ export default () => ({
           product: product.id,
           productName: product.name,         // <- musíš pridať!
           quantity: item.quantity,
-          unitPrice: product.price,
+          unitPrice: item.unitPrice,
         };
       })
     );
