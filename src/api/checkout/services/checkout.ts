@@ -53,9 +53,10 @@ export default () => ({
         }
 
         return {
-          product,
+          product: product.id,             
+          productName: product.name,      
           quantity: item.quantity,
-          unitPrice: product.price,
+          unitPrice: product.price
         };
       })
     );
