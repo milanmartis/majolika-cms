@@ -110,14 +110,12 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
   async my(ctx) {
     const user = ctx.state.user;
     if (!user) return ctx.unauthorized();
-  
+    const userEmail = user.email;
     // nájde objednávky, kde customer.id je rovný id užívateľa
     const orders = await strapi.entityService.findMany('api::order.order', {
-      filters: {
-        customer: { id: user.id }
-      },
+      filters: { customer: { email: userEmail } },
       sort: 'createdAt:desc',
-      populate: ['items'],  // repeatable component
+      populate: ['items', 'items.product'], // repeatable component
     });
   
     const totalSpent = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
