@@ -4,11 +4,13 @@ export default {
       method: 'POST',
       path: '/stripe/webhook',
       handler: 'stripe.webhook',
-      config: {
-        auth: false,
-        policies: [],
-        // žiaden vlastný middleware tu!
-      },
+      config: { auth: false },
+    },
+    {
+      method: 'GET',
+      path: '/stripe/webhook/ping',
+      handler: 'stripe.ping',
+      config: { auth: false },
     },
   ],
 };

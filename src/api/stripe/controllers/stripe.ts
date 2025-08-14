@@ -3,6 +3,13 @@ import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
 export default {
+
+
+    async ping(ctx) {
+      strapi.log.info('[WEBHOOK] ping ok');
+      return ctx.send({ ok: true });
+    },
+
   async webhook(ctx) {
     // POZOR: vyžaduje config/middlewares.ts s includeUnparsed: true
     const rawBody = ctx.request.body?.[Symbol.for('unparsedBody')];
