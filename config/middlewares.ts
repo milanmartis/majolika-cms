@@ -16,7 +16,7 @@ export default [
         textLimit: '56kb',
         formidable: { maxFileSize: 50 * 1024 * 1024 },
         raw: {
-          include: ['/api/stripe/webhook'], // << správne
+          include: ['/stripe/webhook'], // << správne
         },
       },
     },
