@@ -1,28 +1,28 @@
 {
-    "collectionName": "components_blocks_text_blocks",
-    "info": {
-      "displayName": "Text Block"
-    },
-    "options": {},
-    "attributes": {
-      "richText": {
-        "type": "customField",
-        "customField": "plugin::ckeditor.CKEditor"
-      },
-      "fontSize": {
-        "type": "integer"
-      },
-      "columns": {
-        "type": "enumeration",
-        "enum": ["one", "two"],
-        "default": "one",
-        "required": false
-      },
-      "alignment": {
-        "type": "enumeration",
-        "enum": ["left", "center", "right"],
-        "default": "left",
-        "required": false
+  "collectionName": "components_blocks_text_blocks",
+  "info": { "displayName": "Text Block" },
+  "options": {},
+  "attributes": {
+    "richText": {
+      "type": "customField",
+      "customField": "plugin::ckeditor.CKEditor",
+      "options": {
+        "preset": "default",
+        "maxLengthCharacters": 0
       }
+    },
+    "fontSize": { "type": "integer" },
+    "columns": {
+      "type": "enumeration",
+      "enum": ["one", "two"],
+      "default": "one",
+      "required": false
+    },
+    "alignment": {
+      "type": "enumeration",
+      "enum": ["left", "center", "right"],
+      "default": "left",
+      "required": false
     }
   }
+}
