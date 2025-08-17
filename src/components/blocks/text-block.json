@@ -3,7 +3,8 @@
   "info": { "displayName": "Text Block" },
   "options": {},
   "attributes": {
-    "richText": { "type": "blocks" },
+    "richText": { "type": "richtext" },
+    "richBlocks": { "type": "blocks" },
     "fontSize": { "type": "integer" },
     "columns": {
       "type": "enumeration",
