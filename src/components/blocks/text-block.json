@@ -7,7 +7,7 @@
       "type": "customField",
       "customField": "plugin::ckeditor.CKEditor",
       "options": {
-        "preset": "default",
+        "preset": "rich",
         "maxLengthCharacters": 0
       }
     },
