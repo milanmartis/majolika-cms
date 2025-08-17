@@ -3,14 +3,7 @@
   "info": { "displayName": "Text Block" },
   "options": {},
   "attributes": {
-    "richText": {
-      "type": "customField",
-      "customField": "plugin::ckeditor.CKEditor",
-      "options": {
-        "preset": "rich",
-        "maxLengthCharacters": 0
-      }
-    },
+    "richText": { "type": "blocks" },
     "fontSize": { "type": "integer" },
     "columns": {
       "type": "enumeration",
