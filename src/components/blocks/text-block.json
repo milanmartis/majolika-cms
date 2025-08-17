@@ -6,7 +6,8 @@
     "options": {},
     "attributes": {
       "richText": {
-        "type": "richtext"
+        "type": "customField",
+        "customField": "plugin::ckeditor.CKEditor"
       },
       "fontSize": {
         "type": "integer"

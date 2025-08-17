@@ -1,8 +1,10 @@
 // config/middlewares.ts
 
+const isProd = process.env.NODE_ENV === 'production';
+
 export default [
-    // VLASTNÝ DEBUG MIDDLEWARE
-    // { resolve: './src/middlewares/stripe-raw', config: {} },
+  // VLASTNÝ DEBUG MIDDLEWARE
+  // { resolve: './src/middlewares/stripe-raw', config: {} },
 
   // Rozšírené logovanie pre debug
   {
@@ -15,12 +17,14 @@ export default [
         formLimit: '56kb',
         textLimit: '56kb',
         formidable: { maxFileSize: 50 * 1024 * 1024 },
+        // RAW body pre Stripe webhooky (pokrýva obidve cesty)
         raw: {
-          include: ['/stripe/webhook'], // << správne
+          include: ['/api/stripe/webhook', '/stripe/webhook'],
         },
       },
     },
   },
+
   {
     name: 'strapi::logger',
     config: {
@@ -28,24 +32,42 @@ export default [
     },
   },
 
-
   'strapi::errors',
 
-  // ✅ SECURITY + CSP
+  // ✅ SECURITY + CSP (doplnky pre CKEditor a spol.)
   {
     name: 'strapi::security',
     config: {
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
-          /* Povolené skripty (napr. YouTube) */
+          /* Povolené skripty (YouTube + CKEditor) */
           'script-src': [
             "'self'",
             "'unsafe-inline'",
             "'unsafe-eval'",
             'https://www.youtube.com',
+            'https://cdn.ckeditor.com',
           ],
-          /* Povolené obrázky */
+          /* Štýly (CKEditor) */
+          'style-src': [
+            "'self'",
+            "'unsafe-inline'",
+            'https://cdn.ckeditor.com',
+          ],
+          /* Fonty (CKEditor) */
+          'font-src': [
+            "'self'",
+            'data:',
+            'https://cdn.ckeditor.com',
+          ],
+          /* XHR/Event proxy (CKEditor telemetry) */
+          'connect-src': [
+            "'self'",
+            'https:',
+            'https://proxy-event.ckeditor.com',
+          ],
+          /* Obrázky */
           'img-src': [
             "'self'",
             'data:',
@@ -55,7 +77,14 @@ export default [
             'https://medusa-majolika-s3-us-east.s3.us-east-1.amazonaws.com',
             'https://i.ytimg.com',
           ],
-          /* Povolené iframe */
+          /* Médiá (napr. S3) */
+          'media-src': [
+            "'self'",
+            'data:',
+            'blob:',
+            'https://medusa-majolika-s3-us-east.s3.us-east-1.amazonaws.com',
+          ],
+          /* Iframe */
           'frame-src': [
             "'self'",
             'https://www.youtube.com',
@@ -84,35 +113,20 @@ export default [
   // ✅ Ostatné default middlewares
   'strapi::poweredBy',
   'strapi::query',
-  // {
-  //   name: 'strapi::body',
-  //   config: {
-  //     parser: {
-  //       enabled: true,
-  //       jsonLimit: '1mb',
-  //       formLimit: '56kb',
-  //       textLimit: '56kb',
-  //       formidable: { maxFileSize: 50 * 1024 * 1024 },
 
-  //       // → Všetko pod týmto endpointom príde ako `Buffer`
-  //       raw: {
-  //         include: ['/api/stripe/webhook'],
-  //       },
-  //     },
-  //   },
-  // },
-
+  // Session – secure len v produkcii; pre cross-site potrebuje SameSite=None + Secure
   {
     name: 'strapi::session',
     config: {
-      secure: false,       // cookie sa posiela iba cez HTTPS
-      sameSite: 'none',   // povolí cross‑origin cookies
-      proxy: true,        // DÔVERUJ proxy hlavičkám (X-Forwarded-Proto)
+      secure: isProd,                     // v produkcii vyžaduj HTTPS
+      sameSite: isProd ? 'none' : 'lax',  // v dev povolenejšie
+      proxy: true,                        // dôveruj X-Forwarded-* hlavičkám
     },
   },
 
   'strapi::favicon',
   'strapi::public',
-  { resolve: './src/middlewares/debug-webhook', config: {} },
 
+  // Custom debug webhook middleware (ak ho používaš)
+  { resolve: './src/middlewares/debug-webhook', config: {} },
 ];
