@@ -139,7 +139,7 @@ export default [
     name: 'strapi::session',
     config: {
       key: 'strapi.sid',
-      secure: false,       // DOČASNE vypnuté, aby nepadalo na HTTPS kontrole
+      secure: 'auto',       // DOČASNE vypnuté, aby nepadalo na HTTPS kontrole
       sameSite: 'lax',
     },
   },
