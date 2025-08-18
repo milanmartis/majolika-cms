@@ -103,10 +103,22 @@ export default [
         'http://localhost:4200',
         'https://staging.d2y68xwoabt006.amplifyapp.com',
         'https://majolika-cms.appdesign.sk',
+        // prípadne produkčný FE:
+        // 'https://majolika.sk',
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      // povolené request headery pre preflight (vrátane cache-control)
+      headers: [
+        'Content-Type',
+        'Authorization',
+        'Origin',
+        'Accept',
+        'X-Requested-With',
+        'cache-control',
+        'pragma',
+      ],
       credentials: true,
-      keepHeaderOnError: true,
+      keepHeadersOnError: true, // fix: správny názov kľúča
     },
   },
 
