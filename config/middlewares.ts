@@ -136,7 +136,7 @@ export default [
   //   },
   // },
   // <<< vlož debug >>>
-  // { name: 'global::https-debug' },
+  { name: 'global::https-debug' },
   // session musí ostať secure v prod
   {
     name: 'strapi::session',
