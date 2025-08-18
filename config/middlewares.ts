@@ -127,15 +127,22 @@ export default [
   'strapi::query',
 
   // Session – secure len v produkcii; pre cross-site potrebuje SameSite=None + Secure
+  // {
+  //   name: 'strapi::session',
+  //   config: {
+  //     secure: isProd,                     // v produkcii vyžaduj HTTPS
+  //     sameSite: isProd ? 'none' : 'lax',  // v dev povolenejšie
+  //     proxy: true,                        // dôveruj X-Forwarded-* hlavičkám
+  //   },
+  // },
   {
     name: 'strapi::session',
     config: {
-      secure: isProd,                     // v produkcii vyžaduj HTTPS
-      sameSite: isProd ? 'none' : 'lax',  // v dev povolenejšie
-      proxy: true,                        // dôveruj X-Forwarded-* hlavičkám
+      key: 'strapi.sid',
+      secure: false,       // DOČASNE vypnuté, aby nepadalo na HTTPS kontrole
+      sameSite: 'lax',
     },
   },
-
   'strapi::favicon',
   'strapi::public',
 
