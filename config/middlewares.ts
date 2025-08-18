@@ -136,11 +136,16 @@ export default [
   //   },
   // },
   // <<< vlož debug >>>
-  { name: 'global::https-debug' },
+  // { name: 'global::https-debug' },
   // session musí ostať secure v prod
   {
     name: 'strapi::session',
-    config: { key: 'strapi.sid', secure: 'auto', sameSite: 'lax' },
+    config: {
+      key: 'strapi.sid',
+      secure: 'auto',   // Secure cookie na HTTPS (za proxy OK)
+      sameSite: 'lax',
+      proxy: true,      // ← kľúčové: dôveruj X-Forwarded-* z Nginx
+    },
   },
   'strapi::favicon',
   'strapi::public',
