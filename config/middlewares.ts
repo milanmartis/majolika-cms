@@ -135,13 +135,12 @@ export default [
   //     proxy: true,                        // dôveruj X-Forwarded-* hlavičkám
   //   },
   // },
+  // <<< vlož debug >>>
+  { name: 'global::https-debug' },
+  // session musí ostať secure v prod
   {
     name: 'strapi::session',
-    config: {
-      key: 'strapi.sid',
-      secure: 'auto',       // DOČASNE vypnuté, aby nepadalo na HTTPS kontrole
-      sameSite: 'lax',
-    },
+    config: { key: 'strapi.sid', secure: 'auto', sameSite: 'lax' },
   },
   'strapi::favicon',
   'strapi::public',
