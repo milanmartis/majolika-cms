@@ -297,6 +297,77 @@ export default factories.createCoreController('api::event-session.event-session'
     ctx.body = { items };
   },
 
+  async productCalendar(ctx) {
+    const productId = Number(ctx.params.productId);
+    if (!productId) return ctx.badRequest('Invalid productId');
+  
+    const q = ctx.query as Record<string, string | undefined>;
+    const from = q.from || q.start;
+    const to   = q.to   || q.end;
+    const { type } = q;
+  
+    const filters: any = { product: { id: { $eq: productId } } };
+    if (from || to) {
+      filters.startDateTime = {} as any;
+      if (from) filters.startDateTime.$gte = new Date(String(from)).toISOString();
+      if (to) {
+        const e = new Date(String(to));
+        // ak používaš 'to' ako dátum bez času, posuň na koniec dňa
+        if (!q.to && q.end) { /* no-op */ } else { e.setHours(23,59,59,999); }
+        filters.startDateTime.$lte = e.toISOString();
+      }
+    }
+    if (type) filters.type = { $eq: type };
+  
+    const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
+      filters,
+      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
+      populate: {
+        bookings: { fields: ['id','status'] },
+        product:  { fields: ['id','name','slug'] },
+      },
+      sort: { startDateTime: 'asc' },
+    });
+  
+    // ak používaš vlastný service na kapacitu:
+    const sessionService = strapi.service('api::event-session.event-session');
+    const items = await Promise.all(
+      (sessions as any[]).map(async (s) => {
+        const start = new Date(s.startDateTime);
+        const dur   = Number(s.durationMinutes ?? 60);
+        const end   = new Date(start.getTime() + dur * 60000);
+  
+        // dostupnosť z bookings (fallback keď nemáš service.getCapacity)
+        const confirmedCount = Array.isArray(s.bookings)
+          ? s.bookings.filter((b: any) => (b?.status ? ['paid','confirmed'].includes(b.status) : true)).length
+          : 0;
+        const available = Math.max(0, Number(s.maxCapacity) - confirmedCount);
+  
+        // ak máš getCapacity, môžeš ho pridať do výstupu:
+        let capacity: any = null;
+        if (sessionService?.getCapacity) {
+          try { capacity = await sessionService.getCapacity(s.id); } catch (_) {}
+        }
+  
+        return {
+          id: s.id,
+          title: s.title ?? (s.type === 'workshop' ? 'Workshop' : 'Prehliadka'),
+          type: s.type,
+          start: start.toISOString(),
+          end: end.toISOString(),
+          durationMinutes: dur,
+          maxCapacity: s.maxCapacity,
+          confirmedCount,
+          available,
+          capacity, // voliteľné, ak máš service
+          product: s.product ? { id: s.product.id, title: s.product.name, slug: s.product.slug } : null,
+        };
+      })
+    );
+  
+    ctx.body = { items };
+  },
+
   /** GET /products/:productId/event-sessions.ics?start=&end=&type= */
   async productIcsFeed(ctx) {
     const productId = Number(ctx.params.productId);
