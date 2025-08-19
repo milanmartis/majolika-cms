@@ -142,9 +142,8 @@ export default [
     name: 'strapi::session',
     config: {
       key: 'strapi.sid',
-      secure: 'auto',   // Secure cookie na HTTPS (za proxy OK)
+      secure: true,        // Secure cookie v prod
       sameSite: 'lax',
-      proxy: true,      // ← kľúčové: dôveruj X-Forwarded-* z Nginx
     },
   },
   'strapi::favicon',
