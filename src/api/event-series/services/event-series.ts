@@ -214,4 +214,71 @@ export default factories.createCoreService('api::event-series.event-series', ({ 
     return { updated: (sessions as any[]).length };
   },
 
+  /**
+ * Zmaže budúce sessions, ktoré už nie sú v novej sade výskytov.
+ * - ak protectWithBookings=true, sessions s aktívnymi bookingmi sa NEMAŽÚ
+ *   (voliteľne sa auto-detachnú: autoDetachProtected=true).
+ * - keepISOs je zoznam ISO časov, ktoré si chceš ponechať (vracia ho generateSessionsForRange().dates).
+ */
+async pruneFutureSessions(
+    seriesId: number,
+    rangeStart: Date,
+    rangeEnd: Date,
+    keepISOs: string[],
+    opts: {
+      protectWithBookings?: boolean;
+      autoDetachProtected?: boolean;
+      bookingWhere?: any; // voliteľný vlastný filter (napr. status != 'cancelled')
+    } = { protectWithBookings: true, autoDetachProtected: true }
+  ) {
+    const keep = new Set(keepISOs.map((d) => new Date(d).toISOString()));
+  
+    // Kandidáti na zmazanie = budúce ne-detached sessions tejto série v rozsahu
+    const candidates = await strapi.entityService.findMany('api::event-session.event-session', {
+      filters: {
+        series: { id: { $eq: seriesId } },
+        isDetachedFromSeries: { $eq: false },
+        startDateTime: { $gte: rangeStart.toISOString(), $lte: rangeEnd.toISOString() },
+      },
+      fields: ['id','startDateTime'],
+    });
+  
+    let removed = 0;
+    let protectedCnt = 0;
+    let detachedCnt = 0;
+  
+    for (const s of candidates as any[]) {
+      const iso = new Date(s.startDateTime).toISOString();
+      // je v novej sade? ponechaj
+      if (keep.has(iso)) continue;
+  
+      if (opts.protectWithBookings) {
+        // zisti aktívne bookingy (prispôsob si statusy)
+        const activeCount = await strapi.db.query('api::event-booking.event-booking').count({
+          where: {
+            session: s.id,
+            ...(opts.bookingWhere ?? { status: { $in: ['pending', 'paid', 'confirmed'] } }),
+          },
+        });
+  
+        if (activeCount > 0) {
+          protectedCnt++;
+          if (opts.autoDetachProtected) {
+            await strapi.entityService.update('api::event-session.event-session', s.id, {
+              data: { isDetachedFromSeries: true },
+            });
+            detachedCnt++;
+          }
+          continue; // nechaj na mieste (nevymazávaj)
+        }
+      }
+  
+      // žiadne aktívne bookingy → bezpečné zmazať
+      await strapi.entityService.delete('api::event-session.event-session', s.id);
+      removed++;
+    }
+  
+    return { scanned: (candidates as any[]).length, removed, protected: protectedCnt, autoDetached: detachedCnt };
+  }
+
 }));

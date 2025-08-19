@@ -89,10 +89,27 @@ function addMonths(d: Date, m: number) {
   
         // fire-and-forget (neblokuje uloženie)
         setImmediate(() => {
-          svc.generateSessionsForRange(id, from, end)
-            .then((res: any) => strapi.log.info(`[series ${id}] regen ${res.createdOrUpdated}`))
-            .catch((err: any) => strapi.log.error(`[series ${id}] regen failed`, err));
-        });
+            const svc = strapi.service('api::event-series.event-series') as any;
+          
+            svc.generateSessionsForRange(id, from, end)
+              .then((res: any) => {
+                strapi.log.info(`[series ${id}] regen ${res.createdOrUpdated}`);
+                // ⬇⬇⬇ tu chránime sessions s bookingmi
+                return svc.pruneFutureSessions(
+                  id,
+                  from,
+                  end,
+                  res.dates,
+                  {
+                    protectWithBookings: true,
+                    autoDetachProtected: true,             // nech odpojí termíny s bookingmi
+                    // bookingWhere: { status: { $in: ['paid','confirmed'] } }, // príklad prísnejšieho filtra
+                  }
+                );
+              })
+              .then((pr: any) => strapi.log.info(`[series ${id}] pruned ${pr.removed}, protected ${pr.protected}, autoDetached ${pr.autoDetached}`))
+              .catch((err: any) => strapi.log.error(`[series ${id}] regen/prune failed`, err));
+          });
       } catch (err) {
         strapi.log.error('[series afterUpdate] schedule regen failed', err);
       }
