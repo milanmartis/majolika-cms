@@ -41,6 +41,7 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.0.0",
+    "rrule": "^2.8.1",
     "sharp": "^0.34.1",
     "slugify": "^1.6.6",
     "sqlite3": "^5.1.7",

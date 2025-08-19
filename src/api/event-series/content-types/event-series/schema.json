@@ -1,0 +1,73 @@
+{
+    "kind": "collectionType",
+    "collectionName": "event_series",
+    "info": {
+      "singularName": "event-series",
+      "pluralName": "event-series",
+      "displayName": "Séria termínov",
+      "description": "Pravidelne sa opakujúce termíny (napr. každú sobotu 15:00)"
+    },
+    "options": { "draftAndPublish": false },
+    "pluginOptions": {
+      "content-manager": { "mainField": "title" }
+    },
+    "attributes": {
+      "title": { "type": "string", "required": true },
+      "type": {
+        "type": "enumeration",
+        "enum": ["workshop", "tour"],
+        "required": true
+      },
+      "timezone": { "type": "string", "default": "Europe/Bratislava" },
+  
+      "startDate": { "type": "date", "required": true },
+      "timeOfDay": { "type": "time", "required": true }, 
+  
+      "untilDate": { "type": "date" },
+      "count": { "type": "integer", "min": 1 },
+  
+      "frequency": {
+        "type": "enumeration",
+        "enum": ["DAILY", "WEEKLY", "MONTHLY"],
+        "required": true,
+        "default": "WEEKLY"
+      },
+      "interval": { "type": "integer", "default": 1, "min": 1 },
+  
+      "byWeekday": {
+        "type": "json",
+        "default": ["SA"]
+      },
+  
+      "byMonthDay": { "type": "json" },
+  
+      "durationMinutes": { "type": "integer", "required": true },
+      "maxCapacity": { "type": "integer", "required": true, "default": 1, "min": 1 },
+      "product": {
+        "type": "relation",
+        "relation": "manyToOne",
+        "target": "api::product.product",
+        "inversedBy": "event_series",
+        "required": true
+      },
+  
+      "exDates": { "type": "json", "default": [] },
+  
+      "seriesVersion": { "type": "integer", "default": 1 },
+
+
+      "bookings": {
+        "type": "relation",
+        "relation": "oneToMany",
+        "target": "api::event-booking.event-booking",
+        "mappedBy": "session"
+      },
+      "sessions": {
+        "type": "relation",
+        "relation": "oneToMany",
+        "target": "api::event-session.event-session",
+        "mappedBy": "series"
+      }
+    }
+  }
+  

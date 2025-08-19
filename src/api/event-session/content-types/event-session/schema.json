@@ -51,7 +51,15 @@
         "relation": "oneToMany",
         "target": "api::event-booking.event-booking",
         "mappedBy": "session"
-      }
+      },
+      "series": {
+        "type": "relation",
+        "relation": "manyToOne",
+        "target": "api::event-series.event-series",
+        "inversedBy": "sessions"
+      },
+      "seriesVersion": { "type": "integer" },
+      "isDetachedFromSeries": { "type": "boolean", "default": false } 
     }
   }
   
