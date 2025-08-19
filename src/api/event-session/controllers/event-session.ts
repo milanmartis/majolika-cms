@@ -19,11 +19,10 @@ export default factories.createCoreController('api::event-session.event-session'
 
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: { product: { slug: { $eq: slug } } },
-      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
+      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
       populate: {
-        product: {
-          fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale']
-        }
+        product: { fields: ['id','name','slug','price','price_sale','inSale'] },
+        series:  { fields: ['id','title','seriesVersion','frequency','interval','byWeekday','timeOfDay'] }
       },
       sort: { startDateTime: 'asc' },
     });
