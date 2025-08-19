@@ -59,12 +59,12 @@ export default factories.createCoreController('api::event-session.event-session'
           $lt: localDayEnd.toISOString(),
         },
       },
-      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
+      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
       populate: {
-        product: {
-          fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale']
-        }
-      },      sort: { startDateTime: 'asc' },
+        product: { fields: ['id','name','slug','price','price_sale','inSale'] },
+        series:  { fields: ['id','title','seriesVersion','frequency','interval','byWeekday','timeOfDay'] }
+      },
+      sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
@@ -98,12 +98,12 @@ export default factories.createCoreController('api::event-session.event-session'
           $lte: rangeEnd.toISOString(),
         },
       },
-      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
+      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
       populate: {
-        product: {
-          fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale']
-        }
-      },      sort: { startDateTime: 'asc' },
+        product: { fields: ['id','name','slug','price','price_sale','inSale'] },
+        series:  { fields: ['id','title','seriesVersion','frequency','interval','byWeekday','timeOfDay'] }
+      },
+      sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
