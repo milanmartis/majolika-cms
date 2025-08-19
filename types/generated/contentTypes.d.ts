@@ -462,6 +462,7 @@ export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
     publishedAt: Schema.Attribute.DateTime;
     slug: Schema.Attribute.String &
       Schema.Attribute.Required &
+      Schema.Attribute.Unique &
       Schema.Attribute.SetPluginOptions<{
         i18n: {
           localized: true;
@@ -663,6 +664,89 @@ export interface ApiEventBookingEventBooking
   };
 }
 
+export interface ApiEventSeriesEventSeries extends Struct.CollectionTypeSchema {
+  collectionName: 'event_series';
+  info: {
+    description: 'Pravidelne sa opakuj\u00FAce term\u00EDny (napr. ka\u017Ed\u00FA sobotu 15:00)';
+    displayName: 'S\u00E9ria term\u00EDnov';
+    pluralName: 'event-serieses';
+    singularName: 'event-series';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  pluginOptions: {
+    'content-manager': {
+      mainField: 'title';
+    };
+  };
+  attributes: {
+    bookings: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::event-booking.event-booking'
+    >;
+    byMonthDay: Schema.Attribute.JSON;
+    byWeekday: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<['SA']>;
+    count: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    durationMinutes: Schema.Attribute.Integer & Schema.Attribute.Required;
+    exDates: Schema.Attribute.JSON & Schema.Attribute.DefaultTo<[]>;
+    frequency: Schema.Attribute.Enumeration<['DAILY', 'WEEKLY', 'MONTHLY']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'WEEKLY'>;
+    interval: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<1>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::event-series.event-series'
+    > &
+      Schema.Attribute.Private;
+    maxCapacity: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<1>;
+    product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'> &
+      Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    seriesVersion: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<1>;
+    sessions: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::event-session.event-session'
+    >;
+    startDate: Schema.Attribute.Date & Schema.Attribute.Required;
+    timeOfDay: Schema.Attribute.Time & Schema.Attribute.Required;
+    timezone: Schema.Attribute.String &
+      Schema.Attribute.DefaultTo<'Europe/Bratislava'>;
+    title: Schema.Attribute.String & Schema.Attribute.Required;
+    type: Schema.Attribute.Enumeration<['workshop', 'tour']> &
+      Schema.Attribute.Required;
+    untilDate: Schema.Attribute.Date;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiEventSessionEventSession
   extends Struct.CollectionTypeSchema {
   collectionName: 'event_sessions';
@@ -689,6 +773,8 @@ export interface ApiEventSessionEventSession
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     durationMinutes: Schema.Attribute.Integer & Schema.Attribute.Configurable;
+    isDetachedFromSeries: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -707,6 +793,11 @@ export interface ApiEventSessionEventSession
     product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'> &
       Schema.Attribute.Required;
     publishedAt: Schema.Attribute.DateTime;
+    series: Schema.Attribute.Relation<
+      'manyToOne',
+      'api::event-series.event-series'
+    >;
+    seriesVersion: Schema.Attribute.Integer;
     startDateTime: Schema.Attribute.DateTime & Schema.Attribute.Required;
     title: Schema.Attribute.String & Schema.Attribute.Configurable;
     type: Schema.Attribute.Enumeration<['workshop', 'tour']> &
@@ -930,6 +1021,10 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     dekory: Schema.Attribute.Relation<'manyToMany', 'api::dekor.dekor'>;
     describe: Schema.Attribute.RichText;
     ean: Schema.Attribute.String;
+    event_series: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::event-series.event-series'
+    >;
     event_sessions: Schema.Attribute.Relation<
       'oneToMany',
       'api::event-session.event-session'
@@ -1737,6 +1832,7 @@ declare module '@strapi/strapi' {
       'api::customer.customer': ApiCustomerCustomer;
       'api::dekor.dekor': ApiDekorDekor;
       'api::event-booking.event-booking': ApiEventBookingEventBooking;
+      'api::event-series.event-series': ApiEventSeriesEventSeries;
       'api::event-session.event-session': ApiEventSessionEventSession;
       'api::event.event': ApiEventEvent;
       'api::favorite.favorite': ApiFavoriteFavorite;

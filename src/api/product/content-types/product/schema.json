@@ -147,6 +147,13 @@
       "target": "api::event-session.event-session",
       "mappedBy": "product",
       "description": "Termíny workshopov / prehliadok"
+    },
+    "event_series": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::event-series.event-series",
+      "mappedBy": "product"
     }
+
   }
 }

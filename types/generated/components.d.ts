@@ -24,6 +24,8 @@ export interface BlocksImageBlock extends Struct.ComponentSchema {
     alignment: Schema.Attribute.Enumeration<['left', 'center', 'right']> &
       Schema.Attribute.DefaultTo<'center'>;
     caption: Schema.Attribute.String;
+    columns: Schema.Attribute.Enumeration<['one', 'two']> &
+      Schema.Attribute.DefaultTo<'one'>;
     media: Schema.Attribute.Media & Schema.Attribute.Required;
   };
 }
@@ -51,7 +53,10 @@ export interface BlocksTextBlock extends Struct.ComponentSchema {
   attributes: {
     alignment: Schema.Attribute.Enumeration<['left', 'center', 'right']> &
       Schema.Attribute.DefaultTo<'left'>;
+    columns: Schema.Attribute.Enumeration<['one', 'two']> &
+      Schema.Attribute.DefaultTo<'one'>;
     fontSize: Schema.Attribute.Integer;
+    richBlocks: Schema.Attribute.Blocks;
     richText: Schema.Attribute.RichText;
   };
 }
@@ -79,6 +84,7 @@ export interface OrderItem extends Struct.ComponentSchema {
   };
   attributes: {
     product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
+    productName: Schema.Attribute.String & Schema.Attribute.Required;
     quantity: Schema.Attribute.Integer & Schema.Attribute.Required;
     unitPrice: Schema.Attribute.Decimal & Schema.Attribute.Required;
   };

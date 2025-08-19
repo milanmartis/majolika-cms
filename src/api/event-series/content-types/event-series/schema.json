@@ -3,7 +3,7 @@
     "collectionName": "event_series",
     "info": {
       "singularName": "event-series",
-      "pluralName": "event-series",
+      "pluralName": "event-serieses",
       "displayName": "Séria termínov",
       "description": "Pravidelne sa opakujúce termíny (napr. každú sobotu 15:00)"
     },
