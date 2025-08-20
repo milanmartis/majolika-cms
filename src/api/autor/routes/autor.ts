@@ -1,3 +1,6 @@
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::autor.autor');
+export default {
+    routes: [
+      // Správne: bez "api::" v handler reťazci
+      { method: 'GET', path: '/autors', handler: 'autor.find', config: { auth: false } },
+    ],
+  } as const;
