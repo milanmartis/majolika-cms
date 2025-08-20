@@ -6,6 +6,11 @@
       "pluralName": "autors",
       "displayName": "Autor"
     },
+    "pluginOptions": {
+      "i18n": {
+        "localized": true
+      }
+    },
     "options": { "draftAndPublish": true },
     "attributes": {
       "meno": { "type": "string", "required": true },
