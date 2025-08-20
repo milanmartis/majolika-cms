@@ -9,6 +9,9 @@
     "options": { "draftAndPublish": true },
     "attributes": {
       "meno": { "type": "string", "required": true },
+      "pozicia": { "type": "string", "required": true },
+      "email": { "type": "email", "required": false, "unique": true },
+      "telefon": { "type": "string", "required": false, "unique": true },
       "bio": { "type": "text" },
       "produkty": {
         "type": "relation",
