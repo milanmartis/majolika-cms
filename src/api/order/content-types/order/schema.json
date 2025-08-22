@@ -1,34 +1,65 @@
 {
-    "kind": "collectionType",
-    "collectionName": "orders",
-    "info": {
-      "singularName": "order",
-      "pluralName": "orders",
-      "displayName": "Objednávky"
+  "kind": "collectionType",
+  "collectionName": "orders",
+  "info": {
+    "singularName": "order",
+    "pluralName": "orders",
+    "displayName": "Objednávky"
+  },
+  "options": { "draftAndPublish": false, "timestamps": true },
+  "attributes": {
+    "customerName":  { "type": "string",  "required": true },
+    "customerEmail": { "type": "email",   "required": true },
+
+    "shippingAddress": { "type": "json",  "required": true },
+
+    "total": { "type": "decimal", "required": true },
+
+    "shippingFee": { "type": "decimal", "default": 0 },
+    "totalWithShipping": { "type": "decimal", "default": 0 },
+
+    "status": { "type": "string", "default": "pending" },
+
+    "items": {
+      "type": "component",
+      "repeatable": true,
+      "component": "order.item"
     },
-    "options": {
-      "draftAndPublish": false,
-      "timestamps": true
+
+    "customer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::customer.customer",
+      "inversedBy": "orders",
+      "required": true
     },
-    "attributes": {
-      "customerName":  { "type": "string",   "required": true },
-      "customerEmail": { "type": "email",    "required": true },
-      "shippingAddress": { "type": "json",   "required": true },
-      "total":         { "type": "decimal",  "required": true },
-      "status":        { "type": "string",   "default": "pending" },
-      "items": {
-        "type": "component",
-        "repeatable": true,
-        "component": "order.item"
-      },
-       "customer": {
-          "type": "relation",
-          "relation": "manyToOne",
-          "target": "api::customer.customer",
-          "inversedBy": "orders",
-          "required": true
-        },
-      "paymentSessionId":  { "type": "string" },      
-      "paymentStatus":     { "type": "string" }       
-    }
+
+    "paymentMethod": {
+      "type": "enumeration",
+      "enum": ["card", "cod", "bank", "onsite", "post"],
+      "required": true,
+      "default": "card"
+    },
+    "paymentSessionId": { "type": "string" },
+    "paymentStatus":    { "type": "string" },
+
+    "deliveryMethod": {
+      "type": "enumeration",
+      "enum": ["pickup", "post_office", "packeta_box", "post_courier"],
+      "required": true,
+      "default": "pickup"
+    },
+    "deliveryAddress": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.address"
+    },
+    "deliveryDetails": {
+      "type": "component",
+      "repeatable": false,
+      "component": "checkout.delivery-details"
+    },
+
+    "temporaryId": { "type": "string" }
   }
+}

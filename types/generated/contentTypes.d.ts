@@ -485,18 +485,25 @@ export interface ApiAutorAutor extends Struct.CollectionTypeSchema {
   options: {
     draftAndPublish: true;
   };
+  pluginOptions: {
+    i18n: {
+      localized: true;
+    };
+  };
   attributes: {
     bio: Schema.Attribute.Text;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    email: Schema.Attribute.Email & Schema.Attribute.Unique;
     fotografia: Schema.Attribute.Media<'images'>;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<'oneToMany', 'api::autor.autor'> &
-      Schema.Attribute.Private;
+    locale: Schema.Attribute.String;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::autor.autor'>;
     meno: Schema.Attribute.String & Schema.Attribute.Required;
+    pozicia: Schema.Attribute.String & Schema.Attribute.Required;
     produkty: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
+    telefon: Schema.Attribute.String & Schema.Attribute.Unique;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -936,16 +943,34 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required;
     customerEmail: Schema.Attribute.Email & Schema.Attribute.Required;
     customerName: Schema.Attribute.String & Schema.Attribute.Required;
+    deliveryAddress: Schema.Attribute.Component<'shared.address', false>;
+    deliveryDetails: Schema.Attribute.Component<
+      'checkout.delivery-details',
+      false
+    >;
+    deliveryMethod: Schema.Attribute.Enumeration<
+      ['pickup', 'post_office', 'packeta_box', 'post_courier']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'pickup'>;
     items: Schema.Attribute.Component<'order.item', true>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::order.order'> &
       Schema.Attribute.Private;
+    paymentMethod: Schema.Attribute.Enumeration<
+      ['card', 'cod', 'bank', 'onsite', 'post']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'card'>;
     paymentSessionId: Schema.Attribute.String;
     paymentStatus: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     shippingAddress: Schema.Attribute.JSON & Schema.Attribute.Required;
+    shippingFee: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<0>;
     status: Schema.Attribute.String & Schema.Attribute.DefaultTo<'pending'>;
+    temporaryId: Schema.Attribute.String;
     total: Schema.Attribute.Decimal & Schema.Attribute.Required;
+    totalWithShipping: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<0>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;

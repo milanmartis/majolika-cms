@@ -76,6 +76,19 @@ export interface BlocksVideoBlock extends Struct.ComponentSchema {
   };
 }
 
+export interface CheckoutDeliveryDetails extends Struct.ComponentSchema {
+  collectionName: 'components_checkout_delivery_details';
+  info: {
+    displayName: 'DeliveryDetails';
+  };
+  attributes: {
+    notes: Schema.Attribute.Text;
+    packetaBoxId: Schema.Attribute.String;
+    postOfficeId: Schema.Attribute.String;
+    provider: Schema.Attribute.String;
+  };
+}
+
 export interface OrderItem extends Struct.ComponentSchema {
   collectionName: 'components_order_items';
   info: {
@@ -125,6 +138,7 @@ declare module '@strapi/strapi' {
       'blocks.link-block': BlocksLinkBlock;
       'blocks.text-block': BlocksTextBlock;
       'blocks.video-block': BlocksVideoBlock;
+      'checkout.delivery-details': CheckoutDeliveryDetails;
       'order.item': OrderItem;
       'shared.address': SharedAddress;
       'shared.seo': SharedSeo;

@@ -1,0 +1,11 @@
+{
+    "collectionName": "components_checkout_delivery_details",
+    "info": { "displayName": "DeliveryDetails" },
+    "attributes": {
+      "provider":     { "type": "string" },
+      "postOfficeId": { "type": "string" },
+      "packetaBoxId": { "type": "string" },
+      "notes":        { "type": "text" }
+    }
+  }
+  
