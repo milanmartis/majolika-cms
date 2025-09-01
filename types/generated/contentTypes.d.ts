@@ -521,6 +521,7 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    category_image: Schema.Attribute.Media<'images'>;
     category_name: Schema.Attribute.String & Schema.Attribute.Required;
     category_slug: Schema.Attribute.UID<'category_name'> &
       Schema.Attribute.Required &

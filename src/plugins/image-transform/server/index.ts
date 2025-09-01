@@ -3,7 +3,7 @@ import uploadPlugin from '@strapi/plugin-upload/server';
 import sharp from 'sharp';
 
 export default uploadPlugin({
-  id: 'upload',            // ← NIKDY pluginPkg.name
+  id: 'image-transform',            // ← NIKDY pluginPkg.name
   bootstrap({ strapi }) {
     const uploadService = strapi
       .plugin('upload')
