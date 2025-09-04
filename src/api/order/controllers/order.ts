@@ -1,6 +1,10 @@
 // src/api/order/controllers/order.ts
 import { factories } from '@strapi/strapi';
 import { sendEmail } from '../../../utils/email';
+type OrderWithPacketa = {
+  deliveryMethod?: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+  deliveryDetails?: { packetaBoxId?: string | null } | null;
+};
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
 type OrderWithShipping = {
@@ -259,50 +263,53 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
 
 
 
-    async shipPacketa(ctx) {
-      const id = Number(ctx.params.id);
-      const { weightKg } = ctx.request.body || {};
-    
-      if (!id) return ctx.badRequest('Missing order id');
-      if (!weightKg || Number(weightKg) <= 0) return ctx.badRequest('weightKg is required');
-    
-      const order = await strapi.entityService.findOne('api::order.order', id, {
-        populate: ['deliveryDetails', 'deliveryAddress']
+  async shipPacketa(ctx) {
+    const id = Number(ctx.params.id);
+    const { weightKg } = ctx.request.body || {};
+  
+    if (!id) return ctx.badRequest('Missing order id');
+    if (!weightKg || Number(weightKg) <= 0) return ctx.badRequest('weightKg is required');
+  
+    // 👇 potlačíme TS: lokálny typ s políčkami, ktoré potrebujeme
+    const order = await strapi.entityService.findOne('api::order.order', id, {
+      populate: ['deliveryDetails', 'deliveryAddress'],
+    }) as unknown as OrderWithPacketa;
+  
+    if (!order) return ctx.notFound('Order not found');
+    if (order.deliveryMethod !== 'packeta_box') {
+      return ctx.badRequest('Order is not Packeta delivery');
+    }
+    if (!order.deliveryDetails?.packetaBoxId) {
+      return ctx.badRequest('Missing Packeta pickup point');
+    }
+  
+    try {
+      const shipping = await strapi
+        .service('api::shipping.shipping')
+        .createShipmentFromOrder(order as any, { weightKg: Number(weightKg) });
+  
+      await strapi.entityService.update('api::order.order', id, {
+        data: {
+          parcelWeightKg: Number(weightKg),
+          packetaShipmentId: shipping.shipmentId ?? null,
+          packetaTrackingNumber: shipping.trackingNumber ?? null,
+          packetaLabelUrl: shipping.labelUrl ?? null,
+          packetaStatus: 'created',
+        } as any, // 👈 tu potlačíme TS, kým sa negenerujú nové typy
       });
-      if (!order) return ctx.notFound('Order not found');
-    
-      if (order.deliveryMethod !== 'packeta_box') {
-        return ctx.badRequest('Order is not Packeta delivery');
-      }
-      if (!order.deliveryDetails?.packetaBoxId) {
-        return ctx.badRequest('Missing Packeta pickup point');
-      }
-    
-      try {
-        const shipping = await strapi.service('api::shipping.shipping')
-          .createShipmentFromOrder(order as any, { weightKg: Number(weightKg) });
-    
-        const updated = await strapi.entityService.update('api::order.order', id, {
-          data: {
-            parcelWeightKg: Number(weightKg),
-            packetaShipmentId: shipping.shipmentId ?? null,
-            packetaTrackingNumber: shipping.trackingNumber ?? null,
-            packetaLabelUrl: shipping.labelUrl ?? null,
-            packetaStatus: 'created'
-          } as any,
-        });
-    
-        ctx.body = {
-          ok: true,
-          shipmentId: updated.packetaShipmentId,
-          trackingNumber: updated.packetaTrackingNumber,
-          labelUrl: updated.packetaLabelUrl
-        };
-      } catch (e) {
-        strapi.log.error('[PACKETA][SHIP] error', e);
-        return ctx.internalServerError('Packeta ship failed');
-      }
-    },
+  
+      // ✅ nepoužívame `updated.*` (to spôsobovalo TS chyby)
+      ctx.body = {
+        ok: true,
+        shipmentId: shipping.shipmentId ?? null,
+        trackingNumber: shipping.trackingNumber ?? null,
+        labelUrl: shipping.labelUrl ?? null,
+      };
+    } catch (e) {
+      strapi.log.error('[PACKETA][SHIP] error', e);
+      return ctx.internalServerError('Packeta ship failed');
+    }
+  },
   
 
   // GET /orders/my
