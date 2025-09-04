@@ -259,50 +259,50 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
 
 
 
-    // async shipPacketa(ctx) {
-    //   const id = Number(ctx.params.id);
-    //   const { weightKg } = ctx.request.body || {};
+    async shipPacketa(ctx) {
+      const id = Number(ctx.params.id);
+      const { weightKg } = ctx.request.body || {};
     
-    //   if (!id) return ctx.badRequest('Missing order id');
-    //   if (!weightKg || Number(weightKg) <= 0) return ctx.badRequest('weightKg is required');
+      if (!id) return ctx.badRequest('Missing order id');
+      if (!weightKg || Number(weightKg) <= 0) return ctx.badRequest('weightKg is required');
     
-    //   const order = await strapi.entityService.findOne('api::order.order', id, {
-    //     populate: ['deliveryDetails', 'deliveryAddress']
-    //   });
-    //   if (!order) return ctx.notFound('Order not found');
+      const order = await strapi.entityService.findOne('api::order.order', id, {
+        populate: ['deliveryDetails', 'deliveryAddress']
+      });
+      if (!order) return ctx.notFound('Order not found');
     
-    //   if (order.deliveryMethod !== 'packeta_box') {
-    //     return ctx.badRequest('Order is not Packeta delivery');
-    //   }
-    //   if (!order.deliveryDetails?.packetaBoxId) {
-    //     return ctx.badRequest('Missing Packeta pickup point');
-    //   }
+      if (order.deliveryMethod !== 'packeta_box') {
+        return ctx.badRequest('Order is not Packeta delivery');
+      }
+      if (!order.deliveryDetails?.packetaBoxId) {
+        return ctx.badRequest('Missing Packeta pickup point');
+      }
     
-    //   try {
-    //     const shipping = await strapi.service('api::shipping.shipping')
-    //       .createShipmentFromOrder(order as any, { weightKg: Number(weightKg) });
+      try {
+        const shipping = await strapi.service('api::shipping.shipping')
+          .createShipmentFromOrder(order as any, { weightKg: Number(weightKg) });
     
-    //     const updated = await strapi.entityService.update('api::order.order', id, {
-    //       data: {
-    //         parcelWeightKg: Number(weightKg),
-    //         packetaShipmentId: shipping.shipmentId ?? null,
-    //         packetaTrackingNumber: shipping.trackingNumber ?? null,
-    //         packetaLabelUrl: shipping.labelUrl ?? null,
-    //         packetaStatus: 'created'
-    //       } as any,
-    //     });
+        const updated = await strapi.entityService.update('api::order.order', id, {
+          data: {
+            parcelWeightKg: Number(weightKg),
+            packetaShipmentId: shipping.shipmentId ?? null,
+            packetaTrackingNumber: shipping.trackingNumber ?? null,
+            packetaLabelUrl: shipping.labelUrl ?? null,
+            packetaStatus: 'created'
+          } as any,
+        });
     
-    //     ctx.body = {
-    //       ok: true,
-    //       shipmentId: updated.packetaShipmentId,
-    //       trackingNumber: updated.packetaTrackingNumber,
-    //       labelUrl: updated.packetaLabelUrl
-    //     };
-    //   } catch (e) {
-    //     strapi.log.error('[PACKETA][SHIP] error', e);
-    //     return ctx.internalServerError('Packeta ship failed');
-    //   }
-    // },
+        ctx.body = {
+          ok: true,
+          shipmentId: updated.packetaShipmentId,
+          trackingNumber: updated.packetaTrackingNumber,
+          labelUrl: updated.packetaLabelUrl
+        };
+      } catch (e) {
+        strapi.log.error('[PACKETA][SHIP] error', e);
+        return ctx.internalServerError('Packeta ship failed');
+      }
+    },
   
 
   // GET /orders/my
