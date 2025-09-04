@@ -15,6 +15,18 @@
     "attributes": {
       "meno": { "type": "string", "required": true },
       "pozicia": { "type": "string", "required": true },
+      "rola": {
+        "type": "enumeration",
+        "enum": [
+          "administratíva",
+          "maliar",
+          "džbánkár",
+          "majster výroby"
+        ],
+        "default": "administratíva",
+        "required": true
+      },
+      "poradie": { "type": "integer", "required": false },
       "email": { "type": "email", "required": false, "unique": true },
       "telefon": { "type": "string", "required": false, "unique": true },
       "bio": { "type": "text" },
