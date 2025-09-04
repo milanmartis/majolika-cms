@@ -3,7 +3,31 @@ import { factories } from '@strapi/strapi';
 import { sendEmail } from '../../../utils/email';
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+type OrderWithShipping = {
+  id: number;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  deliveryMethod: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+  deliveryDetails?: {
+    provider?: string | null;
+    packetaBoxId?: string | null;
+    postOfficeId?: string | null;
+    notes?: string | null;
+  } | null;
+  deliveryAddress?: {
+    street?: string | null;
+    city?: string | null;
+    zip?: string | null;
+    country?: string | null;
+  } | null;
 
+  // nové Packeta polia
+  parcelWeightKg?: number | null;
+  packetaShipmentId?: string | null;
+  packetaTrackingNumber?: string | null;
+  packetaLabelUrl?: string | null;
+  packetaStatus?: string | null;
+};
 export default factories.createCoreController('api::order.order', ({ strapi }) => ({
 
   async create(ctx) {
@@ -84,7 +108,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     const order = await strapi.entityService.create('api::order.order', {
       data,
       populate: ['items', 'deliveryAddress', 'deliveryDetails', 'customer'],
-    });
+    }) as unknown as OrderWithShipping;
 
     // --- Post-create logika (email, párovanie bookingov) ---
     const customerEmail: string | undefined = (order as any).customerEmail;
@@ -231,6 +255,55 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     // 5) Response v tvare podobnom super.create
     ctx.body = { data: { id: order.id, attributes: order } };
   },
+
+
+
+
+    async shipPacketa(ctx) {
+      const id = Number(ctx.params.id);
+      const { weightKg } = ctx.request.body || {};
+    
+      if (!id) return ctx.badRequest('Missing order id');
+      if (!weightKg || Number(weightKg) <= 0) return ctx.badRequest('weightKg is required');
+    
+      const order = await strapi.entityService.findOne('api::order.order', id, {
+        populate: ['deliveryDetails', 'deliveryAddress']
+      });
+      if (!order) return ctx.notFound('Order not found');
+    
+      if (order.deliveryMethod !== 'packeta_box') {
+        return ctx.badRequest('Order is not Packeta delivery');
+      }
+      if (!order.deliveryDetails?.packetaBoxId) {
+        return ctx.badRequest('Missing Packeta pickup point');
+      }
+    
+      try {
+        const shipping = await strapi.service('api::shipping.shipping')
+          .createShipmentFromOrder(order as any, { weightKg: Number(weightKg) });
+    
+        const updated = await strapi.entityService.update('api::order.order', id, {
+          data: {
+            parcelWeightKg: Number(weightKg),
+            packetaShipmentId: shipping.shipmentId ?? null,
+            packetaTrackingNumber: shipping.trackingNumber ?? null,
+            packetaLabelUrl: shipping.labelUrl ?? null,
+            packetaStatus: 'created'
+          } as any,
+        });
+    
+        ctx.body = {
+          ok: true,
+          shipmentId: updated.packetaShipmentId,
+          trackingNumber: updated.packetaTrackingNumber,
+          labelUrl: updated.packetaLabelUrl
+        };
+      } catch (e) {
+        strapi.log.error('[PACKETA][SHIP] error', e);
+        return ctx.internalServerError('Packeta ship failed');
+      }
+    },
+  
 
   // GET /orders/my
   async my(ctx) {

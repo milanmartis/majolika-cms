@@ -8,13 +8,12 @@
   },
   "options": { "draftAndPublish": false, "timestamps": true },
   "attributes": {
-    "customerName":  { "type": "string",  "required": true },
-    "customerEmail": { "type": "email",   "required": true },
+    "customerName": { "type": "string", "required": true },
+    "customerEmail": { "type": "email", "required": true },
 
-    "shippingAddress": { "type": "json",  "required": true },
+    "shippingAddress": { "type": "json", "required": true },
 
     "total": { "type": "decimal", "required": true },
-
     "shippingFee": { "type": "decimal", "default": 0 },
     "totalWithShipping": { "type": "decimal", "default": 0 },
 
@@ -41,7 +40,26 @@
       "default": "card"
     },
     "paymentSessionId": { "type": "string" },
-    "paymentStatus":    { "type": "string" },
+
+    "paymentStatus": {
+      "type": "enumeration",
+      "enum": ["unpaid", "pending", "paid", "refunded", "failed"],
+      "default": "unpaid",
+      "required": true
+    },
+
+    "fulfillmentStatus": {
+      "type": "enumeration",
+      "enum": ["new", "processing", "packed", "shipped", "ready_for_pickup", "completed", "cancelled"],
+      "default": "new",
+      "required": true
+    },
+
+    "deliveryStatus": {
+      "type": "enumeration",
+      "enum": ["label_created", "in_transit", "at_pickup", "delivered", "returned"],
+      "required": false
+    },
 
     "deliveryMethod": {
       "type": "enumeration",
@@ -59,6 +77,12 @@
       "repeatable": false,
       "component": "checkout.delivery-details"
     },
+
+    "parcelWeightKg": { "type": "decimal", "precision": 6, "scale": 2 },
+    "packetaShipmentId": { "type": "string" },
+    "packetaTrackingNumber": { "type": "string" },
+    "packetaLabelUrl": { "type": "text" },
+    "packetaStatus": { "type": "string" },
 
     "temporaryId": { "type": "string" }
   }
