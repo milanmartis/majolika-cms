@@ -69,9 +69,7 @@ function validateDelivery(delivery: Delivery) {
     case 'packeta_box': {
       const boxId = delivery.details?.packetaBoxId;
       if (!boxId) throw new Error('delivery.details.packetaBoxId is required for packeta_box');
-      // provider je fajn mať kvôli rozlíšeniu Packeta vs. Carrier PUDO
       if (!delivery.details?.provider) {
-        // nezabije checkout, len upozorní do logu
         strapi.log.warn('[DELIVERY] packeta_box bez details.provider — nastavím implicitne "packeta"');
         (delivery.details as DeliveryDetails).provider = 'packeta';
       }
@@ -121,7 +119,7 @@ export default () => ({
 
     validateDelivery(delivery);
 
-    // 1) nájdi/vytvor zákazníka
+    // 1) nájdi/vytvor zákazníka podľa emailu
     const existing = await strapi.entityService.findMany('api::customer.customer', {
       filters: { email: customer.email },
       limit: 1,
@@ -139,18 +137,19 @@ export default () => ({
           },
         })).id;
 
-    // 2) položky objednávky (over produkty, ale cenu berieme z payloadu ako máš)
+    // 2) položky objednávky – over produkty (cena podľa payloadu)
     const orderItems = await Promise.all(
       items.map(async (item) => {
         const product = await strapi.entityService.findOne('api::product.product', item.productId);
-        if (!product || typeof product.price !== 'number') {
+        if (!product || (typeof product.price !== 'number' && typeof product.price !== 'string')) {
           throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
         }
         return {
-          product: product.id,
-          productName: product.name,
+          // drž sa schémy komponentu "order.item" (productId, productName, quantity, unitPrice)
+          productId: item.productId,
+          productName: item.productName ?? product.name,
           quantity: item.quantity,
-          unitPrice: item.unitPrice, // ak chceš vynútiť serverovú cenu, vymeň za product.price / salePrice
+          unitPrice: item.unitPrice, // ak chceš serverovú cenu: Number(product.salePrice ?? product.price)
         };
       })
     );
@@ -161,12 +160,22 @@ export default () => ({
     const totalWithShipping = Number((itemsTotal + shippingFee).toFixed(2));
     const isCard = paymentMethod === 'card';
 
-    // 3) vytvor ORDER podľa tvojej schémy
+    // 🔴 DÔLEŽITÉ: doplň required enum polia podľa schémy
+    // fulfillmentStatus: ["new","processing","shipped","delivered","cancelled"]
+    // deliveryStatus: ["label_created","in_transit","at_pickup","delivered","returned"]
+    const fulfillmentStatus = 'new';
+    const deliveryStatus = 'label_created';
+
+    // paymentStatus v tvojej schéme: ["unpaid","paid","refunded"]
+    const paymentStatus = isCard ? 'unpaid' : 'unpaid'; // pri dobierke/banke tiež 'unpaid' až do úhrady
+
+    // 3) vytvor ORDER podľa schémy
     const order = await strapi.entityService.create('api::order.order', {
       data: {
         customer: customerId,
         customerName: customer.name,
         customerEmail: customer.email,
+
         shippingAddress: {
           street: customer.street,
           city: customer.city,
@@ -178,20 +187,23 @@ export default () => ({
         deliveryAddress: delivery.address || null,
         deliveryDetails: delivery.details || null,
 
+        // DECIMAL polia – Strapi akceptuje number aj string; nechávam number
         shippingFee,
         total: itemsTotal,
         totalWithShipping,
 
         items: orderItems,
-        status: 'new',
+        status: 'pending',                // tvoje voľné stringové pole
+        fulfillmentStatus,                // ✅ required
+        deliveryStatus,                   // ✅ required
         paymentMethod,
-        paymentStatus: isCard ? 'unpaid' : 'pending',
+        paymentStatus,                    // ✅ validný enum
         paymentSessionId: '',
         temporaryId: temporaryId || null,
       },
     });
 
-    // 4A) NE-KARTA – rovno potvrď a pošli emaily
+    // 4A) NE-KARTA – stačí potvrdiť a poslať emaily
     if (!isCard) {
       const deliverySummary = summarizeDelivery(delivery);
       try {
@@ -214,10 +226,11 @@ export default () => ({
       } catch (e) {
         strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
       }
-      return { checkoutUrl: `${FRONTEND_URL}/checkout/success?order=${order.id}` };
+      // pre konzistenciu vraciame aj sessionUrl
+      return { checkoutUrl: `${FRONTEND_URL}/checkout/success?order=${order.id}`, sessionUrl: null };
     }
 
-    // 4B) KARTA – Stripe Checkout session (doprava ako samostatná položka)
+    // 4B) KARTA – Stripe Checkout session
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       ...orderItems.map((item: any) => ({
         price_data: {
@@ -250,7 +263,6 @@ export default () => ({
         temporaryId: temporaryId || '',
         customerEmail: customer.email,
         deliveryMethod,
-        // užitočné meta do webhooku:
         packetaProvider: delivery.details?.provider || '',
         packetaBoxId: delivery.details?.packetaBoxId || '',
       },
@@ -261,6 +273,6 @@ export default () => ({
       data: { paymentSessionId: session.id },
     });
 
-    return { checkoutUrl: session.url! };
+    return { checkoutUrl: session.url!, sessionUrl: session.url! };
   },
 });
