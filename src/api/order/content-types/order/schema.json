@@ -43,22 +43,22 @@
 
     "paymentStatus": {
       "type": "enumeration",
-      "enum": ["unpaid", "pending", "paid", "refunded", "failed"],
+      "enum": ["unpaid", "paid", "refunded"],
       "default": "unpaid",
-      "required": false
+      "required": true
     },
 
     "fulfillmentStatus": {
       "type": "enumeration",
-      "enum": ["new", "processing", "packed", "shipped", "ready_for_pickup", "completed", "cancelled"],
+      "enum": ["new", "processing", "shipped", "delivered", "cancelled"],
       "default": "new",
-      "required": false
+      "required": true
     },
 
     "deliveryStatus": {
       "type": "enumeration",
       "enum": ["label_created", "in_transit", "at_pickup", "delivered", "returned"],
-      "required": false
+      "required": true
     },
 
     "deliveryMethod": {

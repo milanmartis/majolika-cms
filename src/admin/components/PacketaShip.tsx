@@ -28,6 +28,7 @@ const PacketaShip: React.FC<PacketaShipProps> = ({ model, documentId, document }
     }
     setLoading(true);
     try {
+      // POZOR na route – viď bod 3 nižšie (politika pre admin JWT)
       const res = await post(`/orders/${documentId}/packeta/ship`, {
         weightKg: Number(weight),
       });

@@ -1,10 +1,13 @@
+// src/api/order/routes/packeta-ship.ts
 export default {
     routes: [
       {
         method: 'POST',
         path: '/orders/:id/packeta/ship',
-        handler: 'order.shipPacketa',
-        config: { auth: { scope: ['admin'] } } // iba admin
-      }
-    ]
+        handler: 'order.packetaShip', // uprav podľa tvojho controlleru
+        config: {
+          policies: ['admin::isAuthenticatedAdmin'], // dôležité!
+        },
+      },
+    ],
   };
