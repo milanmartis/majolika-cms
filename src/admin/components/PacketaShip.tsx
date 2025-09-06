@@ -1,30 +1,27 @@
+// src/admin/components/PacketaShip.tsx
 import React, { useState } from 'react';
 import {
-  unstable_useContentManagerContext as useContentManagerContext,
   useFetchClient,
   useNotification,
 } from '@strapi/strapi/admin';
 import { Box, Flex, Button, TextInput, Typography, Field } from '@strapi/design-system';
 
-export type PacketaShipProps = {};
+export type PacketaShipProps = {
+  model: string;
+  documentId?: string | number | null;
+  document?: any;
+};
 
-const PacketaShip: React.FC<PacketaShipProps> = () => {
-  const cm = useContentManagerContext() as unknown as {
-    form?: { values?: any };
-    layout?: { edit?: { schema?: { uid?: string } } };
-  };
+const PacketaShip: React.FC<PacketaShipProps> = ({ model, documentId, document }) => {
   const { post } = useFetchClient();
   const { toggleNotification } = useNotification();
 
-  const values = cm.form?.values || {};
-  const id = values?.id as number | string | undefined;
-  const contentTypeUid = cm.layout?.edit?.schema?.uid;
+  // render len na objednávke s ID (Edit, nie Create)
+  if (model !== 'api::order.order' || !documentId) return null;
 
-  if (!contentTypeUid || contentTypeUid !== 'api::order.order' || !id) return null;
-
-  const isPacketa = values?.deliveryMethod === 'packeta_box';
+  const isPacketa = document?.deliveryMethod === 'packeta_box';
   const [weight, setWeight] = useState<string>(
-    values?.parcelWeightKg ? String(values.parcelWeightKg) : ''
+    document?.parcelWeightKg ? String(document.parcelWeightKg) : ''
   );
   const [loading, setLoading] = useState(false);
 
@@ -35,12 +32,19 @@ const PacketaShip: React.FC<PacketaShipProps> = () => {
     }
     setLoading(true);
     try {
-      const res = await post(`/orders/${id}/packeta/ship`, { weightKg: Number(weight) });
+      const res = await post(`/orders/${documentId}/packeta/ship`, {
+        weightKg: Number(weight),
+      });
+
       toggleNotification({ type: 'success', message: 'Zásielka vytvorená v Packeta.' });
+
       const labelUrl = (res as any)?.data?.labelUrl;
       if (labelUrl) window.open(labelUrl, '_blank');
     } catch (e: any) {
-      const msg = e?.response?.data?.error?.message || e?.message || 'Odoslanie do Packeta zlyhalo.';
+      const msg =
+        e?.response?.data?.error?.message ||
+        e?.message ||
+        'Odoslanie do Packeta zlyhalo.';
       toggleNotification({ type: 'danger', message: msg });
     } finally {
       setLoading(false);
@@ -51,6 +55,7 @@ const PacketaShip: React.FC<PacketaShipProps> = () => {
     <Box padding={4} hasRadius background="neutral0" shadow="filterShadow">
       <Flex direction="column" gap={3}>
         <Typography tag="h3" variant="delta">Packeta</Typography>
+
         {!isPacketa ? (
           <Typography textColor="neutral600" variant="pi">
             Táto objednávka nemá spôsob doručenia <strong>packeta_box</strong>.
@@ -67,6 +72,7 @@ const PacketaShip: React.FC<PacketaShipProps> = () => {
               <Field.Error />
               <Field.Hint />
             </Field.Root>
+
             <Button onClick={ship} loading={loading} disabled={!isPacketa}>
               Odoslať do Packeta
             </Button>
