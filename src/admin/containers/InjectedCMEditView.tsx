@@ -1,6 +1,8 @@
+// src/admin/containers/InjectedCMEditView.tsx
 import React from 'react';
 import PacketaShip from '../components/PacketaShip';
 
-const InjectedCMEditView = () => <PacketaShip />;
+const InjectedCMEditView: React.FC = () => <PacketaShip />;
 
+export default InjectedCMEditView;
 export { InjectedCMEditView };

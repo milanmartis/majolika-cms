@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "jsx": "react-jsx",
     "module": "CommonJS",
     "moduleResolution": "Node",
     "lib": ["ES2020"],
@@ -23,7 +24,7 @@
     "src/plugins/**/*.ts",
     "src/extensions/**/*.ts",
     "src/types/global.d.ts"
-, "config/server.ts", "config/server.js"  ],
+, "config/server.ts", "config/server.js", "src/admin/components/PacketaShip.tsx"  ],
   "exclude": [
     "node_modules",
     "build",
