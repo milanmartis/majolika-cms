@@ -3,22 +3,18 @@ import React from 'react';
 import PacketaShip from './components/PacketaShip';
 
 const extension = {
-  register(app: any) {
+  // nič nepotrebujeme v register
+  register(_app: any) {},
+
+  // Content-Manager APIs patria do bootstrap
+  bootstrap(app: any) {
     const cm = app.getPlugin('content-manager');
-    const apis = cm?.apis;
+    const apis = cm?.apis as any;
 
     if (!apis || typeof apis.addEditViewSidePanel !== 'function') return;
 
-    // Panel sa vykreslí len na Edit view objednávky s existujúcim ID
-    const PacketaPanel = ({
-      model,
-      document,
-      documentId,
-    }: {
-      model: string;
-      document?: any;
-      documentId?: string | number | null;
-    }) => {
+    // Panel vo vedľajšom pravom sidebare EditView
+    const PacketaPanel = ({ model, document, documentId }: any) => {
       if (model !== 'api::order.order' || !documentId) return null;
       return {
         title: 'Packeta',

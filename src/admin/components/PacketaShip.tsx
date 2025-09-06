@@ -1,9 +1,5 @@
-// src/admin/components/PacketaShip.tsx
 import React, { useState } from 'react';
-import {
-  useFetchClient,
-  useNotification,
-} from '@strapi/strapi/admin';
+import { useFetchClient, useNotification } from '@strapi/strapi/admin';
 import { Box, Flex, Button, TextInput, Typography, Field } from '@strapi/design-system';
 
 export type PacketaShipProps = {
@@ -16,7 +12,7 @@ const PacketaShip: React.FC<PacketaShipProps> = ({ model, documentId, document }
   const { post } = useFetchClient();
   const { toggleNotification } = useNotification();
 
-  // render len na objednávke s ID (Edit, nie Create)
+  // zobraz iba na existujúcej objednávke
   if (model !== 'api::order.order' || !documentId) return null;
 
   const isPacketa = document?.deliveryMethod === 'packeta_box';
