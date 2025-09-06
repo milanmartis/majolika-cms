@@ -6,23 +6,20 @@ import {
 } from '@strapi/strapi/admin';
 import { Box, Flex, Button, TextInput, Typography, Field } from '@strapi/design-system';
 
-const PacketaShip: React.FC = () => {
-  // Vynútime si typy, aby TS nehlásil chybu "Property 'values' does not exist on type '{}'"
+export type PacketaShipProps = {};
+
+const PacketaShip: React.FC<PacketaShipProps> = () => {
   const cm = useContentManagerContext() as unknown as {
     form?: { values?: any };
     layout?: { edit?: { schema?: { uid?: string } } };
   };
-
   const { post } = useFetchClient();
   const { toggleNotification } = useNotification();
 
   const values = cm.form?.values || {};
   const id = values?.id as number | string | undefined;
-
-  // v Strapi v5 je UID na adrese layout.edit.schema.uid
   const contentTypeUid = cm.layout?.edit?.schema?.uid;
 
-  // renderuj iba na objednávke
   if (!contentTypeUid || contentTypeUid !== 'api::order.order' || !id) return null;
 
   const isPacketa = values?.deliveryMethod === 'packeta_box';
@@ -38,19 +35,12 @@ const PacketaShip: React.FC = () => {
     }
     setLoading(true);
     try {
-      const res = await post(`/orders/${id}/packeta/ship`, {
-        weightKg: Number(weight),
-      });
-
+      const res = await post(`/orders/${id}/packeta/ship`, { weightKg: Number(weight) });
       toggleNotification({ type: 'success', message: 'Zásielka vytvorená v Packeta.' });
-
       const labelUrl = (res as any)?.data?.labelUrl;
       if (labelUrl) window.open(labelUrl, '_blank');
     } catch (e: any) {
-      const msg =
-        e?.response?.data?.error?.message ||
-        e?.message ||
-        'Odoslanie do Packeta zlyhalo.';
+      const msg = e?.response?.data?.error?.message || e?.message || 'Odoslanie do Packeta zlyhalo.';
       toggleNotification({ type: 'danger', message: msg });
     } finally {
       setLoading(false);
@@ -61,7 +51,6 @@ const PacketaShip: React.FC = () => {
     <Box padding={4} hasRadius background="neutral0" shadow="filterShadow">
       <Flex direction="column" gap={3}>
         <Typography tag="h3" variant="delta">Packeta</Typography>
-
         {!isPacketa ? (
           <Typography textColor="neutral600" variant="pi">
             Táto objednávka nemá spôsob doručenia <strong>packeta_box</strong>.
@@ -78,7 +67,6 @@ const PacketaShip: React.FC = () => {
               <Field.Error />
               <Field.Hint />
             </Field.Root>
-
             <Button onClick={ship} loading={loading} disabled={!isPacketa}>
               Odoslať do Packeta
             </Button>

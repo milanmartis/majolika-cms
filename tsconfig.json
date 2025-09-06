@@ -24,7 +24,7 @@
     "src/plugins/**/*.ts",
     "src/extensions/**/*.ts",
     "src/types/global.d.ts"
-, "config/server.ts", "config/server.js", "src/admin/components/PacketaShip.tsx"  ],
+, "config/server.ts", "config/server.js", "src/admin/components/PacketaShip.tsx", "src/admin/index.tsx"  ],
   "exclude": [
     "node_modules",
     "build",

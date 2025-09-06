@@ -1,4 +1,3 @@
-// src/admin/containers/InjectedCMEditView.tsx
 import React from 'react';
 import PacketaShip from '../components/PacketaShip';
 
