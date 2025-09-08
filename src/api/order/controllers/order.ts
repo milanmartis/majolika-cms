@@ -1,17 +1,22 @@
 // src/api/order/controllers/order.ts
 import { factories } from '@strapi/strapi';
 import { sendEmail } from '../../../utils/email';
+
+type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+
 type OrderWithPacketa = {
-  deliveryMethod?: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+  id: number;
+  documentId?: string;
+  deliveryMethod?: DeliveryMethod;
   deliveryDetails?: { packetaBoxId?: string | null } | null;
 };
 
-type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
 type OrderWithShipping = {
   id: number;
+  documentId?: string;
   customerName?: string | null;
   customerEmail?: string | null;
-  deliveryMethod: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+  deliveryMethod: DeliveryMethod;
   deliveryDetails?: {
     provider?: string | null;
     packetaBoxId?: string | null;
@@ -32,6 +37,7 @@ type OrderWithShipping = {
   packetaLabelUrl?: string | null;
   packetaStatus?: string | null;
 };
+
 export default factories.createCoreController('api::order.order', ({ strapi }) => ({
 
   async create(ctx) {
@@ -126,7 +132,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       const det = (order as any).deliveryDetails || {};
       const addr = (order as any).deliveryAddress || {};
       const isPostOffice = (order as any).deliveryMethod === 'post_office';
-    
+
       const addressLine = [addr.street, addr.city, addr.zip, addr.country].filter(Boolean).join(', ');
       const deliverySection = isPostOffice
         ? `
@@ -136,7 +142,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
           Adresa: ${addressLine || '-'}
           </p>`
         : '';
-    
+
       await sendEmail({
         to: customerEmail || 'milanmartis@gmail.com',
         subject: 'Potvrdenie objednávky',
@@ -145,7 +151,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
           ${deliverySection}
         `,
       });
-    
+
       strapi.log.info(`[ORDER] Potvrdenie objednávky odoslané na ${customerEmail}`);
     } catch (e) {
       strapi.log.error(`[ORDER] Nepodarilo sa odoslať email na ${customerEmail}:`, e);
@@ -260,21 +266,18 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     ctx.body = { data: { id: order.id, attributes: order } };
   },
 
-
-
-
   async shipPacketa(ctx) {
     const id = Number(ctx.params.id);
     const { weightKg } = ctx.request.body || {};
-  
+
     if (!id) return ctx.badRequest('Missing order id');
     if (!weightKg || Number(weightKg) <= 0) return ctx.badRequest('weightKg is required');
-  
-    // 👇 potlačíme TS: lokálny typ s políčkami, ktoré potrebujeme
+
+    // načítaj objednávku (kvôli kontrole a documentId)
     const order = await strapi.entityService.findOne('api::order.order', id, {
       populate: ['deliveryDetails', 'deliveryAddress'],
     }) as unknown as OrderWithPacketa;
-  
+
     if (!order) return ctx.notFound('Order not found');
     if (order.deliveryMethod !== 'packeta_box') {
       return ctx.badRequest('Order is not Packeta delivery');
@@ -282,23 +285,42 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     if (!order.deliveryDetails?.packetaBoxId) {
       return ctx.badRequest('Missing Packeta pickup point');
     }
-  
+
+    // documentId je potrebné pre Document Service update
+    const documentId = (order as any).documentId as string | undefined;
+    if (!documentId) {
+      strapi.log.warn(`[PACKETA][SHIP] Missing documentId for order id=${id}, falling back to entityService.update (deprecated).`);
+    }
+
     try {
+      // 1) vytvor zásielku cez service
       const shipping = await strapi
         .service('api::shipping.shipping')
         .createShipmentFromOrder(order as any, { weightKg: Number(weightKg) });
-  
-      await strapi.entityService.update('api::order.order', id, {
-        data: {
-          parcelWeightKg: Number(weightKg),
-          packetaShipmentId: shipping.shipmentId ?? null,
-          packetaTrackingNumber: shipping.trackingNumber ?? null,
-          packetaLabelUrl: shipping.labelUrl ?? null,
-          packetaStatus: 'created',
-        } as any, // 👈 tu potlačíme TS, kým sa negenerujú nové typy
-      });
-  
-      // ✅ nepoužívame `updated.*` (to spôsobovalo TS chyby)
+
+      // 2) ulož Packeta polia a posuň statusy
+      const updateData = {
+        parcelWeightKg: Number(weightKg),
+        packetaShipmentId: shipping.shipmentId ?? null,
+        packetaTrackingNumber: shipping.trackingNumber ?? null,
+        packetaLabelUrl: shipping.labelUrl ?? null,
+        packetaStatus: 'created',
+        deliveryStatus: 'label_created',
+        fulfillmentStatus: 'processing',
+      } as any;
+
+      if (documentId) {
+        // preferovaný spôsob v Strapi v5 – Document Service
+        await strapi.documents('api::order.order').update({
+          documentId,
+          data: updateData,
+        });
+      } else {
+        // fallback: deprecated entityService.update (ak by dokument nemal documentId)
+        await strapi.entityService.update('api::order.order', id, { data: updateData });
+      }
+
+      // 3) odpoveď API
       ctx.body = {
         ok: true,
         shipmentId: shipping.shipmentId ?? null,
@@ -310,7 +332,6 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       return ctx.internalServerError('Packeta ship failed');
     }
   },
-  
 
   // GET /orders/my
   async my(ctx) {

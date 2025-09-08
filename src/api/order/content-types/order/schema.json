@@ -50,14 +50,14 @@
 
     "fulfillmentStatus": {
       "type": "enumeration",
-      "enum": ["new", "processing", "shipped", "delivered", "cancelled"],
+      "enum": ["new","processing","shipped","delivered","cancelled"],
       "default": "new",
       "required": true
     },
-
     "deliveryStatus": {
       "type": "enumeration",
-      "enum": ["label_created", "in_transit", "at_pickup", "delivered", "returned"],
+      "enum": ["label_created","in_transit","at_pickup","delivered","returned"],
+      "default": "label_created",
       "required": true
     },
 
