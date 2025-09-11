@@ -15,7 +15,6 @@ function absUrl(url?: string): string {
     '';
   return `${String(base).replace(/\/$/, '')}${url?.startsWith('/') ? '' : '/'}${url}`;
 }
-
 // Výber hlavného obrázka produktu podľa tvojho schema.json:
 // single media: picture_new; multiple media: pictures_new[]
 function pickProductImage(product: any): string {
