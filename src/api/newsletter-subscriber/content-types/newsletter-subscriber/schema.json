@@ -1,0 +1,33 @@
+{
+    "kind": "collectionType",
+    "collectionName": "newsletter_subscribers",
+    "info": {
+      "singularName": "newsletter-subscriber",
+      "pluralName": "newsletter-subscribers",
+      "displayName": "Newsletter Subscriber"
+    },
+    "options": { "draftAndPublish": false },
+    "pluginOptions": {
+      "i18n": { "localized": false }
+    },
+    "attributes": {
+      "email": { "type": "email", "required": true, "unique": true },
+      "consent": { "type": "boolean", "default": false },
+      "consent_text_version": { "type": "string" },
+      "consented_at": { "type": "datetime" },
+      "source": {
+        "type": "enumeration",
+        "enum": ["checkout", "footer", "landing", "manual", "api"],
+        "default": "api"
+      },
+      "locale": { "type": "string" },
+      "ip_address": { "type": "string" },
+      "user_agent": { "type": "text" },
+      "double_opt_in": { "type": "boolean", "default": true },
+      "doi_token": { "type": "string", "configurable": false, "private": true },
+      "doi_expires_at": { "type": "datetime", "configurable": false, "private": true },
+      "unsubscribed_at": { "type": "datetime" },
+      "notes": { "type": "text" }
+    }
+  }
+  
