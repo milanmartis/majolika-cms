@@ -1,11 +1,12 @@
 // src/api/newsletter-subscriber/controllers/newsletter-subscriber.ts
 import { factories } from '@strapi/strapi';
+import type { Core } from '@strapi/types'; // ⬅️ namiesto 'Strapi' z @strapi/strapi
 import { randomUUID } from 'node:crypto';
 
-const SUB_UID = 'api::newsletter-subscriber.newsletter-subscriber' as const;
-const LOG_UID = 'api::newsletter-consent-log.newsletter-consent-log' as const;
+const SUB_UID = 'api::newsletter-subscriber.newsletter-subscriber';
+const LOG_UID = 'api::newsletter-consent-log.newsletter-consent-log';
 
-export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
+export default factories.createCoreController(SUB_UID as any, ({ strapi }) => ({
   async subscribe(ctx) {
     const {
       email,
@@ -24,7 +25,7 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
     const ip = ctx.request.ip;
     const ua = ctx.request.headers['user-agent'] ?? '';
 
-    const [existing] = await strapi.documents(SUB_UID).findMany({
+    const [existing] = await (strapi.documents as any)(SUB_UID).findMany({
       filters: { email: norm },
       limit: 1,
     });
@@ -36,7 +37,6 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
       consent_text_version,
       ip_address: ip,
       user_agent: ua,
-      // ak sa znova prihlasuje, zruš prípadné odhlásenie
       unsubscribed_at: null as Date | null,
     };
 
@@ -52,19 +52,19 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
         doi_expires_at: expires,
       };
 
-      const subscriber = existing
-        ? await strapi.documents(SUB_UID).update({
-            documentId: existing.documentId,
-            data,
-          })
-        : await strapi.documents(SUB_UID).create({ data });
+      const subscriber =
+        existing
+          ? await (strapi.documents as any)(SUB_UID).update({
+              documentId: (existing as any).documentId,
+              data,
+            })
+          : await (strapi.documents as any)(SUB_UID).create({ data });
 
       const confirmUrlBase = process.env.PUBLIC_FRONT_URL ?? '';
       const confirmUrl = `${confirmUrlBase}/newsletter/confirm?token=${encodeURIComponent(
         token
       )}`;
 
-      // pošli potvrdzovací email (zmeň provider podľa potreby)
       await strapi.plugin('email').service('email').send({
         to: norm,
         subject: 'Potvrďte odber noviniek',
@@ -73,7 +73,7 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
       });
 
       await logConsent(
-        subscriber.documentId,
+        (subscriber as any).documentId,
         'subscribe_request',
         ip,
         ua,
@@ -84,7 +84,6 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
       return ctx.send({ ok: true, double_opt_in: true });
     }
 
-    // single opt-in
     const data = {
       ...base,
       double_opt_in: false,
@@ -94,15 +93,16 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
       doi_expires_at: null as Date | null,
     };
 
-    const subscriber = existing
-      ? await strapi.documents(SUB_UID).update({
-          documentId: existing.documentId,
-          data,
-        })
-      : await strapi.documents(SUB_UID).create({ data });
+    const subscriber =
+      existing
+        ? await (strapi.documents as any)(SUB_UID).update({
+            documentId: (existing as any).documentId,
+            data,
+          })
+        : await (strapi.documents as any)(SUB_UID).create({ data });
 
     await logConsent(
-      subscriber.documentId,
+      (subscriber as any).documentId,
       'subscribe_confirm',
       ip,
       ua,
@@ -117,18 +117,20 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
     const token = String(ctx.request.query.token ?? '');
     if (!token) return ctx.badRequest('Missing token');
 
-    const [sub] = await strapi.documents(SUB_UID).findMany({
+    const [sub] = await (strapi.documents as any)(SUB_UID).findMany({
       filters: { doi_token: token },
       limit: 1,
     });
 
     if (!sub) return ctx.notFound('Invalid token');
-    if (sub.doi_expires_at && new Date(sub.doi_expires_at) < new Date()) {
+
+    const s = sub as any;
+    if (s.doi_expires_at && new Date(s.doi_expires_at) < new Date()) {
       return ctx.badRequest('Token expired');
     }
 
-    await strapi.documents(SUB_UID).update({
-      documentId: sub.documentId,
+    await (strapi.documents as any)(SUB_UID).update({
+      documentId: s.documentId,
       data: {
         consent: true,
         consented_at: new Date(),
@@ -138,11 +140,11 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
     });
 
     await logConsent(
-      sub.documentId,
+      s.documentId,
       'subscribe_confirm',
       ctx.request.ip,
       ctx.request.headers['user-agent'] ?? '',
-      sub.consent_text_version,
+      s.consent_text_version,
       strapi
     );
 
@@ -155,15 +157,17 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
 
     const norm = String(email).trim().toLowerCase();
 
-    const [sub] = await strapi.documents(SUB_UID).findMany({
+    const [sub] = await (strapi.documents as any)(SUB_UID).findMany({
       filters: { email: norm },
       limit: 1,
     });
 
     if (!sub) return ctx.notFound('Not found');
 
-    await strapi.documents(SUB_UID).update({
-      documentId: sub.documentId,
+    const s = sub as any;
+
+    await (strapi.documents as any)(SUB_UID).update({
+      documentId: s.documentId,
       data: {
         unsubscribed_at: new Date(),
         consent: false,
@@ -171,11 +175,11 @@ export default factories.createCoreController(SUB_UID, ({ strapi }) => ({
     });
 
     await logConsent(
-      sub.documentId,
+      s.documentId,
       'unsubscribe',
       ctx.request.ip,
       ctx.request.headers['user-agent'] ?? '',
-      sub.consent_text_version,
+      s.consent_text_version,
       strapi
     );
 
@@ -193,12 +197,11 @@ async function logConsent(
   ip: string,
   ua: string,
   version: string | undefined,
-  strapi: any
+  strapi: Core.Strapi // ⬅️ tu je správny typ
 ) {
   try {
-    await strapi.documents(LOG_UID).create({
+    await (strapi.documents as any)(LOG_UID).create({
       data: {
-        // vzťah cez Document Service
         subscriber: { connect: [subscriberDocumentId] },
         event,
         ip_address: ip,
