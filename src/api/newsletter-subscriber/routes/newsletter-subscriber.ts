@@ -3,22 +3,19 @@ export default {
       {
         method: 'POST',
         path: '/newsletter/subscribe',
-        handler: 'newsletter-subscriber.subscribe',
-        config: {
-          auth: false,
-          policies: [], // zváž rate-limit / captcha
-        },
+        handler: 'api::newsletter-subscriber.newsletter-subscriber.subscribe',
+        config: { auth: false },
       },
       {
         method: 'GET',
         path: '/newsletter/confirm',
-        handler: 'newsletter-subscriber.confirm',
+        handler: 'api::newsletter-subscriber.newsletter-subscriber.confirm',
         config: { auth: false },
       },
       {
         method: 'POST',
         path: '/newsletter/unsubscribe',
-        handler: 'newsletter-subscriber.unsubscribe',
+        handler: 'api::newsletter-subscriber.newsletter-subscriber.unsubscribe',
         config: { auth: false },
       }
     ]
