@@ -137,9 +137,7 @@ function renderOrderEmail(opts: {
         </tbody>
       </table>
 
-      <p style="font-size:13px;color:#666;margin-top:16px;">
-        Ak máte otázky k objednávke, odpovedzte na tento e-mail.
-      </p>
+
     </div>
 
     <div class="footer">
