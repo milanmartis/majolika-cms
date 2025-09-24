@@ -83,7 +83,7 @@
       "type": "relation",
       "relation": "manyToMany",
       "target": "api::category.category",
-      "inversedBy": "products"
+      "pluginOptions": { "i18n": { "localized": false } } 
     },
 
     "favorites": { "type": "relation", "relation": "oneToMany", "target": "api::favorite.favorite", "mappedBy": "product" },

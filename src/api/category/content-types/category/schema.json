@@ -12,6 +12,8 @@
     "category_name": { "type": "string", "required": true },
     "category_slug": { "type": "uid", "targetField": "category_name", "required": true, "unique": true },
     "category_text": { "type": "text"},
+    "category_text_en": { "type": "text"},
+    "category_text_de": { "type": "text"},
     "category_image": { "type": "media", "multiple": false, "required": false, "allowedTypes": ["images"] },
     "category_image_banner": { "type": "media", "multiple": false, "required": false, "allowedTypes": ["images"] },
     "parent": {
