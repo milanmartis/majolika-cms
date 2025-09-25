@@ -3,6 +3,47 @@ import Stripe from 'stripe';
 import { sendEmail } from '../../../utils/email';
 
 /* ========================= Helpery ========================= */
+// + pridaj toto nad CheckoutItem
+interface EventInfo {
+  sessionId?: number;
+  type?: 'workshop' | 'tour' | string; // prehliadka = 'tour' alebo nechávam string
+  startDateTime?: string;              // ISO v UTC
+  peopleCount?: number;
+  bookingId?: number;
+}
+
+// uprav CheckoutItem
+interface CheckoutItem {
+  productId: number;
+  productName?: string;
+  quantity: number;
+  unitPrice: number;
+  event?: EventInfo; // <— PRIDANÉ
+}
+
+
+
+
+function formatEvent(event?: EventInfo): string {
+  if (!event?.startDateTime) return '';
+  // Europe/Bratislava
+  const dt = new Date(event.startDateTime);
+  const d = new Intl.DateTimeFormat('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(dt);
+  const t = new Intl.DateTimeFormat('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(dt);
+
+  const people = typeof event.peopleCount === 'number' ? ` • Osoby: ${event.peopleCount}` : '';
+  return `Termín: ${d}, ${t}${people}`;
+}
 
 // Absolutizácia URL pre obrázky z Upload pluginu (ak vracia relatívne cesty)
 function absUrl(url?: string): string {
@@ -38,10 +79,20 @@ function money(n: number) {
 }
 
 // HTML riadky položiek objednávky
-function renderItemsRows(items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string }>) {
+function renderItemsRows(items: Array<{ 
+  productName: string; 
+  unitPrice: number; 
+  quantity: number; 
+  image?: string; 
+  event?: EventInfo; // <— PRIDANÉ
+}>) {
   return items
     .map((it) => {
       const subtotal = it.unitPrice * it.quantity;
+      const eventLine = it.event?.startDateTime ? `
+        <div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">
+          ${formatEvent(it.event)}
+        </div>` : '';
       return `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #eee;">
@@ -49,6 +100,7 @@ function renderItemsRows(items: Array<{ productName: string; unitPrice: number; 
               ${it.image ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />` : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
               <div>
                 <div style="font-weight:600;color:#333;padding:4px;">${it.productName}</div>
+                ${eventLine}
                 <div style="font-size:13px;color:#777;padding:4px;">${money(it.unitPrice)} × ${it.quantity}</div>
               </div>
             </div>
@@ -305,21 +357,22 @@ export default () => ({
       items.map(async (item) => {
         const product = await strapi.entityService.findOne('api::product.product', item.productId, {
           populate: {
-            picture_new: { fields: ['url', 'formats'] },   // single image
-            pictures_new: { fields: ['url', 'formats'] },  // multiple images
+            picture_new: { fields: ['url', 'formats'] },
+            pictures_new: { fields: ['url', 'formats'] },
           },
         });
-
+    
         if (!product || (typeof product.price !== 'number' && typeof product.price !== 'string')) {
           throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
         }
-
+    
         return {
           productId: item.productId,
           productName: item.productName ?? product.name,
           quantity: item.quantity,
-          unitPrice: item.unitPrice, // alebo Number(product.price_sale ?? product.price)
-          _image: pickProductImage(product), // len pre email
+          unitPrice: item.unitPrice,
+          event: item.event ?? undefined,       // <— PRIDANÉ
+          _image: pickProductImage(product),    // len pre email
         };
       })
     );
@@ -377,6 +430,7 @@ export default () => ({
         unitPrice: i.unitPrice,
         quantity: i.quantity,
         image: i._image,
+        event: i.event
       }));
 
       const customerEmailHtml = renderOrderEmail({
