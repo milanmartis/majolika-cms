@@ -8,19 +8,18 @@
     "i18n": { "localized": true }
   },
   "attributes": {
-    "externalId": { "type": "integer", "required": false, "unique": false },
+    "externalId": { "type": "integer", "required": false, "unique": false, "pluginOptions": { "i18n": { "localized": true } } },
+
     "type": {
       "type": "enumeration",
       "enum": ["simple", "variable", "variation"],
-      "default": "simple"
-    },
-
-    "ean": { "type": "string" },
-
-    "name": {
-      "type": "string",
+      "default": "simple",
       "pluginOptions": { "i18n": { "localized": true } }
     },
+
+    "ean": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } },
+
+    "name": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } },
 
     "slug": {
       "type": "uid",
@@ -33,43 +32,46 @@
     "short": { "type": "richtext", "pluginOptions": { "i18n": { "localized": true } } },
     "describe": { "type": "richtext", "pluginOptions": { "i18n": { "localized": true } } },
 
-    "public": { "type": "boolean", "default": false },
-    "price": { "type": "decimal" },
-    "price_sale": { "type": "decimal", "description": "Zľavenná cena" },
-    "vatPercentage": { "type": "integer", "default": 20, "required": true, "description": "DPH v percentách" },
-    "inSale": { "type": "boolean", "default": false, "description": "Produkt je v akcii (zľava)" },
-    "isNew": { "type": "boolean", "default": false, "description": "Novinka" },
-    "isSoldOut": { "type": "boolean", "default": false, "description": "Produkt vypredaný" },
-    "isUnavailable": { "type": "boolean", "default": false, "description": "Produkt dočasne nedostupný" },
-    "isFeatured": { "type": "boolean", "default": false, "description": "Tip / Odporúčaný produkt" },
+    "public": { "type": "boolean", "default": false, "pluginOptions": { "i18n": { "localized": true } } },
+    "price": { "type": "decimal", "pluginOptions": { "i18n": { "localized": true } } },
+    "price_sale": { "type": "decimal", "description": "Zľavenná cena", "pluginOptions": { "i18n": { "localized": true } } },
+    "vatPercentage": { "type": "integer", "default": 20, "required": true, "description": "DPH v percentách", "pluginOptions": { "i18n": { "localized": true } } },
+    "inSale": { "type": "boolean", "default": false, "description": "Produkt je v akcii (zľava)", "pluginOptions": { "i18n": { "localized": true } } },
+    "isNew": { "type": "boolean", "default": false, "description": "Novinka", "pluginOptions": { "i18n": { "localized": true } } },
+    "isSoldOut": { "type": "boolean", "default": false, "description": "Produkt vypredaný", "pluginOptions": { "i18n": { "localized": true } } },
+    "isUnavailable": { "type": "boolean", "default": false, "description": "Produkt dočasne nedostupný", "pluginOptions": { "i18n": { "localized": true } } },
+    "isFeatured": { "type": "boolean", "default": false, "description": "Tip / Odporúčaný produkt", "pluginOptions": { "i18n": { "localized": true } } },
 
     "category": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } },
     "tag": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } },
 
-    "picture": { "type": "string" },
-    "picture_new": { "type": "media", "multiple": false, "allowedTypes": ["images"] },
-    "pictures_new": { "type": "media", "multiple": true, "allowedTypes": ["images"] },
+    "picture": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } },
+    "picture_new": { "type": "media", "multiple": false, "allowedTypes": ["images"], "pluginOptions": { "i18n": { "localized": true } } },
+    "pictures_new": { "type": "media", "multiple": true, "allowedTypes": ["images"], "pluginOptions": { "i18n": { "localized": true } } },
 
-    "variable": { "type": "string" },
+    "variable": { "type": "string", "pluginOptions": { "i18n": { "localized": true } } },
 
     "parent": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::product.product",
-      "inversedBy": "variations"
+      "inversedBy": "variations",
+      "pluginOptions": { "i18n": { "localized": true } }
     },
     "variations": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::product.product",
-      "mappedBy": "parent"
+      "mappedBy": "parent",
+      "pluginOptions": { "i18n": { "localized": true } }
     },
 
     "author": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "plugin::users-permissions.user",
-      "inversedBy": "product"
+      "inversedBy": "product",
+      "pluginOptions": { "i18n": { "localized": true } }
     },
 
     "seo": {
@@ -84,27 +86,52 @@
       "relation": "manyToMany",
       "target": "api::category.category",
       "inversedBy": "products",
-      "pluginOptions": { "i18n": { "localized": false } } 
+      "pluginOptions": { "i18n": { "localized": true } }
     },
 
-    "favorites": { "type": "relation", "relation": "oneToMany", "target": "api::favorite.favorite", "mappedBy": "product" },
+    "favorites": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::favorite.favorite",
+      "mappedBy": "product",
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
 
-    "autor": { "type": "relation", "relation": "manyToOne", "target": "api::autor.autor", "inversedBy": "produkty" },
-    "tvar": { "type": "relation", "relation": "manyToOne", "target": "api::tvar.tvar", "inversedBy": "produkty" },
-    "dekory": { "type": "relation", "relation": "manyToMany", "target": "api::dekor.dekor", "inversedBy": "produkty" },
+    "autor": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::autor.autor",
+      "inversedBy": "produkty",
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
+    "tvar": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::tvar.tvar",
+      "inversedBy": "produkty",
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
+    "dekory": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::dekor.dekor",
+      "inversedBy": "produkty",
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
 
-    "vyska_cm": { "type": "decimal", "description": "Výška v cm" },
-    "sirka_cm": { "type": "decimal", "description": "Šírka v cm" },
-    "hlbka_cm": { "type": "decimal", "description": "Hĺbka v cm" },
-    "objem_ml": { "type": "integer", "description": "Objem v ml" },
-    "vaha_g": { "type": "integer", "description": "Hmotnosť v g" },
+    "vyska_cm": { "type": "decimal", "description": "Výška v cm", "pluginOptions": { "i18n": { "localized": true } } },
+    "sirka_cm": { "type": "decimal", "description": "Šírka v cm", "pluginOptions": { "i18n": { "localized": true } } },
+    "hlbka_cm": { "type": "decimal", "description": "Hĺbka v cm", "pluginOptions": { "i18n": { "localized": true } } },
+    "objem_ml": { "type": "integer", "description": "Objem v ml", "pluginOptions": { "i18n": { "localized": true } } },
+    "vaha_g": { "type": "integer", "description": "Hmotnosť v g", "pluginOptions": { "i18n": { "localized": true } } },
 
     "productEventType": {
       "type": "enumeration",
       "enum": ["none", "workshop", "tour"],
       "default": "none",
       "configurable": true,
-      "description": "Typ zážitku: workshop alebo prehliadka"
+      "description": "Typ zážitku: workshop alebo prehliadka",
+      "pluginOptions": { "i18n": { "localized": true } }
     },
 
     "event_sessions": {
@@ -112,14 +139,16 @@
       "relation": "oneToMany",
       "target": "api::event-session.event-session",
       "mappedBy": "product",
-      "description": "Termíny workshopov / prehliadok"
+      "description": "Termíny workshopov / prehliadok",
+      "pluginOptions": { "i18n": { "localized": true } }
     },
 
     "event_series": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::event-series.event-series",
-      "mappedBy": "product"
+      "mappedBy": "product",
+      "pluginOptions": { "i18n": { "localized": true } }
     }
   }
 }

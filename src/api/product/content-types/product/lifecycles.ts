@@ -1,84 +1,232 @@
 import slugify from 'slugify';
 
-/**
- * Bezpečné orezanie HTML a skrátenie textu na dĺžku vhodnú pre meta description.
- */
-function stripHtml(input?: string, max = 155): string | undefined {
-  if (!input) return undefined;
-  // odstráň HTML tagy
-  const noHtml = input.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!noHtml) return undefined;
-  return noHtml.length > max ? noHtml.slice(0, max).trim() : noHtml;
-}
+const UID = 'api::product.product';
+type Locale = 'sk' | 'en' | 'de';
 
-/**
- * Vyplní chýbajúce SEO polia podľa fallback pravidiel:
- * - metaTitle: name + " | Majolika"
- * - metaDescription: z `short` alebo `describe` (bez HTML), max ~155 znakov
- * - shareImage: `picture_new` alebo prvý z `pictures_new`
- *
- * Nič NEPREPISUJE, ak už pole existuje.
- */
-function ensureSeoDefaults(data: Record<string, any>) {
-  // priprav objekt seo, ale neprepisuj existujúce hodnoty
-  data.seo = data.seo ?? {};
+/** Pomocný pick ID z entity/media */
+const id = (x: any) => (x ? x.id : null);
 
-  // metaTitle
-  if (!data.seo.metaTitle && data.name) {
-    data.seo.metaTitle = `${data.name} | Majolika`;
+/** Z poľa vyrob pole ID */
+const ids = (arr: any[]) => (Array.isArray(arr) ? arr.map(id).filter(Boolean) : []);
+
+/** Zo záznamu vytiahni všetky skalárne a embedded dáta na klonovanie */
+const extractCloneData = (entry: any) => ({
+  // skalárne + i18n polia
+  externalId: entry.externalId ?? null,
+  type: entry.type ?? 'simple',
+  ean: entry.ean ?? null,
+  name: entry.name ?? null,
+  slug: entry.slug ?? null,
+  short: entry.short ?? null,
+  describe: entry.describe ?? null,
+
+  public: entry.public ?? false,
+  price: entry.price ?? null,
+  price_sale: entry.price_sale ?? null,
+  vatPercentage: entry.vatPercentage ?? 20,
+  inSale: entry.inSale ?? false,
+  isNew: entry.isNew ?? false,
+  isSoldOut: entry.isSoldOut ?? false,
+  isUnavailable: entry.isUnavailable ?? false,
+  isFeatured: entry.isFeatured ?? false,
+
+  category: entry.category ?? null,
+  tag: entry.tag ?? null,
+  picture: entry.picture ?? null,
+  variable: entry.variable ?? null,
+
+  vyska_cm: entry.vyska_cm ?? null,
+  sirka_cm: entry.sirka_cm ?? null,
+  hlbka_cm: entry.hlbka_cm ?? null,
+  objem_ml: entry.objem_ml ?? null,
+  vaha_g: entry.vaha_g ?? null,
+
+  productEventType: entry.productEventType ?? 'none',
+
+  // komponenty
+  seo: entry.seo ?? null
+});
+
+/** Zo záznamu vytiahni ID všetkých väzieb okrem self-vzťahov (tie premapujeme zvlášť) */
+const extractNonSelfRelationIds = (entry: any) => ({
+  // media
+  picture_new: id(entry.picture_new),
+  pictures_new: ids(entry.pictures_new),
+
+  // relations (non-self)
+  categories: ids(entry.categories),
+  dekory: ids(entry.dekory),
+  tvar: id(entry.tvar),
+  autor: id(entry.autor),
+  author: id(entry.author),
+
+  // self vzťahy len prenesieme ako entity; neskôr sa premapujú na správnu locale
+  parent: entry.parent || null,
+  variations: Array.isArray(entry.variations) ? entry.variations : []
+});
+
+/** Vytvor (ak neexistuje) mutáciu v zadanom jazyku s rovnakým documentId */
+const upsertLocale = async (strapi: any, base: any, locale: Locale) => {
+  const existing = await strapi.entityService.findMany(UID, {
+    filters: { documentId: base.documentId, locale },
+    populate: {
+      parent: true,
+      variations: true,
+      categories: true,
+      dekory: true,
+      tvar: true,
+      autor: true,
+      author: true,
+      picture_new: true,
+      pictures_new: true,
+      seo: true
+    },
+    limit: 1
+  });
+
+  if (existing?.length) return existing[0];
+
+  const data = extractCloneData(base);
+  const rel = extractNonSelfRelationIds(base);
+
+  // 1) vytvor klon s rovnakým documentId + prirad non-self väzby
+  const created = await strapi.entityService.create(UID, {
+    data: {
+      ...data,
+      locale,
+      documentId: base.documentId,
+
+      // media & non-self relations
+      picture_new: rel.picture_new,
+      pictures_new: rel.pictures_new,
+      categories: rel.categories,
+      dekory: rel.dekory,
+      tvar: rel.tvar,
+      autor: rel.autor,
+      author: rel.author
+    }
+  });
+
+  return created;
+};
+
+/** Premapuj self-vzťahy (parent/variations) do cieľovej locale podľa documentId */
+const remapSelfRelationsForLocale = async (strapi: any, skEntry: any, targetLocale: Locale) => {
+  // nájdi protikus (EN/DE) pre tento produkt
+  const targetList = await strapi.entityService.findMany(UID, {
+    filters: { documentId: skEntry.documentId, locale: targetLocale },
+    limit: 1
+  });
+  const target = targetList?.[0];
+  if (!target) return;
+
+  // načítaj SK záznam so self vzťahmi
+  const sk = await strapi.entityService.findOne(UID, skEntry.id, {
+    populate: { parent: true, variations: true }
+  });
+
+  const updates: any = {};
+
+  // parent → partner v targetLocale
+  if (sk.parent?.documentId) {
+    const p = await strapi.entityService.findMany(UID, {
+      filters: { documentId: sk.parent.documentId, locale: targetLocale },
+      limit: 1
+    });
+    updates.parent = p?.[0]?.id || null;
+  } else {
+    updates.parent = null;
   }
 
-  // metaDescription (preferuj short, potom describe)
-  if (!data.seo.metaDescription) {
-    const fromShort = stripHtml(data.short);
-    const fromDescribe = stripHtml(data.describe);
-    data.seo.metaDescription = fromShort ?? fromDescribe ?? undefined;
+  // variations → pre každé dieťa nájdi partnera v targetLocale
+  if (Array.isArray(sk.variations) && sk.variations.length) {
+    const mapped: number[] = [];
+    for (const v of sk.variations) {
+      if (!v?.documentId) continue;
+      const vTarget = await strapi.entityService.findMany(UID, {
+        filters: { documentId: v.documentId, locale: targetLocale },
+        limit: 1
+      });
+      if (vTarget?.[0]?.id) mapped.push(vTarget[0].id);
+    }
+    updates.variations = mapped;
+  } else {
+    updates.variations = [];
   }
 
-  // shareImage – Strapi očakáva ID súboru pri media poli v komponente
-  if (!data.seo.shareImage) {
-    // ak v tej istej operácii prichádza obrázok, použi ho
-    const single = data.picture_new;
-    const firstFromMany = Array.isArray(data.pictures_new) ? data.pictures_new[0] : undefined;
+  await strapi.entityService.update(UID, target.id, { data: updates });
+};
 
-    // podpor oba tvary (ak pošleš objekt so {id} alebo priamo ID)
-    const getMediaId = (val: any) => (typeof val === 'object' && val?.id ? val.id : (typeof val === 'number' ? val : undefined));
+/** Prenes zmeny SK → EN/DE (skalárne + media + non-self relations) */
+const mirrorEditsToLocale = async (strapi: any, skEntry: any, locale: Locale) => {
+  const counterpart = await upsertLocale(strapi, skEntry, locale);
+  const data = extractCloneData(skEntry);
+  const rel = extractNonSelfRelationIds(skEntry);
 
-    data.seo.shareImage = getMediaId(single) ?? getMediaId(firstFromMany) ?? undefined;
-  }
-}
+  // update proti-kusy (bez self vzťahov)
+  await strapi.entityService.update(UID, counterpart.id, {
+    data: {
+      ...data,
+      // media & non-self relations
+      picture_new: rel.picture_new,
+      pictures_new: rel.pictures_new,
+      categories: rel.categories,
+      dekory: rel.dekory,
+      tvar: rel.tvar,
+      autor: rel.autor,
+      author: rel.author
+    }
+  });
+
+  // a potom premapuj self-vzťahy
+  await remapSelfRelationsForLocale(strapi, skEntry, locale);
+};
 
 export default {
   /**
-   * Before creating a new Product:
-   * - vygeneruj slug, ak chýba
-   * - doplň SEO fallbacky, ak chýbajú
+   * Your original logic: autogenerate slug from name when slug not supplied.
    */
   async beforeCreate(event: { params: { data: Record<string, any> } }) {
     const { data } = event.params;
-
-    if (data.name && !data.slug) {
+    if (data?.name && !data.slug) {
       data.slug = slugify(data.name, { lower: true, strict: true });
     }
+  },
 
-    ensureSeoDefaults(data);
+  async beforeUpdate(event: { params: { data: Record<string, any> } }) {
+    const { data } = event.params;
+    if (data?.name && !data.slug) {
+      data.slug = slugify(data.name, { lower: true, strict: true });
+    }
   },
 
   /**
-   * Before updating a Product:
-   * - ak je nové `name` a chýba `slug`, vygeneruj ho
-   * - doplň PRÁZDNE SEO polia (existujúce nechaj tak)
-   *
-   * Pozn.: pri update často neposielaš všetky polia (partial update).
-   * ensureSeoDefaults preto pracuje iba s tým, čo v `data` je, a nič neprepíše.
+   * After create: ak je nová položka v SK, vyrob EN/DE zrkadlá.
    */
-  async beforeUpdate(event: { params: { data: Record<string, any> } }) {
-    const { data } = event.params;
+  async afterCreate(event: any) {
+    const { result } = event;
+    const locale: Locale = (result?.locale || 'sk') as Locale;
+    if (locale !== 'sk') return;
 
-    if (data.name && !data.slug) {
-      data.slug = slugify(data.name, { lower: true, strict: true });
-    }
+    // vytvor/zaisti EN & DE
+    const en = await upsertLocale(strapi, result, 'en');
+    const de = await upsertLocale(strapi, result, 'de');
 
-    ensureSeoDefaults(data);
+    // premapuj self-vzťahy do EN/DE
+    await remapSelfRelationsForLocale(strapi, result, 'en');
+    await remapSelfRelationsForLocale(strapi, result, 'de');
   },
+
+  /**
+   * After update: ak sa edituje SK, zosynchronizuj zmeny do EN/DE.
+   * (edit EN/DE sa ďalej NEšíri, aby nevznikla slučka)
+   */
+  async afterUpdate(event: any) {
+    const { result } = event;
+    const locale: Locale = (result?.locale || 'sk') as Locale;
+    if (locale !== 'sk') return;
+
+    await mirrorEditsToLocale(strapi, result, 'en');
+    await mirrorEditsToLocale(strapi, result, 'de');
+  }
 };
