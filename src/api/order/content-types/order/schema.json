@@ -17,8 +17,12 @@
     "shippingFee": { "type": "decimal", "default": 0 },
     "totalWithShipping": { "type": "decimal", "default": 0 },
 
-    "status": { "type": "string", "default": "pending" },
-
+    "orderStatus": {
+      "type": "enumeration",
+      "enum": ["pending","confirmed","cancelled"],
+      "default": "pending",
+      "required": true
+    },
     "items": {
       "type": "component",
       "repeatable": true,
