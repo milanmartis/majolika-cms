@@ -248,32 +248,49 @@ const mirrorEditsToLocale = async (strapi: any, skEntryIn: any, locale: Locale) 
 // ---- lifecycles ----
 export default {
   async beforeCreate(event: { params: { data: Record<string, any> } }) {
-    const { data } = event.params;
+    // normalize
+    event.params = event.params || { data: {} as any };
+    const data = (event.params.data = event.params.data || {});
   
-    // vždy vygeneruj slug, ak chýba
+    // 1) LOG (dočasne si nechaj, potom vymaž)
+    strapi.log.info(`[product.beforeCreate] incoming locale=${data?.locale ?? '(none)'} documentId=${(data as any)?.documentId ?? '(none)'}`);
+  
+    // 2) nikdy neprijímaj documentId/id pri CREATE (hoci aj keby ich admin poslal)
+    //   – zmaž aj meta polia pre istotu
+    ['documentId', 'id', 'createdAt', 'updatedAt', 'publishedAt'].forEach((k) => {
+      if (k in data) delete (data as any)[k];
+    });
+    // Strapi CM niekedy posiela aj zvyšky lokálizácií – pre istotu:
+    if ('localizations' in data) delete (data as any).localizations;
+  
+    // 3) slugify ak chýba
     if (data?.name && !data.slug) {
       data.slug = slugify(data.name, { lower: true, strict: true });
     }
   
-    // ⛑️ super-poistka: nikdy neprijímaj documentId z klienta pri CREATE
-    if ('documentId' in (data || {})) {
-      delete data.documentId;
+    // 4) normalizuj locale – keď nič nepríde, nech je 'sk'
+    const L = data?.locale;
+    if (L !== 'sk' && L !== 'en' && L !== 'de') {
+      data.locale = 'sk';
     }
-  
-    // ak by admin poslal divný locale, normalizuj na 'sk' (tvoj primárny)
-    if (!data?.locale) data.locale = 'sk';
   },
   
   async beforeUpdate(event: { params: { data: Record<string, any> } }) {
-    const { data } = event.params;
+    event.params = event.params || { data: {} as any };
+    const data = (event.params.data = event.params.data || {});
   
+    // 1) LOG (dočasne)
+    strapi.log.info(`[product.beforeUpdate] incoming locale=${data?.locale ?? '(keep)'} documentId=${(data as any)?.documentId ?? '(none)'}`);
+  
+    // 2) pri UPDATE nikdy nedovoľ prepísať documentId/id
+    ['documentId', 'id', 'createdAt', 'updatedAt', 'publishedAt'].forEach((k) => {
+      if (k in data) delete (data as any)[k];
+    });
+    if ('localizations' in data) delete (data as any).localizations;
+  
+    // 3) slugify ak chýba
     if (data?.name && !data.slug) {
       data.slug = slugify(data.name, { lower: true, strict: true });
-    }
-  
-    // aj pri UPDATE nenechaj nikdy prepísať documentId
-    if ('documentId' in (data || {})) {
-      delete data.documentId;
     }
   },
 
