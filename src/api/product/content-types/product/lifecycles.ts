@@ -249,20 +249,32 @@ const mirrorEditsToLocale = async (strapi: any, skEntryIn: any, locale: Locale) 
 export default {
   async beforeCreate(event: { params: { data: Record<string, any> } }) {
     const { data } = event.params;
+  
+    // vždy vygeneruj slug, ak chýba
     if (data?.name && !data.slug) {
       data.slug = slugify(data.name, { lower: true, strict: true });
     }
-    const isSK = !data?.locale || data.locale === 'sk';
-    if (isSK && data?.documentId) delete data.documentId;
+  
+    // ⛑️ super-poistka: nikdy neprijímaj documentId z klienta pri CREATE
+    if ('documentId' in (data || {})) {
+      delete data.documentId;
+    }
+  
+    // ak by admin poslal divný locale, normalizuj na 'sk' (tvoj primárny)
+    if (!data?.locale) data.locale = 'sk';
   },
-
+  
   async beforeUpdate(event: { params: { data: Record<string, any> } }) {
     const { data } = event.params;
+  
     if (data?.name && !data.slug) {
       data.slug = slugify(data.name, { lower: true, strict: true });
     }
-    const isSK = !data?.locale || data.locale === 'sk';
-    if (isSK && data?.documentId) delete data.documentId;
+  
+    // aj pri UPDATE nenechaj nikdy prepísať documentId
+    if ('documentId' in (data || {})) {
+      delete data.documentId;
+    }
   },
 
   async afterCreate(event: any) {
