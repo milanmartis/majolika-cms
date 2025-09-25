@@ -213,7 +213,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
               where: {
                 session: Number(item.sessionId),
                 customerEmail,
-                status: 'pending',
+                orderStatus: 'pending',
                 orderId: null,
               },
             });
@@ -227,7 +227,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
                   orderId: String(orderId),
                   peopleCount: item.peopleCount || 1,
                   customerName,
-                  status: 'pending',
+                  orderStatus: 'pending',
                 },
               });
 
@@ -240,7 +240,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
               {
                 data: {
                   peopleCount: item.peopleCount || 1,
-                  status: 'pending',
+                  orderStatus: 'pending',
                   customerName,
                   customerEmail,
                   orderId: String(orderId),
@@ -355,7 +355,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       orders: (orders as any[]).map((order: any) => ({
         id: order.id,
         createdAt: order.createdAt,
-        status: order.status,
+        orderStatus: order.orderStatus,
         paymentStatus: order.paymentStatus,
         total: order.total,
         items: order.items,
