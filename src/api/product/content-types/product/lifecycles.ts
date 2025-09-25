@@ -3,32 +3,64 @@ import slugify from 'slugify';
 const UID = 'api::product.product';
 type Locale = 'sk' | 'en' | 'de';
 
-/** Nastav, ktoré väzby sú lokalizované (majú vlastné mutácie s documentId) */
 const LOCALIZED_REL = {
-  categories: true, // daj false, ak kategórie nie sú i18n
+  categories: true,
   dekory: true,
   tvar: true,
-  autor: true
+  autor: true,
 };
 
-// ----------------------- Helpery (typ-safe-ish) -----------------------
-
-/** findFirst: vráti prvý riadok (alebo null) bez ohľadu na union typy Strapi */
+// ---- helpers ----
 const findFirst = async (uid: string, filters: any, populate?: any) => {
-  const res: any = await strapi.entityService.findMany(uid as any, {
-    filters,
-    populate,
-    limit: 1
-  });
+  const res: any = await strapi.entityService.findMany(uid as any, { filters, populate, limit: 1 });
   const row = Array.isArray(res) ? res[0] : res;
   return row ?? null;
+};
+
+const loadFullProduct = async (idOrDoc: { id?: number; documentId?: string; locale?: string }) => {
+  if (idOrDoc?.id) {
+    return await strapi.entityService.findOne(UID as any, idOrDoc.id, {
+      populate: {
+        categories: true,
+        dekory: true,
+        tvar: true,
+        autor: true,
+        author: true,
+        picture_new: true,
+        pictures_new: true,
+        parent: { populate: ['localizations'] },
+        variations: { populate: ['localizations'] },
+        seo: true,
+        localizations: true,
+      },
+    });
+  }
+  if (idOrDoc?.documentId) {
+    return await findFirst(
+      UID,
+      { documentId: idOrDoc.documentId, locale: idOrDoc.locale || 'sk' },
+      {
+        categories: true,
+        dekory: true,
+        tvar: true,
+        autor: true,
+        author: true,
+        picture_new: true,
+        pictures_new: true,
+        parent: { populate: ['localizations'] },
+        variations: { populate: ['localizations'] },
+        seo: true,
+        localizations: true,
+      }
+    );
+  }
+  return null;
 };
 
 const id = (x: any) => (x ? x.id : null);
 const ids = (arr: any[]) => (Array.isArray(arr) ? arr.map(id).filter(Boolean) : []);
 
-// ----------------------- Extrakcia dát -----------------------
-
+// ---- extract ----
 const extractCloneData = (entry: any) => ({
   externalId: entry.externalId ?? null,
   type: entry.type ?? 'simple',
@@ -37,7 +69,6 @@ const extractCloneData = (entry: any) => ({
   slug: entry.slug ?? null,
   short: entry.short ?? null,
   describe: entry.describe ?? null,
-
   public: entry.public ?? false,
   price: entry.price ?? null,
   price_sale: entry.price_sale ?? null,
@@ -47,72 +78,59 @@ const extractCloneData = (entry: any) => ({
   isSoldOut: entry.isSoldOut ?? false,
   isUnavailable: entry.isUnavailable ?? false,
   isFeatured: entry.isFeatured ?? false,
-
   category: entry.category ?? null,
   tag: entry.tag ?? null,
   picture: entry.picture ?? null,
   variable: entry.variable ?? null,
-
   vyska_cm: entry.vyska_cm ?? null,
   sirka_cm: entry.sirka_cm ?? null,
   hlbka_cm: entry.hlbka_cm ?? null,
   objem_ml: entry.objem_ml ?? null,
   vaha_g: entry.vaha_g ?? null,
-
   productEventType: entry.productEventType ?? 'none',
-
-  seo: entry.seo ?? null
+  seo: entry.seo ?? null,
 });
 
-const extractNonSelfRelationIds = (entry: any) => ({
-  picture_new: id(entry.picture_new),
-  pictures_new: ids(entry.pictures_new),
-
-  categories: ids(entry.categories),
-  dekory: ids(entry.dekory),
-  tvar: id(entry.tvar),
-  autor: id(entry.autor),
-  author: id(entry.author),
-
-  parent: entry.parent || null,
-  variations: Array.isArray(entry.variations) ? entry.variations : []
-});
-
-// ----------------------- Mapovanie i18n väzieb -----------------------
-
-/** Nájde ID mutácie entity podľa documentId+locale */
+// ---- i18n relation mapping ----
 const pickLocaleId = async (uid: string, documentId: string, locale: Locale) => {
   if (!documentId) return null;
   const row = await findFirst(uid, { documentId, locale });
   return row?.id || null;
 };
 
-/** Premapuj väzby na cieľový jazyk, ak sú i18n */
+/** normalize: pole entít alebo pole ID → vždy pole entít s aspoň {id, documentId?} */
+const normEntities = (val: any): any[] => {
+  if (Array.isArray(val)) return val;
+  if (!val) return [];
+  // Strapi nevkladá objekt typu { connect: [...] } do resultu po create, ale pre istotu:
+  if (Array.isArray(val.connect)) return val.connect.map((v: any) => (typeof v === 'number' ? { id: v } : v));
+  return [];
+};
+
 const mapLocalizedRelationIds = async (base: any, locale: Locale) => {
   const out: any = {};
+
+  const cats = normEntities(base.categories);
+  const decs = normEntities(base.dekory);
 
   if (LOCALIZED_REL.categories) {
     out.categories = (
       await Promise.all(
-        (base.categories || []).map((c: any) =>
-          pickLocaleId('api::category.category', c.documentId, locale)
-        )
+        cats.map((c: any) => pickLocaleId('api::category.category', c.documentId, locale))
       )
     ).filter(Boolean);
   } else {
-    out.categories = (base.categories || []).map((c: any) => c.id);
+    out.categories = cats.map((c: any) => c.id).filter(Boolean);
   }
 
   if (LOCALIZED_REL.dekory) {
     out.dekory = (
       await Promise.all(
-        (base.dekory || []).map((d: any) =>
-          pickLocaleId('api::dekor.dekor', d.documentId, locale)
-        )
+        decs.map((d: any) => pickLocaleId('api::dekor.dekor', d.documentId, locale))
       )
     ).filter(Boolean);
   } else {
-    out.dekory = (base.dekory || []).map((d: any) => d.id);
+    out.dekory = decs.map((d: any) => d.id).filter(Boolean);
   }
 
   if (LOCALIZED_REL.tvar && base.tvar?.documentId) {
@@ -127,20 +145,17 @@ const mapLocalizedRelationIds = async (base: any, locale: Locale) => {
     out.autor = base.autor?.id || null;
   }
 
-  // never i18n
   out.author = base.author?.id || null;
-
-  // media
   out.picture_new = base.picture_new?.id || null;
-  out.pictures_new = (base.pictures_new || []).map((m: any) => m.id);
+  out.pictures_new = ids(base.pictures_new);
 
   return out;
 };
 
-// ----------------------- Upsert mutácie EN/DE -----------------------
-
-const upsertLocale = async (strapi: any, base: any, locale: Locale) => {
+// ---- upsert locale ----
+const upsertLocale = async (strapi: any, baseIn: any, locale: Locale) => {
   if (locale === 'sk') return null;
+  const base = await loadFullProduct({ id: baseIn.id }); // << načítaj full, aby boli populované polia
   if (!base?.documentId) return null;
 
   const existing = await findFirst(UID, { documentId: base.documentId, locale });
@@ -163,21 +178,20 @@ const upsertLocale = async (strapi: any, base: any, locale: Locale) => {
       dekory: rel.dekory,
       tvar: rel.tvar,
       autor: rel.autor,
-      author: rel.author
-    }
+      author: rel.author,
+    },
   });
 
   return created;
 };
 
-// ----------------------- Self-väzby (parent/variations) -----------------------
-
+// ---- self-relations ----
 const remapSelfRelationsForLocale = async (strapi: any, skEntry: any, targetLocale: Locale) => {
   const target = await findFirst(UID, { documentId: skEntry.documentId, locale: targetLocale });
   if (!target) return;
 
   const sk = await strapi.entityService.findOne(UID as any, skEntry.id, {
-    populate: { parent: true, variations: true }
+    populate: { parent: true, variations: true },
   });
 
   const updates: any = {};
@@ -204,9 +218,11 @@ const remapSelfRelationsForLocale = async (strapi: any, skEntry: any, targetLoca
   await strapi.entityService.update(UID as any, target.id, { data: updates });
 };
 
-// ----------------------- Mirroring editov SK → EN/DE -----------------------
+// ---- mirror edits ----
+const mirrorEditsToLocale = async (strapi: any, skEntryIn: any, locale: Locale) => {
+  const skEntry = await loadFullProduct({ id: skEntryIn.id }); // << načítaj full
+  if (!skEntry) return;
 
-const mirrorEditsToLocale = async (strapi: any, skEntry: any, locale: Locale) => {
   const counterpart = await upsertLocale(strapi, skEntry, locale);
   if (!counterpart) return;
 
@@ -222,44 +238,33 @@ const mirrorEditsToLocale = async (strapi: any, skEntry: any, locale: Locale) =>
       dekory: rel.dekory,
       tvar: rel.tvar,
       autor: rel.autor,
-      author: rel.author
-    }
+      author: rel.author,
+    },
   });
 
   await remapSelfRelationsForLocale(strapi, skEntry, locale);
 };
 
-// ----------------------- Lifecycle hooks -----------------------
-
+// ---- lifecycles ----
 export default {
-  /** SLUGIFY + poistka: na SK nikdy neposielaj documentId (Strapi ho vygeneruje) */
   async beforeCreate(event: { params: { data: Record<string, any> } }) {
     const { data } = event.params;
-
     if (data?.name && !data.slug) {
       data.slug = slugify(data.name, { lower: true, strict: true });
     }
-
     const isSK = !data?.locale || data.locale === 'sk';
-    if (isSK && data?.documentId) {
-      delete data.documentId;
-    }
+    if (isSK && data?.documentId) delete data.documentId;
   },
 
   async beforeUpdate(event: { params: { data: Record<string, any> } }) {
     const { data } = event.params;
-
     if (data?.name && !data.slug) {
       data.slug = slugify(data.name, { lower: true, strict: true });
     }
-
     const isSK = !data?.locale || data.locale === 'sk';
-    if (isSK && data?.documentId) {
-      delete data.documentId; // bráni prepisu documentId na SK
-    }
+    if (isSK && data?.documentId) delete data.documentId;
   },
 
-  /** Po vytvorení SK → vyrob EN/DE, potom premapuj self-väzby */
   async afterCreate(event: any) {
     const { result } = event;
     const locale: Locale = (result?.locale || 'sk') as Locale;
@@ -272,7 +277,6 @@ export default {
     await remapSelfRelationsForLocale(strapi, result, 'de');
   },
 
-  /** Po update SK → zrkadli zmeny do EN/DE (vrátane remap self-väzieb) */
   async afterUpdate(event: any) {
     const { result } = event;
     const locale: Locale = (result?.locale || 'sk') as Locale;
@@ -280,5 +284,5 @@ export default {
 
     await mirrorEditsToLocale(strapi, result, 'en');
     await mirrorEditsToLocale(strapi, result, 'de');
-  }
+  },
 };
