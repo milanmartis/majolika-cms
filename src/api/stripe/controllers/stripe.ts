@@ -3,6 +3,23 @@ import { sendEmail } from '../../../utils/email';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
+
+type EventInfo = {
+  sessionId?: number;
+  type?: 'workshop' | 'tour' | string;
+  startDateTime?: string;   // ISO (UTC)
+  peopleCount?: number;
+  bookingId?: number;
+};
+
+type OrderItem = {
+  productId: number;
+  productName?: string;
+  quantity: number;
+  unitPrice: number;
+  event?: EventInfo | null; 
+};
+
 /* ========================= Helpery pre email ========================= */
 
 // Absolutizácia URL pre obrázky z Upload pluginu (ak vracia relatívne cesty)
@@ -39,11 +56,43 @@ function money(n: number) {
   return `${n.toFixed(2)} €`;
 }
 
+
+
+function formatEventSk(event?: EventInfo): string {
+  if (!event?.startDateTime) return '';
+  const dt = new Date(event.startDateTime);
+  const d = new Intl.DateTimeFormat('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(dt);
+  const t = new Intl.DateTimeFormat('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(dt);
+  const ppl = typeof event.peopleCount === 'number' ? ` • Osoby: ${event.peopleCount}` : '';
+  return `Termín: ${d}, ${t}${ppl}`;
+}
+
+
+
 // HTML riadky položiek objednávky
-function renderItemsRows(items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string }>) {
+function renderItemsRows(items: Array<{
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  image?: string;
+  event?: EventInfo | null; // <— PRIDANÉ
+}>) {
   return items
     .map((it) => {
       const subtotal = it.unitPrice * it.quantity;
+      const eventLine = it?.event?.startDateTime
+        ? `<div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">${formatEventSk(it.event!)}</div>`
+        : '';
       return `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #eee;">
@@ -51,6 +100,7 @@ function renderItemsRows(items: Array<{ productName: string; unitPrice: number; 
               ${it.image ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />` : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
               <div>
                 <div style="font-weight:600;color:#333;">${it.productName}</div>
+                ${eventLine}
                 <div style="font-size:13px;color:#777;">${money(it.unitPrice)} × ${it.quantity}</div>
               </div>
             </div>
@@ -164,12 +214,12 @@ function renderOrderEmail(opts: {
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
 
-type OrderItem = {
-  productId: number;
-  productName?: string;
-  quantity: number;
-  unitPrice: number;
-};
+// type OrderItem = {
+//   productId: number;
+//   productName?: string;
+//   quantity: number;
+//   unitPrice: number;
+// };
 
 type OrderRecord = {
   id: number;
@@ -339,6 +389,7 @@ export default {
             unitPrice: Number(it.unitPrice),
             quantity: Number(it.quantity),
             image,
+            event: (it as any).event || null,
           };
         })
       );
