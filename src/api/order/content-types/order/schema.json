@@ -52,6 +52,9 @@
       "required": true
     },
 
+    "paymentFee": { "type": "decimal", "default": 0 },
+
+
     "fulfillmentStatus": {
       "type": "enumeration",
       "enum": ["new","processing","shipped","delivered","cancelled"],
