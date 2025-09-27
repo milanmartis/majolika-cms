@@ -1,5 +1,4 @@
 'use strict';
-import Stripe from 'stripe';
 import { sendEmail } from '../../../utils/email';
 
 /* ========================= Helpery ========================= */
@@ -20,9 +19,6 @@ interface CheckoutItem {
   unitPrice: number;
   event?: EventInfo; // <— PRIDANÉ
 }
-
-
-
 
 function formatEvent(event?: EventInfo): string {
   if (!event?.startDateTime) return '';
@@ -234,18 +230,12 @@ interface Delivery {
   details?: DeliveryDetails | null;
 }
 
-interface CheckoutItem {
-  productId: number;
-  productName?: string;
-  quantity: number;
-  unitPrice: number;
-}
-
 interface CheckoutPayload {
   customer: {
     id?: number;
     name: string;
     email: string;
+    phone: string;
     street: string;
     city: string;
     zip: string;
@@ -319,13 +309,11 @@ function summarizeDelivery(delivery: Delivery): string {
 
 export default () => ({
   async createSession(payload: CheckoutPayload) {
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY!;
-    const FRONTEND_URL = process.env.FRONTEND_URL!;
-    if (!STRIPE_SECRET_KEY || !FRONTEND_URL) {
-      throw new Error('Missing STRIPE_SECRET_KEY or FRONTEND_URL in environment variables.');
+    const FRONTEND_URL = process.env.FRONTEND_URL || '';
+    if (!FRONTEND_URL) {
+      throw new Error('Missing FRONTEND_URL in environment variables.');
     }
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY, {});
     const { customer, items, temporaryId, paymentMethod, delivery } = payload;
 
     if (!customer?.email) throw new Error('customer.email is required');
@@ -345,6 +333,7 @@ export default () => ({
           data: {
             name: customer.name,
             email: customer.email,
+            phone: customer.phone,
             street: customer.street,
             city: customer.city,
             zip: customer.zip,
@@ -387,6 +376,11 @@ export default () => ({
     const fulfillmentStatus = 'new';        // ["new","processing","shipped","delivered","cancelled"]
     const deliveryStatus = 'label_created'; // ["label_created","in_transit","at_pickup","delivered","returned"]
     const paymentStatus = 'unpaid';         // ["unpaid","paid","refunded"]
+    
+    function clampLabel(s: string, def = 'Order') {
+      const v = (s || def).trim();
+      return v.length <= 16 ? v : v.slice(0, 16);
+    }
 
     // 3) vytvor ORDER
     const order = await strapi.entityService.create('api::order.order', {
@@ -421,8 +415,21 @@ export default () => ({
       },
     });
 
-    // 4A) NE-KARTA – poslať emaily (šablóna s obrázkami)
+    // 4A) NE-KARTA – prelinkuj bookingy + pošli emaily + redirect na success
     if (!isCard) {
+      // 🔗 prelinkovanie bookingov: temporaryId -> orderId (bez zmeny statusu)
+      try {
+        if (order.temporaryId) {
+          const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
+            where: { temporaryId: order.temporaryId, orderId: null },
+            data: { orderId: String(order.id) },
+          });
+          strapi.log.info(`[CHECKOUT][BOOKINGS][NON-CARD] linked by temporaryId (${res.count}) → orderId=${order.id}`);
+        }
+      } catch (e) {
+        strapi.log.warn(`[CHECKOUT][BOOKINGS][NON-CARD] linking failed: ${String(e)}`);
+      }
+
       const deliverySummary = summarizeDelivery(delivery);
 
       const emailItems = orderItems.map((i: any) => ({
@@ -482,49 +489,61 @@ export default () => ({
       return { checkoutUrl: `${FRONTEND_URL}/checkout/success?order=${order.id}`, sessionUrl: null };
     }
 
-    // 4B) KARTA – Stripe Checkout session
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
-      ...orderItems.map((item: any) => ({
-        price_data: {
-          currency: 'eur',
-          product_data: { name: item.productName },
-          unit_amount: Math.round(item.unitPrice * 100),
-        },
-        quantity: item.quantity,
-      })),
-    ];
-    if (shippingFee > 0) {
-      lineItems.push({
-        price_data: {
-          currency: 'eur',
-          product_data: { name: `Doprava (${deliveryMethod})` },
-          unit_amount: Math.round(shippingFee * 100),
-        },
-        quantity: 1,
+    // 4B) KARTA – Comgate create + redirect
+    {
+      const API      = process.env.COMGATE_API || 'https://payments.comgate.cz/v1.0';
+      const MERCHANT = process.env.COMGATE_MERCHANT!;
+      const SECRET   = process.env.COMGATE_SECRET!;
+      const TEST     = String(process.env.COMGATE_TEST || 'false') === 'true';
+    
+      const qsBody = new URLSearchParams({
+        merchant: MERCHANT,
+        secret: SECRET,
+        test: TEST ? 'true' : 'false',
+        country: 'SK',
+        curr: 'EUR',
+        price: String(Math.round(totalWithShipping * 100)), // v centoch
+        label: clampLabel('Order'),                         // max 16 znakov
+        refId: String(order.id),
+        method: 'ALL',
+        email: customer.email,
+        phone: customer.phone || '',
+        fullName: customer.name,
+        prepareOnly: 'true',
+        url_paid: process.env.RETURN_PAID || '',
+        url_cancelled: process.env.RETURN_CANCELLED || '',
+        url_pending: process.env.RETURN_PENDING || '',
       });
+    
+      const resp = await fetch(`${API}/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/x-www-form-urlencoded' },
+        body: qsBody.toString(),
+      });
+      const txt = await resp.text();
+      const parsed = Object.fromEntries(new URLSearchParams(txt));
+    
+      if (parsed.code !== '0') {
+        strapi.log.error('[COMGATE][CREATE] error:', parsed);
+        throw new Error(parsed.message || 'Comgate create error');
+      }
+    
+      // (odporúčané) ulož transId k objednávke
+      try {
+        await strapi.db.query('api::order.order').update({
+          where: { id: order.id },
+          data: { comgateTransId: parsed.transId, paymentStatus: 'waiting_for_payment' },
+        });
+      } catch (e) {
+        strapi.log.warn(`[COMGATE][CREATE] persist transId failed for order #${order.id}: ${String(e)}`);
+      }
+    
+      return {
+        checkoutUrl: decodeURIComponent(parsed.redirect), // FE ostáva bez zmeny
+        sessionUrl: null,
+        orderId: order.id,
+        totalWithShippingCents: Math.round(totalWithShipping * 100),
+      };
     }
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'payment',
-      line_items: lineItems,
-      success_url: `${FRONTEND_URL}/checkout/success?order=${order.id}`,
-      cancel_url: `${FRONTEND_URL}/checkout/cancel?order=${order.id}`,
-      metadata: {
-        orderId: String(order.id),
-        temporaryId: temporaryId || '',
-        customerEmail: customer.email,
-        deliveryMethod,
-        packetaProvider: delivery.details?.provider || '',
-        packetaBoxId: delivery.details?.packetaBoxId || '',
-      },
-    });
-
-    await strapi.db.query('api::order.order').update({
-      where: { id: order.id },
-      data: { paymentSessionId: session.id },
-    });
-
-    return { checkoutUrl: session.url!, sessionUrl: session.url! };
   },
 });
