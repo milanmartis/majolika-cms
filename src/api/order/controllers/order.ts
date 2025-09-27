@@ -369,7 +369,8 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
         deliveryAddress: order.deliveryAddress,
         deliveryDetails: order.deliveryDetails,
         shippingFee: order.shippingFee,
-        
+        paymentFee: order.paymentFee,
+
       })),
       totalSpent,
     };
