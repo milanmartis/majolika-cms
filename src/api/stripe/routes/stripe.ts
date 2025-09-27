@@ -3,7 +3,7 @@ export default {
     {
       method: 'POST',
       path: '/payments/create',
-      handler: 'api::stripe.stripe.createPayment', // <— sem
+      handler: 'api::stripe.stripe.create', // <— sem
       config: { auth: false },
     },
     {
