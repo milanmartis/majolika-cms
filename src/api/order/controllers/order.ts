@@ -227,7 +227,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
                   orderId: String(orderId),
                   peopleCount: item.peopleCount || 1,
                   customerName,
-                  status: 'pending',
+                  status: 'confirmed',
                 },
               });
 
@@ -240,7 +240,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
               {
                 data: {
                   peopleCount: item.peopleCount || 1,
-                  status: 'pending',
+                  status: 'confirmed',
                   customerName,
                   customerEmail,
                   orderId: String(orderId),
