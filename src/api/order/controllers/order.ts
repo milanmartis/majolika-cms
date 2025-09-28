@@ -213,7 +213,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
               where: {
                 session: Number(item.sessionId),
                 customerEmail,
-                status: 'pending',
+                status: 'confirmed',
                 orderId: null,
               },
             });
