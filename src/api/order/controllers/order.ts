@@ -213,7 +213,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
               where: {
                 session: Number(item.sessionId),
                 customerEmail,
-                status: 'confirmed',
+                status: 'pending',
                 orderId: null,
               },
             });
@@ -227,7 +227,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
                   orderId: String(orderId),
                   peopleCount: item.peopleCount || 1,
                   customerName,
-                  status: 'confirmed',
+                  status: 'pending',
                 },
               });
 
@@ -240,7 +240,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
               {
                 data: {
                   peopleCount: item.peopleCount || 1,
-                  status: 'confirmed',
+                  status: 'pending',
                   customerName,
                   customerEmail,
                   orderId: String(orderId),

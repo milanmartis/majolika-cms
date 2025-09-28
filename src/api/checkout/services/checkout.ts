@@ -422,7 +422,9 @@ export default () => ({
         if (order.temporaryId) {
           const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
             where: { temporaryId: order.temporaryId, orderId: null },
-            data: { orderId: String(order.id) },
+            data: { orderId: String(order.id), status: 'confirmed' },
+
+            
           });
           strapi.log.info(`[CHECKOUT][BOOKINGS][NON-CARD] linked by temporaryId (${res.count}) → orderId=${order.id}`);
         }
