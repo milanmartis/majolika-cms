@@ -245,6 +245,8 @@ interface CheckoutPayload {
   temporaryId?: string | null;
   paymentMethod: PaymentMethod;
   delivery: Delivery;
+  shippingFee?: number;  
+  paymentFee?: number;   
 }
 
 /* ========================= Konštanty ========================= */
@@ -368,8 +370,12 @@ export default () => ({
 
     const itemsTotal = orderItems.reduce((sum: number, i: any) => sum + i.quantity * i.unitPrice, 0);
     const deliveryMethod: DeliveryMethod = delivery.method;
-    const shippingFee = Number(SHIPPING_PRICING[deliveryMethod] ?? 0);
-    const totalWithShipping = Number((itemsTotal + shippingFee).toFixed(2));
+    // const shippingFee = Number(SHIPPING_PRICING[deliveryMethod] ?? 0);
+    const shippingFee = Number(
+      (payload as any).shippingFee ?? SHIPPING_PRICING[deliveryMethod] ?? 0
+    );
+    const paymentFee = Number((payload as any).paymentFee ?? 0);
+    const totalWithShipping = Number((itemsTotal + shippingFee + paymentFee).toFixed(2));
     const isCard = paymentMethod === 'card';
 
     // Enumy podľa schémy
@@ -401,6 +407,7 @@ export default () => ({
         deliveryDetails: delivery.details || null,
 
         shippingFee,
+        paymentFee,
         total: itemsTotal,
         totalWithShipping,
 
