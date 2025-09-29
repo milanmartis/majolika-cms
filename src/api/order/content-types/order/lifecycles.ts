@@ -1,12 +1,33 @@
 // src/api/order/content-types/order/lifecycles.ts
 import { sendEmail } from '../../../../utils/email';
 
+type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+
+type EventInfo = {
+  sessionId?: number;
+  type?: 'workshop' | 'tour' | string;
+  startDateTime?: string; // ISO
+  peopleCount?: number;
+  bookingId?: number;
+};
+
+type OrderItem = {
+  productId?: number;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  event?: EventInfo;
+};
+
 type OrderEntity = {
   id: number;
   documentId?: string | null;
   customerName?: string | null;
   customerEmail?: string | null;
-  deliveryMethod?: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+
+  items?: OrderItem[] | null;
+
+  deliveryMethod?: DeliveryMethod;
   deliveryDetails?: {
     provider?: string | null;
     packetaBoxId?: string | null;
@@ -19,17 +40,22 @@ type OrderEntity = {
     zip?: string | null;
     country?: string | null;
   } | null;
+
+  shippingFee?: number | null;
+  paymentFee?: number | null;
+  total?: number | null;
+  totalWithShipping?: number | null;
+
   deliveryStatus?: string | null;
   fulfillmentStatus?: string | null;
-  total?: number | null;
 };
 
 const ADMIN_EMAIL =
   process.env.ORDER_NOTIFY_EMAIL || process.env.ADMIN_EMAIL || 'info@appdesign.sk';
 
-// --- tvoje helpery na normalizáciu ---
+/* ---------------- Normalizácia (pôvodné helpery) --------------- */
 const stripStatus = (d: any) => {
-  if (d && 'status' in d) delete d.status; // odstráni kolidujúce pole
+  if (d && 'status' in d) delete d.status;
   return d;
 };
 
@@ -42,7 +68,7 @@ const mapDelivery = (v: any) => {
 
 const mapFulfillment = (v: any) => (v == null || v === '' ? 'new' : String(v).trim());
 
-// --- pomocné funkcie na e-maily ---
+/* --------------------- Labely stavov --------------------- */
 const statusLabel = (st?: string | null) => {
   if (!st) return '-';
   const map: Record<string, string> = {
@@ -61,42 +87,223 @@ const statusLabel = (st?: string | null) => {
   return map[st] || st;
 };
 
+/* --------------------- Pomocné formátovanie --------------------- */
+const money = (n: number) => `${Number(n || 0).toFixed(2)} €`;
+
 const formatAddress = (addr?: OrderEntity['deliveryAddress']) =>
   [addr?.street, addr?.city, addr?.zip, addr?.country].filter(Boolean).join(', ') || '-';
 
-const renderCustomerHtml = (o: OrderEntity, prev: string | null | undefined, next: string) => {
-  const addressLine = formatAddress(o.deliveryAddress);
-  const method = o.deliveryMethod || '-';
-  const details = o.deliveryDetails || {};
-  const pointInfo =
-    method === 'post_office'
-      ? `Pošta ID: ${details.postOfficeId ?? '-'}`
-      : method === 'packeta_box'
-      ? `Výdajné miesto (Packeta): ${details.packetaBoxId ?? '-'}`
-      : '';
+function formatEvent(event?: EventInfo): string {
+  if (!event?.startDateTime) return '';
+  const dt = new Date(event.startDateTime);
+  const d = new Intl.DateTimeFormat('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(dt);
+  const t = new Intl.DateTimeFormat('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(dt);
+  const people =
+    typeof event.peopleCount === 'number' ? ` • Osoby: ${event.peopleCount}` : '';
+  return `Termín: ${d}, ${t}${people}`;
+}
 
-  return `
-    <p>Dobrý deň${o.customerName ? ', ' + o.customerName : ''},</p>
-    <p>stav doručenia vašej objednávky č. <strong>${o.id}</strong> bol zmenený
-       z <strong>${statusLabel(prev)}</strong> na <strong>${statusLabel(next)}</strong>.</p>
-    <hr>
-    <p><strong>Spôsob doručenia:</strong> ${method}</p>
-    ${pointInfo ? `<p>${pointInfo}</p>` : ''}
-    ${method !== 'packeta_box' ? `<p>Adresa: ${addressLine}</p>` : ''}
-    <p>V prípade otázok nám odpovedzte na tento e-mail.</p>
-  `;
-};
+function absUrl(url?: string): string {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  const base =
+    process.env.PUBLIC_UPLOADS_URL ||
+    process.env.FRONTEND_URL ||
+    (strapi.config?.get?.('server.url') as string) ||
+    '';
+  return `${String(base).replace(/\/$/, '')}${url?.startsWith('/') ? '' : '/'}${url}`;
+}
 
-const renderAdminHtml = (o: OrderEntity, prev: string | null | undefined, next: string) => `
-  <p><strong>Objednávka #${o.id}</strong> – zmena <code>deliveryStatus</code>:
-     <strong>${statusLabel(prev)}</strong> → <strong>${statusLabel(next)}</strong></p>
-  <p>Zákazník: ${o.customerName || '-'} &lt;${o.customerEmail || '-'}&gt;</p>
-  <p>Spôsob doručenia: ${o.deliveryMethod || '-'}</p>
-  ${o.deliveryMethod !== 'packeta_box' ? `<p>Adresa: ${formatAddress(o.deliveryAddress)}</p>` : ''}
-  <p>Suma spolu: ${o.total ?? '-'} €</p>
-`;
+function pickProductImage(product: any): string {
+  const single = product?.picture_new;
+  const firstMulti = Array.isArray(product?.pictures_new) ? product.pictures_new[0] : null;
+  const media = single || firstMulti || null;
+  const url =
+    media?.formats?.thumbnail?.url ||
+    media?.formats?.small?.url ||
+    media?.formats?.medium?.url ||
+    media?.formats?.large?.url ||
+    media?.url;
+  return absUrl(url);
+}
 
-// bezpečné načítanie pôvodnej objednávky podľa id alebo documentId
+function summarizeDelivery(order: OrderEntity): string {
+  switch (order?.deliveryMethod) {
+    case 'pickup':
+      return 'Osobné vyzdvihnutie na mieste';
+    case 'post_office':
+      return `Na poštu (ID: ${order?.deliveryDetails?.postOfficeId ?? '-'})`;
+    case 'packeta_box':
+      return order?.deliveryDetails?.notes
+        ? `Packeta/Carrier box: ${order.deliveryDetails.notes}`
+        : `Packeta Box (ID: ${order?.deliveryDetails?.packetaBoxId ?? '-'})`;
+    case 'post_courier': {
+      const a = order?.deliveryAddress || ({} as any);
+      return `Kuriér na adresu: ${[a.street, a.city, a.zip, a.country]
+        .filter(Boolean)
+        .join(', ')}`;
+    }
+    default:
+      return String(order?.deliveryMethod || '-');
+  }
+}
+
+/* --------------------- HTML renderer v tvojom štýle --------------------- */
+function renderItemsRows(
+  items: Array<{
+    productName: string;
+    unitPrice: number;
+    quantity: number;
+    image?: string;
+    event?: EventInfo;
+  }>,
+) {
+  return items
+    .map((it) => {
+      const subtotal = it.unitPrice * it.quantity;
+      const eventLine = it.event?.startDateTime
+        ? `
+        <div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">
+          ${formatEvent(it.event)}
+        </div>`
+        : '';
+      return `
+        <tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              ${
+                it.image
+                  ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
+                  : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'
+              }
+              <div>
+                <div style="font-weight:600;color:#333;padding:4px;">${it.productName}</div>
+                ${eventLine}
+                <div style="font-size:13px;color:#777;padding:4px;">${money(
+                  it.unitPrice,
+                )} × ${it.quantity}</div>
+              </div>
+            </div>
+          </td>
+          <td align="right" style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;color:#333;">
+            ${money(subtotal)}
+          </td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+function renderOrderEmail(opts: {
+  title: string;
+  heading: string;
+  introLines: string[];
+  cta?: { label: string; href: string } | null;
+  items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo }>;
+  shippingFee: number;
+  paymentFee: number;
+  totalWithShipping: number;
+  deliverySummary: string;
+}) {
+  const itemsRows = renderItemsRows(opts.items);
+  return `<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <title>${opts.title}</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
+    .container {
+      max-width: 600px; margin: 40px auto; background: #fff url('https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/corner6.png') no-repeat right bottom;
+      background-size: 200px auto; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden;
+    }
+    .header { background-color: #0e29a0; color: white; padding: 24px; text-align: center; }
+    .content { padding: 32px; }
+    .content h2 { margin-top: 0; color: #333; }
+    .content p { font-size: 16px; line-height: 1.6; color: #444; }
+    .button { display: inline-block; margin-top: 24px; padding: 12px 24px; background-color: #0e29a0; color: white !important; text-decoration: none; border-radius: 4px; font-weight: bold; transition: background-color 0.3s ease; }
+    .button:hover { background-color: #0b1e7c; }
+    .footer { background-color: #fafafa; color: #777; font-size: 13px; padding: 24px; text-align: center; line-height: 1.5; }
+    .footer a { color: #0e29a0; text-decoration: none; }
+    .footer-logo { margin-top: 16px; }
+    .footer-logo img { max-width: 120px; opacity: 0.9; }
+    @media (max-width: 620px) { .content { padding: 20px; } .header { padding: 18px; } }
+    table { width:100%; border-collapse: collapse; }
+    th { text-align:left; font-size:12px; color:#666; padding: 6px 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>Vitajte v Majolike</h1></div>
+    <div class="content">
+      <h2>${opts.heading}</h2>
+      ${opts.introLines.map((t) => `<p>${t}</p>`).join('')}
+      ${
+        opts.cta
+          ? `<p style="text-align:center;"><a class="button" href="${opts.cta.href}">${opts.cta.label}</a></p>`
+          : ''
+      }
+
+      <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
+      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
+
+      <table role="presentation" aria-hidden="true" style="margin-top:8px;">
+        <thead>
+          <tr>
+            <th>Položka</th>
+            <th style="text-align:right;">Spolu</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+          <tr>
+            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za dopravu</td>
+            <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za dobierku</td>
+            <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">Celkom</td>
+            <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div>
+
+    <div class="footer">
+      <p>
+        Slovenská ľudová majolika<br>
+        Dolná 138, 900 01 Modra<br>
+        IČO: 00 167 975 | DIČ: 2020360155<br>
+        IBAN: SK97 0900 0000 0051 3558 7112 (SLSP)<br>
+        <a href="mailto:majolika@majolika.sk">majolika@majolika.sk</a> |
+        <a href="mailto:info@majolika.sk">info@majolika.sk</a><br>
+        <a href="tel:+421911980105">+421 911 980 105</a><br><br>
+        Otváracie hodiny: Po–Pia 8:00–16:00 | So–Ne 10:00–16:00
+      </p>
+      <div class="footer-logo">
+        <img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="SLM logo" />
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+/* -------------- Načítanie predošlej verzie (kvôli porovnaniu) -------------- */
 const fetchPrevOrder = async (event: any): Promise<OrderEntity | null> => {
   try {
     const where = event.params?.where || {};
@@ -105,16 +312,15 @@ const fetchPrevOrder = async (event: any): Promise<OrderEntity | null> => {
 
     if (byId) {
       const prev = await strapi.entityService.findOne('api::order.order', byId, {
-        populate: ['deliveryAddress', 'deliveryDetails'],
+        populate: ['deliveryAddress', 'deliveryDetails', 'items'],
       });
       return (prev as any) || null;
     }
 
     if (byDocId) {
-      // čítame priamo z DB podľa documentId (funguje aj pri documents().update)
       const prev = await strapi.db.query('api::order.order').findOne({
         where: { documentId: byDocId },
-        populate: ['deliveryAddress', 'deliveryDetails'],
+        populate: ['deliveryAddress', 'deliveryDetails', 'items'],
       });
       return (prev as any) || null;
     }
@@ -126,8 +332,50 @@ const fetchPrevOrder = async (event: any): Promise<OrderEntity | null> => {
   }
 };
 
+/* --------- Načítanie komplet objednávky pre email po update --------- */
+const fetchFullOrderForEmail = async (id: number): Promise<OrderEntity> => {
+  const full = (await strapi.entityService.findOne('api::order.order', id, {
+    populate: ['deliveryAddress', 'deliveryDetails', 'items'],
+  })) as any;
+  return full as OrderEntity;
+};
+
+const buildEmailItems = async (order: OrderEntity) => {
+  const items = order.items || [];
+  return Promise.all(
+    items.map(async (it) => {
+      // pokus o obrázok z produktu
+      let image = '';
+      if (it.productId) {
+        try {
+          const product = await strapi.entityService.findOne(
+            'api::product.product',
+            it.productId,
+            {
+              populate: {
+                picture_new: { fields: ['url', 'formats'] },
+                pictures_new: { fields: ['url', 'formats'] },
+              },
+            },
+          );
+          image = pickProductImage(product);
+        } catch {
+          image = '';
+        }
+      }
+      return {
+        productName: it.productName,
+        unitPrice: it.unitPrice,
+        quantity: it.quantity,
+        image,
+        event: it.event,
+      };
+    }),
+  );
+};
+
+/* ========================= Lifecycles ========================= */
 export default {
-  // --- pôvodné: normalizácia pri create ---
   async beforeCreate(event) {
     event.params.data ??= {};
     stripStatus(event.params.data);
@@ -135,7 +383,6 @@ export default {
     event.params.data.deliveryStatus = mapDelivery(event.params.data.deliveryStatus);
   },
 
-  // --- pôvodné: normalizácia + logging pri update + teraz aj cache pôvodného stavu ---
   async beforeUpdate(event) {
     const d = (event.params.data ??= {});
     stripStatus(d);
@@ -145,7 +392,6 @@ export default {
     if (!('fulfillmentStatus' in d) || d.fulfillmentStatus === '') d.fulfillmentStatus = 'new';
     if (!('deliveryStatus' in d) || d.deliveryStatus === '') d.deliveryStatus = 'label_created';
 
-    // načítaj a ulož pôvodnú objednávku pre porovnanie po update
     try {
       const prev = await fetchPrevOrder(event);
       event.state = event.state || {};
@@ -161,7 +407,6 @@ export default {
     );
   },
 
-  // --- nové: po update pošli e-maily ak sa zmenil deliveryStatus ---
   async afterUpdate(event) {
     try {
       const prev: OrderEntity | null = (event.state as any)?.prevOrder || null;
@@ -171,32 +416,72 @@ export default {
       const nextStatus = next?.deliveryStatus ?? null;
 
       if (nextStatus && prevStatus !== nextStatus) {
-        const subject = `Zmena stavu doručenia: ${statusLabel(nextStatus)} (objednávka #${next.id})`;
+        // načítaj plné dáta objednávky (vrátane položiek) po update
+        const full = await fetchFullOrderForEmail(next.id);
+        const emailItems = await buildEmailItems(full);
+
+        const shippingFee = Number(full.shippingFee || 0);
+        const paymentFee = Number(full.paymentFee || 0);
+        const itemsTotal = Number(full.total || 0);
+        const totalWithShipping =
+          full.totalWithShipping != null
+            ? Number(full.totalWithShipping)
+            : Number((itemsTotal + shippingFee + paymentFee).toFixed(2));
+        const deliverySummary = summarizeDelivery(full);
+
+        const subject = `Zmena stavu doručenia: ${statusLabel(nextStatus)} (objednávka #${full.id})`;
+
+        const FRONTEND_URL = process.env.FRONTEND_URL || '';
+        const cta =
+          FRONTEND_URL
+            ? { label: 'Zobraziť objednávku', href: `${FRONTEND_URL}/checkout/success?order=${full.id}` }
+            : null;
+
+        const customerHtml = renderOrderEmail({
+          title: subject,
+          heading: `Stav doručenia: ${statusLabel(nextStatus)}`,
+          introLines: [
+            `Dobrý deň${full.customerName ? ', ' + full.customerName : ''},`,
+            `stav vašej objednávky č. <b>${full.id}</b> bol zmenený z <b>${statusLabel(
+              prevStatus,
+            )}</b> na <b>${statusLabel(nextStatus)}</b>.`,
+          ],
+          cta,
+          items: emailItems,
+          shippingFee,
+          paymentFee,
+          totalWithShipping,
+          deliverySummary,
+        });
+
+        const adminHtml = renderOrderEmail({
+          title: `[ADMIN] ${subject}`,
+          heading: `Objednávka #${full.id} – ${statusLabel(prevStatus)} → ${statusLabel(nextStatus)}`,
+          introLines: [
+            `Zákazník: ${full.customerName || '-'} (${full.customerEmail || '-'})`,
+            `Doručenie: ${deliverySummary}`,
+          ],
+          cta: null,
+          items: emailItems,
+          shippingFee,
+          paymentFee,
+          totalWithShipping,
+          deliverySummary,
+        });
+
         const tasks: Promise<any>[] = [];
-
-        if (next.customerEmail) {
-          tasks.push(
-            sendEmail({
-              to: next.customerEmail,
-              subject,
-              html: renderCustomerHtml(next, prevStatus, nextStatus),
-            }),
-          );
+        if (full.customerEmail) {
+          tasks.push(sendEmail({ to: full.customerEmail, subject, html: customerHtml }));
         }
-
         if (ADMIN_EMAIL) {
           tasks.push(
-            sendEmail({
-              to: ADMIN_EMAIL,
-              subject: `[ADMIN] ${subject}`,
-              html: renderAdminHtml(next, prevStatus, nextStatus),
-            }),
+            sendEmail({ to: ADMIN_EMAIL, subject: `[ADMIN] ${subject}`, html: adminHtml }),
           );
         }
 
         await Promise.all(tasks);
         strapi.log.info(
-          `[ORDER][afterUpdate] deliveryStatus changed ${prevStatus} -> ${nextStatus}, emails sent (orderId=${next.id})`,
+          `[ORDER][afterUpdate] deliveryStatus changed ${prevStatus} -> ${nextStatus}, emails sent (orderId=${full.id})`,
         );
       }
     } catch (e) {

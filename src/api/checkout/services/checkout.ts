@@ -118,6 +118,7 @@ function renderOrderEmail(opts: {
   cta?: { label: string; href: string } | null;
   items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string }>;
   shippingFee: number;
+  paymentFee: number;
   totalWithShipping: number;
   deliverySummary: string;
 }) {
@@ -173,8 +174,12 @@ function renderOrderEmail(opts: {
         <tbody>
           ${itemsRows}
           <tr>
-            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Doprava</td>
+            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za dopravu</td>
             <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatk za dobierku</td>
+            <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td>
           </tr>
           <tr>
             <td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">Celkom</td>
@@ -463,6 +468,7 @@ export default () => ({
         },
         items: emailItems,
         shippingFee,
+        paymentFee,
         totalWithShipping,
         deliverySummary,
       });
@@ -477,6 +483,7 @@ export default () => ({
         cta: null,
         items: emailItems,
         shippingFee,
+        paymentFee,
         totalWithShipping,
         deliverySummary,
       });
