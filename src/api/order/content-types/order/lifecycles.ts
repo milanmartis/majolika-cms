@@ -25,7 +25,7 @@ type OrderEntity = {
 };
 
 const ADMIN_EMAIL =
-  process.env.ORDER_NOTIFY_EMAIL || process.env.ADMIN_EMAIL || 'admin@example.com';
+  process.env.ORDER_NOTIFY_EMAIL || process.env.ADMIN_EMAIL || 'info@appdesign.sk';
 
 // --- tvoje helpery na normalizáciu ---
 const stripStatus = (d: any) => {
