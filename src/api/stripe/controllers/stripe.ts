@@ -190,6 +190,8 @@ function renderOrderEmail(opts: {
           ${itemsRows}
           <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Doprava</td>
               <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td></tr>
+          <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Doprava</td>
+              <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td></tr>
           <tr><td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">Celkom</td>
               <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td></tr>
         </tbody>
