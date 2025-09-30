@@ -8,7 +8,7 @@
     "i18n": { "localized": true }
   },
   "attributes": {
-    "externalId": { "type": "integer", "required": true, "unique": true },
+    "externalId": { "type": "integer", "required": true, "unique": false },
 
     "type": {
       "type": "enumeration",
