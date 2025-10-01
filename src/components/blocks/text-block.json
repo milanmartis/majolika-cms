@@ -8,7 +8,7 @@
     "fontSize": { "type": "integer" },
     "columns": {
       "type": "enumeration",
-      "enum": ["one", "two"],
+      "enum": ["one", "two", "three"],
       "default": "one",
       "required": false
     },
