@@ -16,6 +16,8 @@
     "category_text_de": { "type": "text"},
     "category_image": { "type": "media", "multiple": false, "required": false, "allowedTypes": ["images"] },
     "category_image_banner": { "type": "media", "multiple": false, "required": false, "allowedTypes": ["images"] },
+    "category_poradie": { "type": "integer", "required": false },
+
     "parent": {
       "type": "relation",
       "relation": "manyToOne",
