@@ -40,6 +40,7 @@ export default ({ env }) => {
     // Users & Permissions – Google OAuth
     'users-permissions': {
       config: {
+        jwt: { expiresIn: '3h' }, 
         providers: [
           {
             provider: 'google',
