@@ -745,6 +745,25 @@ export default {
       }
     }
 
+// --- CANCELLED z Comgate => označ objednávku za zrušenú (idempotentne)
+{
+  const stUpper = String(status.status || '').toUpperCase();
+  if (stUpper === 'CANCELLED' || stUpper === 'REJECTED' || stUpper === 'TIMEOUT' || stUpper === 'EXPIRED') {
+    try {
+      await strapi.db.query('api::order.order').update({
+        where: { id: order.id },
+        data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled' },
+      });
+      strapi.log.info(`[COMGATE][ORDER] #${order.id} marked cancelled (webhook, st=${stUpper})`);
+    } catch (e) {
+      strapi.log.error(`[COMGATE][ORDER CANCEL][WEBHOOK] failed #${order.id}:`, e);
+    }
+  }
+}
+
+
+
+
     ctx.status = 200;
     ctx.body = 'OK';
   },
