@@ -13,6 +13,8 @@ const AUTH_AS_PAID = String(process.env.COMGATE_AUTHORIZED_AS_PAID || 'false').t
 
 // ========================= Typy =========================
 type PaymentStatus = 'unpaid' | 'paid' | 'refunded';
+type OrderStatus = 'pending' | 'confirmed' | 'cancelled';
+type FulfillmentStatus = 'new' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 type EventInfo = {
   sessionId?: number;
@@ -57,6 +59,10 @@ type OrderRecord = {
 
   paymentStatus?: PaymentStatus | null;
   comgateTransId?: string | null;
+
+  // doplnené kvôli "cancelled" správe objednávky
+  orderStatus?: OrderStatus | null;
+  fulfillmentStatus?: FulfillmentStatus | null;
 };
 
 // ========================= Helpery (bezpečnosť, render, logy) =========================
@@ -318,6 +324,35 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
 }
 
 // ========================= DB & Comgate helpery =========================
+
+// označ objednávku ako zrušenú (idempotentne)
+async function markOrderCancelled(orderId: number) {
+  try {
+    const current = await strapi.db.query('api::order.order').findOne({
+      where: { id: orderId },
+      select: ['id', 'orderStatus', 'fulfillmentStatus'],
+    }) as any;
+
+    const needOrder = current?.orderStatus !== 'cancelled';
+    const needFull = current?.fulfillmentStatus !== 'cancelled';
+
+    if (needOrder || needFull) {
+      await strapi.db.query('api::order.order').update({
+        where: { id: orderId },
+        data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled' },
+      });
+      strapi.log.info(`[COMGATE][ORDER] #${orderId} marked cancelled (orderStatus/fulfillmentStatus)`);
+    }
+  } catch (e) {
+    strapi.log.error(`[COMGATE][ORDER CANCEL] update failed #${orderId}:`, e);
+  }
+}
+
+// cancelled-like stavy z Comgate
+function isCancelledLike(s?: string) {
+  const u = String(s || '').toUpperCase();
+  return u === 'CANCELLED' || u === 'REJECTED' || u === 'TIMEOUT' || u === 'EXPIRED';
+}
 
 // načítaj objednávku + očakávanú sumu v centoch
 async function getOrderAndExpectedCents(orderId: number) {
@@ -662,6 +697,11 @@ export default {
       ctx.status = 200; ctx.body = 'OK'; return;
     }
 
+    // ak Comgate stav je “cancelled-like”, označ objednávku ako zrušenú
+    if (isCancelledLike(status.status)) {
+      await markOrderCancelled(order.id);
+    }
+
     const mapped = mapComgateToOrder(String(status.status || ''));
     strapi.log.info(`[COMGATE][WEBHOOK][MAP] transId=${transId} status=${String(status.status)} -> ${mapped}`);
 
@@ -772,6 +812,11 @@ export default {
         source: 'comgate',
         note: 'guard_mismatch',
       });
+    }
+
+    // ak sa z Comgate vráti “cancelled-like”, prepneme objednávku na cancelled
+    if (isCancelledLike(s.status)) {
+      await markOrderCancelled(o2.id);
     }
 
     const normalized = mapComgateToOrder(String(s.status || ''));
