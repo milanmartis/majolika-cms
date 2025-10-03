@@ -44,7 +44,7 @@
       "default": "card"
     },
     "paymentSessionId": { "type": "string" },
-
+    "comgateTransId": { "type": "string" },
     "paymentStatus": {
       "type": "enumeration",
       "enum": ["unpaid", "paid", "refunded"],
