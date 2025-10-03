@@ -549,7 +549,7 @@ export default () => ({
       try {
         await strapi.db.query('api::order.order').update({
           where: { id: order.id },
-          data: { comgateTransId: parsed.transId, paymentStatus: 'waiting_for_payment' },
+          data: { comgateTransId: parsed.transId, paymentStatus: 'unpaid' },
         });
       } catch (e) {
         strapi.log.warn(`[COMGATE][CREATE] persist transId failed for order #${order.id}: ${String(e)}`);
