@@ -323,6 +323,11 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
   }
 }
 
+
+
+
+
+
 // ========================= DB & Comgate helpery =========================
 
 // označ objednávku ako zrušenú (idempotentne)
@@ -658,13 +663,13 @@ export default {
     try {
       order = (await strapi.db.query('api::order.order').findOne({
         where: { comgateTransId: String(transId) },
-        select: ['id','paymentStatus','comgateTransId'],
+        select: ['id','paymentStatus','comgateTransId','orderStatus','fulfillmentStatus'],
       })) as any;
 
       if (!order && refId) {
         order = (await strapi.db.query('api::order.order').findOne({
           where: { id: Number(refId) },
-          select: ['id','paymentStatus','comgateTransId'],
+          select: ['id','paymentStatus','comgateTransId','orderStatus','fulfillmentStatus'],
         })) as any;
       }
     } catch (e) {
