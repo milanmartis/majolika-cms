@@ -215,7 +215,9 @@ function renderOrderEmail(opts: {
 </body>
 </html>`;
 }
-
+function safe(o: any) {
+  try { return JSON.stringify(o); } catch { return String(o); }
+}
 // Sumarizácia doručenia
 function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
   switch (order?.deliveryMethod) {
@@ -244,6 +246,11 @@ async function comgateStatus(transId: string) {
   });
   const txt = await res.text();
   const parsed = Object.fromEntries(new URLSearchParams(txt));
+
+   // LOG: odpoveď Comgate
+   strapi.log.info(`[COMGATE][CREATE][OUT] code=${parsed.code} transId=${parsed.transId} raw=${safe(parsed)}`);
+
+
   return parsed as any; // očakávame { code, message, transId, status, ... }
 }
 
@@ -265,6 +272,9 @@ export default {
 
     if (!MERCHANT || !SECRET) ctx.throw(500, 'Comgate not configured');
     if (!amountCents || !orderId || !email || !fullName) ctx.throw(400, 'Missing required fields');
+
+      // LOG: vstup
+  strapi.log.info(`[COMGATE][CREATE][IN] body=${safe(ctx.request.body)}`);
 
     const body = qs.stringify({
       merchant: MERCHANT,
@@ -347,6 +357,9 @@ export default {
     const code = status.code;
     const st = (status.status || '').toUpperCase();
 
+    strapi.log.info(`[COMGATE][DBG] status.raw=${JSON.stringify(status)}`);
+// výsledná hodnota do DB
+
     if (code !== '0') {
       strapi.log.error('[COMGATE][STATUS] code!=0', status);
       // aj pri chybe statusu potvrď 200, Comgate aj tak spraví retry pushu
@@ -396,6 +409,9 @@ export default {
         strapi.log.error('[COMGATE][ORDER UPDATE] error:', e);
       }
     }
+
+    strapi.log.info(`[COMGATE][DBG] will-set paymentStatus=${newPaymentStatus}`);
+
 
     // Ak je zaplatené -> rovnaký flow ako u Stripe
     if (st === 'PAID') {
@@ -535,4 +551,5 @@ export default {
     const s = await comgateStatus(String(transId));
     ctx.body = s;
   },
+  
 };
