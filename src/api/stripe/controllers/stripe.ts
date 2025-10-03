@@ -677,6 +677,9 @@ export default {
       return;
     }
 
+    if (isCancelledLike(status.status)) {
+      await markOrderCancelled(order.id);
+    }
     // --- Bezpečnostné matchovanie: refId / price / curr (tolerancia 1 cent)
     const statusRefId = Number(status.refId || status.refID || status.reference || 0);
     const statusCurr = String(status.curr || status.currency || '').toUpperCase();
@@ -792,6 +795,10 @@ export default {
       return ctx.send({ ok: true, transId: t, comgateRaw: comgateRawSafe, paymentStatus: 'unpaid', source: 'comgate' });
     }
 
+    if (isCancelledLike(s.status)) {
+      await markOrderCancelled(o2.id);
+    }
+  
     // GUARD: refId/curr/price (tolerancia 1 cent)
     const statusRefId = Number(s.refId || s.refID || s.reference || 0);
     const statusCurr = String(s.curr || s.currency || '').toUpperCase();
