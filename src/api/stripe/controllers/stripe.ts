@@ -60,7 +60,6 @@ type OrderRecord = {
   paymentStatus?: PaymentStatus | null;
   comgateTransId?: string | null;
 
-  // doplnené kvôli "cancelled" správe objednávky
   orderStatus?: OrderStatus | null;
   fulfillmentStatus?: FulfillmentStatus | null;
 };
@@ -77,7 +76,7 @@ function redact(obj: any) {
     for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'phone', 'name', 'full_name']) {
       if (o[k] != null) o[k] = '[redacted]';
     }
-    if (o.secret) o.secret = '[redacted]';
+    if ((o as any).secret) (o as any).secret = '[redacted]';
     return JSON.stringify(o);
   } catch {
     return '[unserializable]';
@@ -106,7 +105,7 @@ function sanitizeComgateRaw(x: any) {
       'home_delivery_postal_code',
       'home_delivery_country',
     ]) {
-      if (o[k] != null) o[k] = '[redacted]';
+      if ((o as any)[k] != null) (o as any)[k] = '[redacted]';
     }
     return o;
   } catch {
@@ -131,7 +130,6 @@ function esc(s?: string) {
 
 // HTML escape pre atribúty (href/src)
 function aesc(s?: string) {
-  // pre atribúty je kritické escapovať aspoň & " '
   return String(s ?? '')
     .replace(/&/g,'&amp;')
     .replace(/"/g,'&quot;')
@@ -341,7 +339,7 @@ async function markOrderCancelled(orderId: number) {
         where: { id: orderId },
         data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled' },
       });
-      strapi.log.info(`[COMGATE][ORDER] #${orderId} marked cancelled (orderStatus/fulfillmentStatus)`);
+      strapi.log.info(`[COMGATE][ORDER] #${orderId} marked cancelled`);
     }
   } catch (e) {
     strapi.log.error(`[COMGATE][ORDER CANCEL] update failed #${orderId}:`, e);
@@ -517,7 +515,7 @@ async function runPostPaidFlow(orderId: number) {
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${freshOrder.id}`);
     }
     await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
-  strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
+    strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
   } catch (e) {
     strapi.log.error('[COMGATE][EMAIL] send failed:', e);
   }
@@ -532,7 +530,7 @@ async function runPostPaidFlow(orderId: number) {
         await strapi.db.query('api::order.order').update({
           where: { id: freshOrder.id },
           data: {
-            // shipment/meta – ak chceš
+            // prípadná perzistencia metadát zásielky
           },
         });
       } catch {
@@ -635,8 +633,8 @@ export default {
       }
     } catch { data = {}; }
 
-    const transId = data.transId || data.id;
-    const refId = data.refId;
+    const transId = (data as any).transId || (data as any).id;
+    const refId = (data as any).refId;
 
     if (!transId) {
       strapi.log.error('[COMGATE][WEBHOOK] missing transId');
@@ -645,9 +643,9 @@ export default {
       return;
     }
 
-    // skutočný stav na Comgate (guard)
+    // skutočný stav na Comgate
     const status = await comgateStatus(String(transId));
-    if (String(status.code) !== '0') {
+    if (String((status as any).code) !== '0') {
       strapi.log.error('[COMGATE][STATUS] code!=0', status);
       ctx.status = 200; ctx.body = 'OK';
       return;
@@ -677,13 +675,10 @@ export default {
       return;
     }
 
-    if (isCancelledLike(status.status)) {
-      await markOrderCancelled(order.id);
-    }
     // --- Bezpečnostné matchovanie: refId / price / curr (tolerancia 1 cent)
-    const statusRefId = Number(status.refId || status.refID || status.reference || 0);
-    const statusCurr = String(status.curr || status.currency || '').toUpperCase();
-    const statusPrice = Number(status.price || status.amount || 0); // centy
+    const statusRefId = Number((status as any).refId || (status as any).refID || (status as any).reference || 0);
+    const statusCurr = String((status as any).curr || (status as any).currency || '').toUpperCase();
+    const statusPrice = Number((status as any).price || (status as any).amount || 0); // centy
 
     const { expectedCents } = await getOrderAndExpectedCents(order.id);
 
@@ -700,13 +695,28 @@ export default {
       ctx.status = 200; ctx.body = 'OK'; return;
     }
 
-    // ak Comgate stav je “cancelled-like”, označ objednávku ako zrušenú
-    if (isCancelledLike(status.status)) {
-      await markOrderCancelled(order.id);
+    // 👉 CANCELLED-like? Označ a skonči hneď (idempotentné)
+    if (isCancelledLike((status as any).status)) {
+      try {
+        await strapi.db.query('api::order.order').update({
+          where: { id: order.id },
+          data: {
+            orderStatus: 'cancelled',
+            fulfillmentStatus: 'cancelled',
+            comgateTransId: String(transId),
+          },
+        });
+        strapi.log.info(`[COMGATE][ORDER] #${order.id} -> cancelled (webhook)`);
+      } catch (e) {
+        strapi.log.error(`[COMGATE][ORDER CANCEL][WEBHOOK] failed #${order.id}:`, e);
+      }
+      ctx.status = 200;
+      ctx.body = 'OK';
+      return; // ⬅️ dôležité
     }
 
-    const mapped = mapComgateToOrder(String(status.status || ''));
-    strapi.log.info(`[COMGATE][WEBHOOK][MAP] transId=${transId} status=${String(status.status)} -> ${mapped}`);
+    const mapped = mapComgateToOrder(String((status as any).status || ''));
+    strapi.log.info(`[COMGATE][WEBHOOK][MAP] transId=${transId} status=${String((status as any).status)} -> ${mapped}`);
 
     const prev: PaymentStatus | null = (order.paymentStatus ?? null) as PaymentStatus | null;
     let next: PaymentStatus = prev ?? 'unpaid';
@@ -760,12 +770,12 @@ export default {
         select: ['id','comgateTransId','paymentStatus'],
       });
       ord = o as any;
-      t = o?.comgateTransId || null;
+      t = (o as any)?.comgateTransId || null;
       if (!t) {
         return ctx.send({
           ok: true,
           transId: null,
-          paymentStatus: (o?.paymentStatus as PaymentStatus) || 'unpaid',
+          paymentStatus: ((o as any)?.paymentStatus as PaymentStatus) || 'unpaid',
           source: 'db',
         });
       }
@@ -776,7 +786,7 @@ export default {
     const s = await comgateStatus(String(t));
     const comgateRawSafe = sanitizeComgateRaw(s);
 
-    if (String(s.code) !== '0') {
+    if (String((s as any).code) !== '0') {
       return ctx.send({
         ok: true,
         transId: t,
@@ -789,20 +799,16 @@ export default {
     // nájdeme order podľa transId
     const o2 = await strapi.db.query('api::order.order').findOne({
       where: { comgateTransId: String(t) },
-      select: ['id','paymentStatus'],
+      select: ['id','paymentStatus','orderStatus','fulfillmentStatus'],
     }) as any;
     if (!o2) {
       return ctx.send({ ok: true, transId: t, comgateRaw: comgateRawSafe, paymentStatus: 'unpaid', source: 'comgate' });
     }
 
-    if (isCancelledLike(s.status)) {
-      await markOrderCancelled(o2.id);
-    }
-  
     // GUARD: refId/curr/price (tolerancia 1 cent)
-    const statusRefId = Number(s.refId || s.refID || s.reference || 0);
-    const statusCurr = String(s.curr || s.currency || '').toUpperCase();
-    const statusPrice = Number(s.price || s.amount || 0); // centy
+    const statusRefId = Number((s as any).refId || (s as any).refID || (s as any).reference || 0);
+    const statusCurr = String((s as any).curr || (s as any).currency || '').toUpperCase();
+    const statusPrice = Number((s as any).price || (s as any).amount || 0); // centy
 
     const { expectedCents } = await getOrderAndExpectedCents(o2.id);
     if (
@@ -821,12 +827,25 @@ export default {
       });
     }
 
-    // ak sa z Comgate vráti “cancelled-like”, prepneme objednávku na cancelled
-    if (isCancelledLike(s.status)) {
-      await markOrderCancelled(o2.id);
+    // 👉 CANCELLED-like pri polling-u? Označ a skonči hneď
+    if (isCancelledLike((s as any).status)) {
+      try {
+        await markOrderCancelled(o2.id);
+        strapi.log.info(`[COMGATE][ORDER] #${o2.id} -> cancelled (status/poll)`);
+      } catch (e) {
+        strapi.log.error(`[COMGATE][ORDER CANCEL][STATUS] failed #${o2.id}:`, e);
+      }
+      return ctx.send({
+        ok: true,
+        transId: t,
+        comgateRaw: comgateRawSafe,
+        paymentStatus: (o2.paymentStatus as PaymentStatus) || 'unpaid',
+        source: 'comgate',
+        orderStatus: 'cancelled',
+      });
     }
 
-    const normalized = mapComgateToOrder(String(s.status || ''));
+    const normalized = mapComgateToOrder(String((s as any).status || ''));
     const prev = (o2.paymentStatus as PaymentStatus | null) ?? 'unpaid';
 
     if (prev !== normalized) {
