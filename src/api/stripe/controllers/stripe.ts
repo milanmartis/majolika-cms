@@ -68,12 +68,43 @@ function redact(obj: any) {
       typeof obj === 'string'
         ? Object.fromEntries(new URLSearchParams(obj))
         : { ...(obj || {}) };
-    for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'phone']) {
+    for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'phone', 'name', 'full_name']) {
       if (o[k] != null) o[k] = '[redacted]';
     }
+    if (o.secret) o.secret = '[redacted]';
     return JSON.stringify(o);
   } catch {
     return '[unserializable]';
+  }
+}
+
+// odoslanie comgateRaw smerom do FE bez citlivých polí
+function sanitizeComgateRaw(x: any) {
+  try {
+    const o = { ...(x || {}) };
+    for (const k of [
+      'secret',
+      'email',
+      'name',
+      'full_name',
+      'payer_name',
+      'payerName',
+      'payer_acc',
+      'payerAcc',
+      'billing_addr_city',
+      'billing_addr_street',
+      'billing_addr_postal_code',
+      'billing_addr_country',
+      'home_delivery_city',
+      'home_delivery_street',
+      'home_delivery_postal_code',
+      'home_delivery_country',
+    ]) {
+      if (o[k] != null) o[k] = '[redacted]';
+    }
+    return o;
+  } catch {
+    return {};
   }
 }
 
@@ -82,7 +113,7 @@ function safe(o: any) {
   try { return JSON.stringify(o); } catch { return String(o); }
 }
 
-// HTML escape (XSS ochrana v e-mailoch)
+// HTML escape (textový obsah)
 function esc(s?: string) {
   return String(s ?? '')
     .replace(/&/g,'&amp;')
@@ -90,6 +121,17 @@ function esc(s?: string) {
     .replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;')
     .replace(/'/g,'&#39;');
+}
+
+// HTML escape pre atribúty (href/src)
+function aesc(s?: string) {
+  // pre atribúty je kritické escapovať aspoň & " '
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
 }
 
 // Absolútna URL pre obrázky
@@ -157,7 +199,9 @@ function renderItemsRows(items: Array<{
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #eee;">
             <div style="display:flex;align-items:center;gap:12px;">
-              ${it.image ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />` : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
+              ${it.image
+                ? `<img src="${aesc(it.image)}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
+                : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
               <div>
                 <div style="font-weight:600;color:#333;">${esc(it.productName)}</div>
                 ${eventLine}
@@ -215,7 +259,11 @@ function renderOrderEmail(opts: {
     <div class="content">
       <h2>${esc(opts.heading)}</h2>
       ${opts.introLines.map((t) => `<p>${esc(t)}</p>`).join('')}
-      ${opts.cta ? `<p style="text-align:center;"><a class="button" href="${opts.cta.href}">${esc(opts.cta.label)}</a></p>` : ''}
+      ${
+        opts.cta
+          ? `<p style="text-align:center;"><a class="button" href="${aesc(opts.cta.href)}">${esc(opts.cta.label)}</a></p>`
+          : ''
+      }
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${esc(opts.deliverySummary)}</p>
@@ -275,6 +323,7 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
 async function getOrderAndExpectedCents(orderId: number) {
   const ord = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['items', 'deliveryAddress', 'deliveryDetails'],
+    // TS typy pre Strapi fields bývajú prísne – preto any
     fields: [
       'id',
       'total',
@@ -304,11 +353,15 @@ async function fetchWithTimeout(url: string, options: any = {}, timeoutMs = 8000
 async function comgateStatus(transId: string) {
   const body = qs.stringify({ merchant: MERCHANT, transId, secret: SECRET });
 
-  const res: any = await fetchWithTimeout(`${API}/status`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/x-www-form-urlencoded' },
-    body,
-  }, 8000);
+  const res: any = await fetchWithTimeout(
+    `${API}/status`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/x-www-form-urlencoded' },
+      body,
+    },
+    8000
+  );
 
   const txt = await res.text();
   const parsed = Object.fromEntries(new URLSearchParams(txt));
@@ -411,7 +464,7 @@ async function runPostPaidFlow(orderId: number) {
     title: `Nová objednávka #${freshOrder.id} – zaplatené`,
     heading: `Nová objednávka #${freshOrder.id} – platba prijatá`,
     introLines: [
-      `Zákazník: ${esc(freshOrder.customerName || '-') } (${esc(freshOrder.customerEmail || '-')})`,
+      `Zákazník: ${esc(freshOrder.customerName || '-')} (${esc(freshOrder.customerEmail || '-')})`,
       `Doručenie: ${deliverySummary}`,
     ],
     cta: null,
@@ -444,9 +497,7 @@ async function runPostPaidFlow(orderId: number) {
         await strapi.db.query('api::order.order').update({
           where: { id: freshOrder.id },
           data: {
-            // shipmentId: result?.shipmentId || null,
-            // trackingNumber: result?.trackingNumber || null,
-            // labelUrl: result?.labelUrl || null,
+            // shipment/meta – ak chceš
           },
         });
       } catch {
@@ -494,11 +545,11 @@ export default {
         secret: SECRET,
       });
 
-      const res = await fetch(`${API}/create`, {
+      const res: any = await fetchWithTimeout(`${API}/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/x-www-form-urlencoded' },
         body,
-      });
+      }, 8000);
 
       const txt = await res.text();
       const parsed = Object.fromEntries(new URLSearchParams(txt));
@@ -519,9 +570,12 @@ export default {
         strapi.log.warn(`[COMGATE][CREATE] could not persist transId for order ${ord.id}: ${String(e)}`);
       }
 
+      let paymentUrl = parsed.redirect;
+      try { paymentUrl = decodeURIComponent(parsed.redirect); } catch {}
+
       ctx.body = {
         transId: parsed.transId,
-        paymentUrl: decodeURIComponent(parsed.redirect),
+        paymentUrl,
         message: parsed.message,
       };
     } catch (err: any) {
@@ -588,7 +642,7 @@ export default {
       return;
     }
 
-    // --- Bezpečnostné matchovanie: refId / price / curr
+    // --- Bezpečnostné matchovanie: refId / price / curr (tolerancia 1 cent)
     const statusRefId = Number(status.refId || status.refID || status.reference || 0);
     const statusCurr = String(status.curr || status.currency || '').toUpperCase();
     const statusPrice = Number(status.price || status.amount || 0); // centy
@@ -603,7 +657,7 @@ export default {
       strapi.log.warn(`[COMGATE][GUARD] currency mismatch transId=${transId} got=${statusCurr}`);
       ctx.status = 200; ctx.body = 'OK'; return;
     }
-    if (statusPrice && statusPrice !== expectedCents) {
+    if (statusPrice && Math.abs(statusPrice - expectedCents) > 1) {
       strapi.log.warn(`[COMGATE][GUARD] amount mismatch transId=${transId} got=${statusPrice} expected=${expectedCents}`);
       ctx.status = 200; ctx.body = 'OK'; return;
     }
@@ -677,31 +731,43 @@ export default {
     if (!t) return ctx.badRequest('transId or orderId is required');
 
     const s = await comgateStatus(String(t));
+    const comgateRawSafe = sanitizeComgateRaw(s);
+
     if (String(s.code) !== '0') {
-      return ctx.send({ ok: true, transId: t, comgateRaw: s, paymentStatus: ord?.paymentStatus || 'unpaid', source: 'comgate' });
+      return ctx.send({
+        ok: true,
+        transId: t,
+        comgateRaw: comgateRawSafe,
+        paymentStatus: ord?.paymentStatus || 'unpaid',
+        source: 'comgate',
+      });
     }
 
     // nájdeme order podľa transId
     const o2 = await strapi.db.query('api::order.order').findOne({
       where: { comgateTransId: String(t) },
       select: ['id','paymentStatus'],
-    });
+    }) as any;
     if (!o2) {
-      return ctx.send({ ok: true, transId: t, comgateRaw: s, paymentStatus: 'unpaid', source: 'comgate' });
+      return ctx.send({ ok: true, transId: t, comgateRaw: comgateRawSafe, paymentStatus: 'unpaid', source: 'comgate' });
     }
 
-    // GUARD: refId/curr/price
+    // GUARD: refId/curr/price (tolerancia 1 cent)
     const statusRefId = Number(s.refId || s.refID || s.reference || 0);
     const statusCurr = String(s.curr || s.currency || '').toUpperCase();
     const statusPrice = Number(s.price || s.amount || 0); // centy
 
     const { expectedCents } = await getOrderAndExpectedCents(o2.id);
-    if ((statusRefId && statusRefId !== o2.id) || (statusCurr && statusCurr !== 'EUR') || (statusPrice && statusPrice !== expectedCents)) {
+    if (
+      (statusRefId && statusRefId !== o2.id) ||
+      (statusCurr && statusCurr !== 'EUR') ||
+      (statusPrice && Math.abs(statusPrice - expectedCents) > 1)
+    ) {
       // nedôveryhodné — neprepíname DB, len vraciame aktuálny stav DB
       return ctx.send({
         ok: true,
         transId: t,
-        comgateRaw: s,
+        comgateRaw: comgateRawSafe,
         paymentStatus: (o2.paymentStatus as PaymentStatus) || 'unpaid',
         source: 'comgate',
         note: 'guard_mismatch',
@@ -730,7 +796,7 @@ export default {
     ctx.send({
       ok: true,
       transId: t,
-      comgateRaw: s,
+      comgateRaw: comgateRawSafe,
       paymentStatus: normalized,
       source: 'comgate',
     });
