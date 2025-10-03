@@ -323,11 +323,6 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
   }
 }
 
-
-
-
-
-
 // ========================= DB & Comgate helpery =========================
 
 // označ objednávku ako zrušenú (idempotentne)
@@ -522,7 +517,7 @@ async function runPostPaidFlow(orderId: number) {
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${freshOrder.id}`);
     }
     await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
-    strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
+  strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
   } catch (e) {
     strapi.log.error('[COMGATE][EMAIL] send failed:', e);
   }
@@ -744,25 +739,6 @@ export default {
         strapi.log.error('[COMGATE][WEBHOOK][AFTER-PAID] error:', e);
       }
     }
-
-// --- CANCELLED z Comgate => označ objednávku za zrušenú (idempotentne)
-{
-  const stUpper = String(status.status || '').toUpperCase();
-  if (stUpper === 'CANCELLED' || stUpper === 'REJECTED' || stUpper === 'TIMEOUT' || stUpper === 'EXPIRED') {
-    try {
-      await strapi.db.query('api::order.order').update({
-        where: { id: order.id },
-        data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled' },
-      });
-      strapi.log.info(`[COMGATE][ORDER] #${order.id} marked cancelled (webhook, st=${stUpper})`);
-    } catch (e) {
-      strapi.log.error(`[COMGATE][ORDER CANCEL][WEBHOOK] failed #${order.id}:`, e);
-    }
-  }
-}
-
-
-
 
     ctx.status = 200;
     ctx.body = 'OK';
