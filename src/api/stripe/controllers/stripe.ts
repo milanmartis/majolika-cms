@@ -64,7 +64,10 @@ type OrderRecord = {
 // bezpečný JSON do logu (bez PII)
 function redact(obj: any) {
   try {
-    const o = typeof obj === 'string' ? Object.fromEntries(new URLSearchParams(obj)) : { ...(obj || {}) };
+    const o =
+      typeof obj === 'string'
+        ? Object.fromEntries(new URLSearchParams(obj))
+        : { ...(obj || {}) };
     for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'phone']) {
       if (o[k] != null) o[k] = '[redacted]';
     }
@@ -249,17 +252,20 @@ function renderOrderEmail(opts: {
 
 function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
   switch (order?.deliveryMethod) {
-    case 'pickup': return 'Osobné vyzdvihnutie na mieste';
-    case 'post_office': return `Na poštu (ID: ${esc(order?.deliveryDetails?.postOfficeId || '-')} )`;
+    case 'pickup':
+      return 'Osobné vyzdvihnutie na mieste';
+    case 'post_office':
+      return `Na poštu (ID: ${esc(order?.deliveryDetails?.postOfficeId || '-')})`;
     case 'packeta_box':
       return order?.deliveryDetails?.notes
         ? `Packeta/Carrier box: ${esc(order.deliveryDetails.notes)}`
-        : `Packeta Box (ID: ${esc(order?.deliveryDetails?.packetaBoxId || '-')} )`;
+        : `Packeta Box (ID: ${esc(order?.deliveryDetails?.packetaBoxId || '-')})`;
     case 'post_courier': {
       const a = order?.deliveryAddress || {};
-      return `Kuriér na adresu: ${esc(a.street)}, ${esc(a.city)} ${esc(a.zip)}, ${esc(a.country)}`;
+      return `Kuriér na adresu: ${esc(a.street)}; ${esc(a.city)} ${esc(a.zip)}, ${esc(a.country)}`;
     }
-    default: return esc(String(order?.deliveryMethod || ''));
+    default:
+      return esc(String(order?.deliveryMethod || ''));
   }
 }
 
@@ -267,44 +273,52 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
 
 // načítaj objednávku + očakávanú sumu v centoch
 async function getOrderAndExpectedCents(orderId: number) {
-  const ord = await strapi.entityService.findOne('api::order.order', orderId, {
+  const ord = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['items', 'deliveryAddress', 'deliveryDetails'],
     fields: [
-      'id','total','totalWithShipping','customerEmail','customerName',
-      'paymentStatus','deliveryMethod',
+      'id',
+      'total',
+      'totalWithShipping',
+      'customerEmail',
+      'customerName',
+      'paymentStatus',
+      'deliveryMethod',
     ] as any,
-  }) as unknown as OrderRecord | null;
+  })) as unknown as OrderRecord | null;
+
   if (!ord) throw new Error('Order not found');
   const totalNum = Number(ord.totalWithShipping ?? ord.total ?? 0);
   const expectedCents = Math.round(totalNum * 100);
   return { ord, expectedCents };
 }
 
+// fetch s časovým limitom (bez AbortController, kvôli TS/typom)
+async function fetchWithTimeout(url: string, options: any = {}, timeoutMs = 8000): Promise<any> {
+  return await Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Fetch timeout')), timeoutMs)),
+  ]);
+}
+
 // volanie Comgate /status s timeoutom
 async function comgateStatus(transId: string) {
   const body = qs.stringify({ merchant: MERCHANT, transId, secret: SECRET });
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 8000); // 8s timeout
 
-  try {
-    const res = await fetch(`${API}/status`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/x-www-form-urlencoded' },
-      body,
-      signal: controller.signal,
-    });
-    const txt = await res.text();
-    const parsed = Object.fromEntries(new URLSearchParams(txt));
+  const res: any = await fetchWithTimeout(`${API}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/x-www-form-urlencoded' },
+    body,
+  }, 8000);
 
-    // log bez PII
-    strapi.log.info(`[COMGATE][STATUS][OUT] code=${parsed.code} transId=${parsed.transId} status=${parsed.status} price=${parsed.price} curr=${parsed.curr}`);
-    return parsed as any; // očakávame { code, message, transId, status, price, curr, refId, ... }
-  } catch (e) {
-    strapi.log.error('[COMGATE][STATUS] request failed:', String(e));
-    throw e;
-  } finally {
-    clearTimeout(t);
-  }
+  const txt = await res.text();
+  const parsed = Object.fromEntries(new URLSearchParams(txt));
+
+  // log bez PII
+  strapi.log.info(
+    `[COMGATE][STATUS][OUT] code=${parsed.code} transId=${parsed.transId} status=${parsed.status} price=${parsed.price} curr=${parsed.curr}`
+  );
+
+  return parsed as any; // očakávame { code, message, transId, status, price, curr, refId, ... }
 }
 
 function clampLabel(s: string | undefined, def = 'Order') {
@@ -378,13 +392,15 @@ async function runPostPaidFlow(orderId: number) {
     title: 'Potvrdenie objednávky – platba prijatá',
     heading: 'Ďakujeme, platba prijatá',
     introLines: [
-      `Dobrý deň${freshOrder.customerName ? `, ${freshOrder.customerName}` : ''}.`,
+      `Dobrý deň${freshOrder.customerName ? `, ${esc(freshOrder.customerName)}` : ''}.`,
       `Platba za vašu objednávku #${freshOrder.id} prebehla úspešne.`,
     ],
-    cta: FRONTEND_URL ? {
-      label: 'Zobraziť objednávku',
-      href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${freshOrder.id}`,
-    } : null,
+    cta: FRONTEND_URL
+      ? {
+          label: 'Zobraziť objednávku',
+          href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${freshOrder.id}`,
+        }
+      : null,
     items: emailItems,
     shippingFee,
     totalWithShipping,
@@ -395,7 +411,7 @@ async function runPostPaidFlow(orderId: number) {
     title: `Nová objednávka #${freshOrder.id} – zaplatené`,
     heading: `Nová objednávka #${freshOrder.id} – platba prijatá`,
     introLines: [
-      `Zákazník: ${freshOrder.customerName || '-'} (${freshOrder.customerEmail || '-'})`,
+      `Zákazník: ${esc(freshOrder.customerName || '-') } (${esc(freshOrder.customerEmail || '-')})`,
       `Doručenie: ${deliverySummary}`,
     ],
     cta: null,
@@ -480,7 +496,7 @@ export default {
 
       const res = await fetch(`${API}/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/x-www-form-urlencoded' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/x-www-form-urlencoded' },
         body,
       });
 
