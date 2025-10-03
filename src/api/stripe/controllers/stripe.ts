@@ -268,6 +268,7 @@ export default {
 
   // 1) Založenie platby (server-side) -> FE dostane redirect URL
   async create(ctx) {
+
     const { amountCents, currency = 'EUR', orderId, email, phone, fullName, country = 'SK', label = 'Order' } = ctx.request.body;
 
     if (!MERCHANT || !SECRET) ctx.throw(500, 'Comgate not configured');
@@ -313,7 +314,7 @@ export default {
     try {
       await strapi.db.query('api::order.order').update({
         where: { id: Number(orderId) },
-        data: { comgateTransId: parsed.transId, paymentStatus: 'waiting_for_payment' },
+        data: { comgateTransId: parsed.transId, paymentStatus: 'unpaid' },
       });
     } catch (e) {
       strapi.log.warn(`[COMGATE][CREATE] could not persist transId for order ${orderId}: ${String(e)}`);
