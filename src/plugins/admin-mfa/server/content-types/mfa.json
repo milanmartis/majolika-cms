@@ -1,0 +1,14 @@
+{
+    "kind": "collectionType",
+    "collectionName": "admin_mfa",
+    "info": { "singularName": "mfa", "pluralName": "mfas", "displayName": "Admin MFA" },
+    "options": { "draftAndPublish": false },
+    "attributes": {
+      "adminUserId": { "type": "integer", "required": true, "unique": true },
+      "enabled": { "type": "boolean", "default": false },
+      "secret": { "type": "text", "private": true },
+      "tempSecret": { "type": "text", "private": true },
+      "backupHashes": { "type": "json", "private": true },
+      "lastUsedAt": { "type": "datetime", "private": true }
+    }
+  }

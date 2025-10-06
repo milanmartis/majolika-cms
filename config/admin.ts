@@ -5,7 +5,7 @@ export default ({ env }) => ({
       accessTokenLifespan: 1800,   // 30 min
       maxRefreshTokenLifespan: 10800, // 3 h
       idleRefreshTokenLifespan: 10800,
-      maxSessionLifespan: 10800,   // 3 h hard stop
+      maxSessionLifespan: 2592000,   // 3 h hard stop
       idleSessionLifespan: 10800,
     },
   },

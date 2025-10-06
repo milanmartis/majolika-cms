@@ -5,8 +5,8 @@ import { sendEmail } from '../../../utils/email';
 
 // ========================= Comgate ENV =========================
 const API = process.env.COMGATE_API || 'https://payments.comgate.cz/v1.0';
-const MERCHANT = process.env.COMGATE_MERCHANT!;
-const SECRET = process.env.COMGATE_SECRET!;
+const MERCHANT = process.env.COMGATE_MERCHANT || '';
+const SECRET = process.env.COMGATE_SECRET || '';
 const TEST = String(process.env.COMGATE_TEST || 'false').toLowerCase() === 'true';
 // Ak je true, ber AUTHORIZED ako "paid" (v testoch sa často vracia AUTHORIZED)
 const AUTH_AS_PAID = String(process.env.COMGATE_AUTHORIZED_AS_PAID || 'false').toLowerCase() === 'true';
@@ -66,12 +66,12 @@ type OrderRecord = {
 
 // ========================= Helpery (bezpečnosť, render, logy) =========================
 
-function redact(obj: any) {
+function redact(obj: unknown) {
   try {
     const o =
       typeof obj === 'string'
         ? Object.fromEntries(new URLSearchParams(obj))
-        : { ...(obj || {}) };
+        : { ...(obj as Record<string, unknown> || {}) };
     for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'phone', 'name', 'full_name']) {
       if ((o as any)[k] != null) (o as any)[k] = '[redacted]';
     }
@@ -300,16 +300,17 @@ async function markOrderCancelled(orderId: number) {
   try {
     const current = await strapi.db.query('api::order.order').findOne({
       where: { id: orderId },
-      select: ['id', 'orderStatus', 'fulfillmentStatus'],
+      select: ['id', 'orderStatus', 'fulfillmentStatus', 'paymentStatus'],
     }) as any;
 
     const needOrder = current?.orderStatus !== 'cancelled';
     const needFull = current?.fulfillmentStatus !== 'cancelled';
+    const needPay = current?.paymentStatus !== 'unpaid';
 
-    if (needOrder || needFull) {
+    if (needOrder || needFull || needPay) {
       await strapi.db.query('api::order.order').update({
         where: { id: orderId },
-        data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled' },
+        data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },
       });
       strapi.log.info(`[COMGATE][ORDER] #${orderId} marked cancelled`);
     }
@@ -320,7 +321,7 @@ async function markOrderCancelled(orderId: number) {
 
 function isCancelledLike(s?: string) {
   const u = String(s || '').toUpperCase();
-  return u === 'CANCELLED' || u === 'REJECTED' || u === 'TIMEOUT' || u === 'EXPIRED';
+  return u === 'CANCELLED' || u === 'CANCELED' || u === 'REJECTED' || u === 'TIMEOUT' || u === 'EXPIRED';
 }
 
 async function getOrderAndExpectedCents(orderId: number) {
@@ -331,6 +332,7 @@ async function getOrderAndExpectedCents(orderId: number) {
 
   if (!ord) throw new Error('Order not found');
   const totalNum = Number(ord.totalWithShipping ?? ord.total ?? 0);
+  if (!Number.isFinite(totalNum) || totalNum <= 0) throw new Error('Invalid order total');
   const expectedCents = Math.round(totalNum * 100);
   return { ord, expectedCents };
 }
@@ -383,6 +385,7 @@ async function runPostPaidFlow(orderId: number) {
     populate: ['deliveryAddress', 'deliveryDetails', 'items'],
   })) as unknown as OrderRecord;
 
+  // Previazanie bookingov
   if (freshOrder.temporaryId) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
       where: { temporaryId: freshOrder.temporaryId, orderId: null },
@@ -396,6 +399,7 @@ async function runPostPaidFlow(orderId: number) {
   });
   strapi.log.info(`[COMGATE][BOOKINGS] by orderId -> paid (${res2.count})`);
 
+  // Zloženie položiek pre email (s obrázkami)
   const orderItems = Array.isArray(freshOrder.items) ? freshOrder.items : [];
   const emailItems = await Promise.all(
     orderItems.map(async (it) => {
@@ -475,11 +479,12 @@ async function runPostPaidFlow(orderId: number) {
     strapi.log.error('[COMGATE][EMAIL] send failed:', e);
   }
 
+  // Packeta AUTO create
   try {
     const autoCreate = String(process.env.PACKETA_AUTO_CREATE_ON_PAID || '').toLowerCase() === 'true';
     if (autoCreate && freshOrder?.deliveryMethod === 'packeta_box' && freshOrder?.deliveryDetails?.packetaBoxId) {
       strapi.log.info('[PACKETA][AUTO] Creating shipment for order #' + freshOrder.id);
-      const result = await strapi.service('api::packeta.packeta').createShipmentFromOrder(freshOrder);
+      const result = await (strapi as any).service('api::packeta.packeta').createShipmentFromOrder(freshOrder);
       try {
         await strapi.db.query('api::order.order').update({
           where: { id: freshOrder.id },
@@ -496,17 +501,18 @@ async function runPostPaidFlow(orderId: number) {
 
 // ========================= Controller =========================
 export default {
-  async ping(ctx) {
+  // Healthcheck
+  async ping(ctx: any) {
     strapi.log.info('[COMGATE] ping ok');
     return ctx.send({ ok: true });
   },
 
   // 1) Založenie platby
-  async create(ctx) {
+  async create(ctx: any) {
     try {
       const { orderId } = ctx.request.body || {};
       if (!MERCHANT || !SECRET) ctx.throw(500, 'Comgate not configured');
-      if (!orderId) ctx.throw(400, 'orderId is required');
+      if (!orderId || !Number.isFinite(Number(orderId))) ctx.throw(400, 'orderId is required');
 
       strapi.log.info(`[COMGATE][CREATE][IN] body=${redact(ctx.request.body)}`);
 
@@ -542,7 +548,7 @@ export default {
       strapi.log.info(`[COMGATE][CREATE][OUT] code=${parsed.code} transId=${parsed.transId}`);
 
       if (parsed.code !== '0') {
-        strapi.log.error('[COMGATE][CREATE] error:', parsed);
+        strapi.log.error('[COMGATE][CREATE] error:', sanitizeComgateRaw(parsed));
         ctx.throw(400, parsed.message || 'Comgate create error');
       }
 
@@ -566,7 +572,7 @@ export default {
   },
 
   // 2) Webhook (push)
-  async webhook(ctx) {
+  async webhook(ctx: any) {
     strapi.log.info(`[COMGATE][WEBHOOK][IN] body=${redact(ctx.request.body)}`);
 
     let data: any = {};
@@ -590,7 +596,7 @@ export default {
 
     const status = await comgateStatus(String(transId));
     if (String((status as any).code) !== '0') {
-      strapi.log.error('[COMGATE][STATUS] code!=0', status);
+      strapi.log.error('[COMGATE][STATUS] code!=0', sanitizeComgateRaw(status));
       ctx.status = 200; ctx.body = 'OK'; return;
     }
 
@@ -626,12 +632,12 @@ export default {
     if (statusCurr && statusCurr !== 'EUR') { ctx.status = 200; ctx.body = 'OK'; return; }
     if (statusPrice && Math.abs(statusPrice - expectedCents) > 1) { ctx.status = 200; ctx.body = 'OK'; return; }
 
-    // CANCELLED-like — označ a skonči
+    // CANCELLED-like — označ a skonči (konzistentne nastav aj paymentStatus)
     if (isCancelledLike((status as any).status)) {
       try {
         await strapi.db.query('api::order.order').update({
           where: { id: order.id },
-          data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', comgateTransId: String(transId) },
+          data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid', comgateTransId: String(transId) },
         });
         strapi.log.info(`[COMGATE][ORDER] #${order.id} -> cancelled (webhook)`);
       } catch (e) {
@@ -670,7 +676,7 @@ export default {
   },
 
   // 3) FE status/polling
-  async status(ctx) {
+  async status(ctx: any) {
     const { transId, orderId } = ctx.request.body || {};
     let t: string | null = transId || null;
     let ord: { id: number; paymentStatus?: PaymentStatus | null } | null = null;
@@ -740,7 +746,7 @@ export default {
   },
 
   // 4) Bridge endpoint pre Comgate redirecty (PAID/CANCELLED/PENDING) -> aktualizuje DB a presmeruje na FE
-  async returnBridge(ctx) {
+  async returnBridge(ctx: any) {
     try {
       const q: any = ctx.query || {};
       const transId = q.transId || q.id;
@@ -748,10 +754,6 @@ export default {
       if (!transId) { ctx.status = 400; ctx.body = 'Missing transId'; return; }
 
       const s = await comgateStatus(String(transId));
-      if (String((s as any).code) !== '0') {
-      //  strapi.log.warn(`[COMGATE][RETURN] status code!=0 for transId=${transId}: ${safe(s)}`);
-      }
-
       // nájdi order najprv podľa transId, potom podľa refId (ak je)
       let order: OrderRecord | null = await strapi.db.query('api::order.order').findOne({
         where: { comgateTransId: String(transId) },
@@ -770,13 +772,23 @@ export default {
 
       const FRONTEND = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
       const fallback = FRONTEND ? `${FRONTEND}/checkout` : '/';
+      if (!order) { strapi.log.error(`[COMGATE][RETURN] order not found for transId=${transId}`); ctx.status = 302; ctx.redirect(fallback); return; }
 
-      if (!order) {
-        strapi.log.error(`[COMGATE][RETURN] order not found for transId=${transId}`);
-        ctx.status = 302; ctx.redirect(fallback); return;
+      // === PRIORITA: Cancel/Timeout/Rejected rieš ihneď a bez guardov na price/curr ===
+      if (isCancelledLike((s as any).status)) {
+        try {
+          await strapi.db.query('api::order.order').update({
+            where: { id: order.id },
+            data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },
+          });
+        } catch (e) {
+          strapi.log.error(`[COMGATE][RETURN][CANCEL] failed #${order.id}:`, e);
+        }
+        const url = FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${order.id}` : '/';
+        ctx.status = 302; ctx.redirect(url); return;
       }
 
-      // Guardy
+      // Guardy prísne pre positive-path (paid)
       const { expectedCents } = await getOrderAndExpectedCents(order.id);
       const statusRefId = Number((s as any).refId || (s as any).refID || (s as any).reference || 0);
       const statusCurr = String((s as any).curr || (s as any).currency || '').toUpperCase();
@@ -785,13 +797,6 @@ export default {
       if ((statusRefId && statusRefId !== order.id) || (statusCurr && statusCurr !== 'EUR') || (statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
         strapi.log.warn(`[COMGATE][RETURN] guard mismatch, order=${order.id}`);
         ctx.status = 302; ctx.redirect(fallback); return;
-      }
-
-      // CANCELLED -> nastav a presmeruj na FE cancelled
-      if (isCancelledLike((s as any).status)) {
-        try { await markOrderCancelled(order.id); } catch (e) { strapi.log.error(`[COMGATE][RETURN][CANCEL] failed #${order.id}:`, e); }
-        const url = FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${order.id}` : '/';
-        ctx.status = 302; ctx.redirect(url); return;
       }
 
       // PAID -> sync + after-paid + redirect
