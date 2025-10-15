@@ -92,7 +92,8 @@ export default {
 
   async bootstrap({ strapi }: any) {
     // Lifecycle hook: remove original image, keep formats
-
+    const s = strapi.config.get('admin.auth.sessions');
+    strapi.log.info('ADMIN SESSIONS EFFECTIVE = ' + JSON.stringify(s));
     await strapi.admin.services.role.createRolesIfNoneExist();
 
     // 2) Definuj všetky predvolené permission záznamy, ktoré chceš seedovať

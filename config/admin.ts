@@ -2,10 +2,10 @@ export default ({ env }) => ({
   auth: {
     secret: env('ADMIN_JWT_SECRET'),
     sessions: {
-      accessTokenLifespan: 30,      // 30 s (nech často expiruje)
-      maxRefreshTokenLifespan: 90,  // 90 s
-      maxSessionLifespan: 90,       // 90 s – tvrdý limit
-      idleSessionLifespan: 90,      // 90 s – nepovinné, ale OK
+      accessTokenLifespan: 30,      // kratší access token (test)
+      maxRefreshTokenLifespan: 90,  // voliteľné na test, nech sa nič neobnoví nad 90 s
+      maxSessionLifespan: 90,       // ← TVRDÝ LIMIT 90 s
+      idleSessionLifespan: 90,      // môže byť rovnaké (nie je nutné)
     },
   },
   apiToken: {
