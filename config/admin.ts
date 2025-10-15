@@ -10,7 +10,7 @@ export default ({ env }) => ({
       maxRefreshTokenLifespan: 2592000, // 30 dní (default)
       idleRefreshTokenLifespan: 604800, // 7 dní (default)
       maxSessionLifespan: 2592000,      // 30 dní (default)
-      idleSessionLifespan: 900,         // ← 15 min nečinnosti a admin sa odhlási
+      idleSessionLifespan: 90,         // ← 15 min nečinnosti a admin sa odhlási
     },
   },
   apiToken: {
