@@ -2,6 +2,7 @@ export default ({ env }) => ({
   auth: {
     // voliteľné: skracuje staré "JWT expiresIn" pre kompatibilitu
     options: { expiresIn: '7d' },
+    secret: env('ADMIN_JWT_SECRET'),
 
     // dôležité: session manažment
     sessions: {
