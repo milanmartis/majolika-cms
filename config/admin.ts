@@ -1,12 +1,15 @@
 export default ({ env }) => ({
   auth: {
-    secret: env('ADMIN_JWT_SECRET'),
+    // voliteľné: skracuje staré "JWT expiresIn" pre kompatibilitu
+    options: { expiresIn: '7d' },
+
+    // dôležité: session manažment
     sessions: {
-      accessTokenLifespan: 1800,   // 30 min
-      maxRefreshTokenLifespan: 10800, // 3 h
-      idleRefreshTokenLifespan: 10800,
-      maxSessionLifespan: 2592000,   // 3 h hard stop
-      idleSessionLifespan: 10800,
+      accessTokenLifespan: 1800,        // 30 min (default)
+      maxRefreshTokenLifespan: 2592000, // 30 dní (default)
+      idleRefreshTokenLifespan: 604800, // 7 dní (default)
+      maxSessionLifespan: 2592000,      // 30 dní (default)
+      idleSessionLifespan: 900,         // ← 15 min nečinnosti a admin sa odhlási
     },
   },
   apiToken: {
