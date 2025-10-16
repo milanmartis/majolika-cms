@@ -24,6 +24,11 @@
       "target": "api::category.category",
       "inversedBy": "children"
     },
+    "extra_parents": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::category.category"
+    },
     "children": {
       "type": "relation",
       "relation": "oneToMany",
