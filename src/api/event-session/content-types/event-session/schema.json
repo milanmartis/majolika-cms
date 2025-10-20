@@ -59,7 +59,9 @@
         "inversedBy": "sessions"
       },
       "seriesVersion": { "type": "integer" },
-      "isDetachedFromSeries": { "type": "boolean", "default": false } 
+      "isDetachedFromSeries": { "type": "boolean", "default": false },
+      "googleEventId": { "type": "string", "configurable": false }
     }
+
   }
-  
+    
