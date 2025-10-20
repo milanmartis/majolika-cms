@@ -40,6 +40,14 @@ export function occupancyFromBookings(bookings: Booking[] = []) {
     .filter(b => ok.has((b.status || '').toLowerCase()))
     .reduce((sum, b) => sum + Number(b.peopleCount || 0), 0);
 }
+function allAttendeeLines(attendees: Array<{email:string; displayName?:string}>) {
+    if (!attendees.length) return [];
+    return [
+      'Účastníci:',
+      ...attendees.map(a => `• ${a.displayName ? `${a.displayName} <${a.email}>` : a.email}`)
+    ];
+}
+
 
 function attendeeEmailsFromBookings(
   bookings: Booking[] = []
@@ -111,6 +119,7 @@ export async function upsertGoogleEvent(session: any) {
     `Obsadenosť: ${reserved}/${cap}`,
     session.public_url ? `Registrácia: ${session.public_url}` : null,
   ].filter(Boolean) as string[];
+  descriptionLines.push(...allAttendeeLines(attendees));
 
   // Ak chceš (napr. pre debug), dá sa prilepiť aj prvý email do description:
   if (String(process.env.GCAL_DESCRIPTION_PRIMARY_EMAIL || 'false').toLowerCase() === 'true') {

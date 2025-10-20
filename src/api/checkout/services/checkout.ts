@@ -438,7 +438,7 @@ export default () => ({
           
           const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
             where: { temporaryId: order.temporaryId, orderId: null },
-            data: { orderId: String(order.id), status: 'confirmed', customer: customer.email, customerEmail: customer.email,
+            data: { orderId: String(order.id), status: 'confirmed', customerEmail: customer.email,
               customerName:  customer.name },
 
             
