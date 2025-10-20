@@ -390,13 +390,15 @@ async function runPostPaidFlow(orderId: number) {
   if (freshOrder.temporaryId) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
       where: { temporaryId: freshOrder.temporaryId, orderId: null },
-      data: { orderId: String(freshOrder.id), status: 'paid' },
+      data: { orderId: String(freshOrder.id), status: 'paid', customerEmail: freshOrder.customerEmail || undefined,
+        customerName:  freshOrder.customerName  || undefined, },
     });
     strapi.log.info(`[COMGATE][BOOKINGS] temporaryId -> paid (${res.count})`);
   }
   const res2 = await strapi.db.query('api::event-booking.event-booking').updateMany({
     where: { orderId: String(freshOrder.id) },
-    data: { status: 'paid' },
+    data: { status: 'paid',customerEmail: freshOrder.customerEmail || undefined,
+      customerName:  freshOrder.customerName  || undefined },
   });
   strapi.log.info(`[COMGATE][BOOKINGS] by orderId -> paid (${res2.count})`);
 

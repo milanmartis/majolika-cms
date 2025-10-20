@@ -435,9 +435,11 @@ export default () => ({
       // 🔗 prelinkovanie bookingov: temporaryId -> orderId (bez zmeny statusu)
       try {
         if (order.temporaryId) {
+          
           const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
             where: { temporaryId: order.temporaryId, orderId: null },
-            data: { orderId: String(order.id), status: 'confirmed', customer: customer.email },
+            data: { orderId: String(order.id), status: 'confirmed', customer: customer.email, customerEmail: customer.email,
+              customerName:  customer.name },
 
             
           });

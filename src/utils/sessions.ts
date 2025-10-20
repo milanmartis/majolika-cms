@@ -18,7 +18,7 @@ export async function recalcAndSyncSession(sessionIdLike: string | number) {
     {
       fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity','googleEventId'] as any,
       populate: {
-        bookings: { fields: ['id','status','peopleCount'] as any },
+        bookings: { fields: ['id','status','peopleCount','customerEmail','customerName'] as any },
         product:  { fields: ['id','name','slug'] as any },
       },
     }
