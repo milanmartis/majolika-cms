@@ -2,6 +2,7 @@
 import qs from 'qs';
 import fetch from 'node-fetch';
 import { sendEmail } from '../../../utils/email';
+import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
 
 // ========================= Comgate ENV =========================
 const API = process.env.COMGATE_API || 'https://payments.comgate.cz/v1.0';
@@ -398,6 +399,15 @@ async function runPostPaidFlow(orderId: number) {
     data: { status: 'paid' },
   });
   strapi.log.info(`[COMGATE][BOOKINGS] by orderId -> paid (${res2.count})`);
+
+  try {
+    if (freshOrder.temporaryId) {
+      await recalcSessionsByTemporaryId(freshOrder.temporaryId);
+    }
+    await recalcSessionsByOrderId(freshOrder.id);
+  } catch (e) {
+    strapi.log.error('[GCAL][AFTER-PAID] recalc failed:', e);
+  }
 
   // Zloženie položiek pre email (s obrázkami)
   const orderItems = Array.isArray(freshOrder.items) ? freshOrder.items : [];

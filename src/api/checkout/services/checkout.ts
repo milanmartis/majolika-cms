@@ -1,5 +1,6 @@
 'use strict';
 import { sendEmail } from '../../../utils/email';
+import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
 
 /* ========================= Helpery ========================= */
 // + pridaj toto nad CheckoutItem
@@ -445,6 +446,16 @@ export default () => ({
       } catch (e) {
         strapi.log.warn(`[CHECKOUT][BOOKINGS][NON-CARD] linking failed: ${String(e)}`);
       }
+
+      try {
+        if (order.temporaryId) {
+          await recalcSessionsByTemporaryId(order.temporaryId);
+        }
+        await recalcSessionsByOrderId(order.id);
+      } catch (e) {
+        strapi.log.error('[GCAL][NON-CARD] recalc failed:', e);
+      }
+
 
       const deliverySummary = summarizeDelivery(delivery);
 
