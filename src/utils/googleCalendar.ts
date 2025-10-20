@@ -9,8 +9,13 @@ function getCalendar() {
     throw new Error('Missing GOOGLE_SA_EMAIL or GOOGLE_SA_KEY');
   }
 
+  // Ak máš Google Workspace a zapnutú Domain-Wide Delegation,
+  // môžeš impersonovať vlastníka kalendára cez GCAL_IMPERSONATE
+  const subject = process.env.GCAL_IMPERSONATE || undefined;
+
   const jwt = new google.auth.JWT({
     email,
+    subject, // <- funguje len s DWD
     key: keyRaw.replace(/\\n/g, '\n'),
     scopes: ['https://www.googleapis.com/auth/calendar'],
   });
@@ -22,8 +27,12 @@ function getTimeZone(): string {
   return process.env.GCAL_TZ || 'Europe/Prague';
 }
 
-// rozšírené o meno/email zákazníka (ak máš v bookingoch)
-type Booking = { status?: string; peopleCount?: number; customerEmail?: string; customerName?: string };
+type Booking = {
+  status?: string;
+  peopleCount?: number;
+  customerEmail?: string;
+  customerName?: string;
+};
 
 export function occupancyFromBookings(bookings: Booking[] = []) {
   const ok = new Set(['paid', 'confirmed']);
@@ -32,9 +41,9 @@ export function occupancyFromBookings(bookings: Booking[] = []) {
     .reduce((sum, b) => sum + Number(b.peopleCount || 0), 0);
 }
 
-// vyber unikátne emaily z potvrdených bookingov (paid|confirmed)
-// limit default 10 (zmeníš cez GCAL_ATTENDEE_LIMIT)
-function attendeeEmailsFromBookings(bookings: Booking[] = []): Array<{ email: string; displayName?: string }> {
+function attendeeEmailsFromBookings(
+  bookings: Booking[] = []
+): Array<{ email: string; displayName?: string }> {
   const ok = new Set(['paid', 'confirmed']);
   const uniq = new Map<string, string | undefined>();
 
@@ -54,6 +63,22 @@ function attendeeEmailsFromBookings(bookings: Booking[] = []): Array<{ email: st
 function buildSummary(baseTitle: string, reserved: number, cap: number) {
   const full = cap && reserved >= cap;
   return `${baseTitle} — ${reserved}/${cap}${full ? ' (VYPREDANÉ)' : ''}`;
+}
+
+function emailsCsv(attendees: Array<{ email: string; displayName?: string }>): string {
+  return attendees.map(a => a.email).join(',');
+}
+
+function shouldIncludeAttendees(): boolean {
+  // Fallback default: true (ak API dovolí). Môžeš vypnúť cez GCAL_INCLUDE_ATTENDEES=false
+  return String(process.env.GCAL_INCLUDE_ATTENDEES ?? 'true').toLowerCase() !== 'false';
+}
+
+function isAttendeeError(err: any): boolean {
+  const msg = String(err?.message || '').toLowerCase();
+  // typická hláška od Google:
+  // "Service accounts cannot invite attendees without Domain-Wide Delegation of Authority."
+  return msg.includes('service accounts') && msg.includes('cannot invite attendees');
 }
 
 export async function upsertGoogleEvent(session: any) {
@@ -77,52 +102,58 @@ export async function upsertGoogleEvent(session: any) {
 
   const full = cap && reserved >= cap;
 
-  // attendees (zo zaplatených/potvrdených bookingov)
   const attendees = attendeeEmailsFromBookings(session.bookings || []);
+  const includeAttendees = shouldIncludeAttendees();
 
-  // či posielať attendees do Kalendára (default: true), môžeš vypnúť cez GCAL_INCLUDE_ATTENDEES=false
-  const includeAttendees =
-    String(process.env.GCAL_INCLUDE_ATTENDEES ?? 'true').toLowerCase() !== 'false';
+  const descriptionLines = [
+    session.product?.name ? `Produkt: ${session.product.name}` : null,
+    session.product?.slug ? `Slug: ${session.product.slug}` : null,
+    `Obsadenosť: ${reserved}/${cap}`,
+    session.public_url ? `Registrácia: ${session.public_url}` : null,
+  ].filter(Boolean) as string[];
 
-  const requestBody: any = {
+  // Ak chceš (napr. pre debug), dá sa prilepiť aj prvý email do description:
+  if (String(process.env.GCAL_DESCRIPTION_PRIMARY_EMAIL || 'false').toLowerCase() === 'true') {
+    if (attendees[0]?.email) descriptionLines.push(`Kontakt: ${attendees[0].email}`);
+  }
+
+  // Základný request body s attendees (ak povolené)
+  const baseBody: any = {
     summary,
-    description: [
-      session.product?.name ? `Produkt: ${session.product.name}` : null,
-      session.product?.slug ? `Slug: ${session.product.slug}` : null,
-      `Obsadenosť: ${reserved}/${cap}`,
-      session.public_url ? `Registrácia: ${session.public_url}` : null,
-    ].filter(Boolean).join('\n'),
-
+    description: descriptionLines.join('\n'),
     start: { dateTime: start.toISOString(), timeZone: tz },
     end:   { dateTime: end.toISOString(),   timeZone: tz },
-
     location: session.product?.name || undefined,
-    colorId: full ? '11' : undefined, // 11 ~ červená
-
-    // zobraz emaily priamo v udalosti ako hostí (NEposielame pozvánky)
-    attendees: includeAttendees && attendees.length ? attendees : undefined,
-
-    // aby sa účastníci navzájom nevideli a nemenili udalosť
+    colorId: full ? '11' : undefined,
     guestsCanInviteOthers: false,
     guestsCanSeeOtherGuests: false,
     guestsCanModify: false,
-
-    // súkromné metadáta – nevidno v UI, dostupné cez API
     extendedProperties: {
       private: {
         strapiSessionId: String(session.id),
         primaryCustomerEmail: attendees[0]?.email || '',
-      }
-    }
+        // ulož aj všetky e-maily pre istotu (API-only)
+        attendeeEmails: emailsCsv(attendees),
+      },
+    },
   };
 
-  const doCall = async () => {
+  const withAttendees = includeAttendees && attendees.length
+    ? { ...baseBody, attendees }
+    : baseBody;
+
+  const withoutAttendees = { ...baseBody };
+  delete (withoutAttendees as any).attendees;
+
+  // Jedna funkcia na insert/patch s možnosťou vypnúť attendees
+  const callOnce = async (useAttendees: boolean) => {
+    const requestBody = useAttendees ? withAttendees : withoutAttendees;
+
     if (session.googleEventId) {
       const { data } = await calendar.events.patch({
         calendarId,
         eventId: session.googleEventId,
         requestBody,
-        // žiadne emaily/pozvánky
         sendUpdates: 'none',
       });
       return data.id;
@@ -136,18 +167,37 @@ export async function upsertGoogleEvent(session: any) {
     }
   };
 
-  const eventId = await pRetry(doCall, {
+  // Najprv sa pokúsime s attendees (ak povolené). Pri špecifickej chybe automaticky fallbackneme bez attendees.
+  let eventId: string | null = null;
+
+  const doCall = async () => {
+    try {
+      eventId = await callOnce(Boolean(includeAttendees && attendees.length));
+    } catch (err: any) {
+      // ak je to práve „Service accounts cannot invite attendees…“, retry bez attendees
+      if (isAttendeeError(err)) {
+        // @ts-ignore
+        strapi?.log?.warn?.('[gcal] attendees not allowed by SA; retrying without attendees');
+        eventId = await callOnce(false);
+      } else {
+        throw err;
+      }
+    }
+    return eventId!;
+  };
+
+  const resultId = await pRetry(doCall, {
     retries: 4,
     factor: 2,
     minTimeout: 500,
     maxTimeout: 4000,
     onFailedAttempt: (err: any) => {
-      // @ts-ignore - strapi typy nemusia byť vždy viditeľné
+      // @ts-ignore
       strapi?.log?.warn?.(`[gcal] attempt ${err.attemptNumber} failed: ${err.message}`);
-    }
+    },
   });
 
-  return eventId;
+  return resultId;
 }
 
 export async function deleteGoogleEvent(googleEventId: string) {
