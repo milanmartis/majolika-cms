@@ -40,13 +40,20 @@ export function occupancyFromBookings(bookings: Booking[] = []) {
     .filter(b => ok.has((b.status || '').toLowerCase()))
     .reduce((sum, b) => sum + Number(b.peopleCount || 0), 0);
 }
-function allAttendeeLines(attendees: Array<{email:string; displayName?:string}>) {
+function allAttendeeLines(attendees: Array<{ email: string; displayName?: string }>) {
     if (!attendees.length) return [];
     return [
       'Účastníci:',
-      ...attendees.map(a => `• ${a.displayName ? `${a.displayName} <${a.email}>` : a.email}`)
+      ...attendees.map(a => {
+        const email = (a.email || '').trim();
+        const name  = (a.displayName || '').trim();
+        if (email && name) return `• ${name} (${email})`;          // meno + email
+        if (email)         return `• ${email}`;                     // len email
+        if (name)          return `• ${name} (bez e-mailu)`;        // fallback bez emailu
+        return '• (neznámy účastník)';
+      }),
     ];
-}
+  }
 
 
 function attendeeEmailsFromBookings(
