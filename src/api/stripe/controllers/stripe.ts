@@ -520,105 +520,91 @@ export default {
   },
 
   // 1) Založenie platby
-  async create(ctx: any) {
-    try {
-      const { orderId, frontendUrl } = ctx.request.body || {};
-      if (!MERCHANT || !SECRET) ctx.throw(500, 'Comgate not configured');
-      if (!orderId || !Number.isFinite(Number(orderId))) ctx.throw(400, 'orderId is required');
-  
-      strapi.log.info(`[COMGATE][CREATE][IN] body=${redact(ctx.request.body)}`);
-  
-      // 1) načítaj objednávku a sumu
-      const { ord, expectedCents } = await getOrderAndExpectedCents(Number(orderId));
-  
-      // 2) zisti bridge base (absolútna URL na /api/payments/return)
-      const serverUrl =
-        process.env.RETURN_BRIDGE || // preferovaný explicitný bridge
-        (strapi.config?.get?.('server.url') as string | undefined) ||
-        process.env.PUBLIC_BACKEND_URL ||
-        process.env.BACKEND_URL ||
-        ''; // musí byť absolútna; ak by bolo prázdne, Comgate redirect nemusí fungovať
-      const bridgeBase = `${String(serverUrl).replace(/\/$/, '')}/api/payments/return`;
-  
-      // 3) voliteľný FE origin (allowlist)
-      let feParam = '';
-      try {
-        const fe = String(frontendUrl || '').trim();
-        const allow = String(process.env.ALLOWED_FE_ORIGINS || '')
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean);
-        if (fe && allow.includes(fe)) {
-          feParam = `&fe=${encodeURIComponent(fe)}`;
-        }
-      } catch {}
-  
-      // 4) poskladaj návratové URL s NAŠÍMI parametrami
-      const withState = (state: 'PAID' | 'CANCELLED' | 'PENDING') =>
-        `${bridgeBase}?state=${encodeURIComponent(state)}&refId=${encodeURIComponent(String(ord.id))}${feParam}`;
-  
-      const url_paid      = withState('PAID');
-      const url_cancelled = withState('CANCELLED');
-      const url_pending   = withState('PENDING');
-  
-      // 5) Comgate create payload
-      const body = qs.stringify({
-        merchant: MERCHANT,
-        test: TEST ? 'true' : 'false',
-        country: 'SK',
-        price: expectedCents,
-        curr: 'EUR',
-        label: clampLabel(`Order #${ord.id}`),
-        refId: String(ord.id),
-        method: 'ALL',
-        email: ord.customerEmail || '',
-        fullName: ord.customerName || 'Customer',
-        prepareOnly: 'true',
-  
-        // kľúčové: použijeme náš bridge s refId/state (+ prípadné fe)
-        url_paid,
-        url_cancelled,
-        url_pending,
-  
-        secret: SECRET,
-      });
-  
-      // 6) volanie Comgate /create
-      const res: any = await fetchWithTimeout(
-        `${API}/create`,
-        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/x-www-form-urlencoded' }, body },
-        8000
-      );
-  
-      const txt = await res.text();
-      const parsed = Object.fromEntries(new URLSearchParams(txt));
-      strapi.log.info(`[COMGATE][CREATE][OUT] code=${parsed.code} transId=${parsed.transId}`);
-  
-      if (parsed.code !== '0') {
-        strapi.log.error('[COMGATE][CREATE] error:', sanitizeComgateRaw(parsed));
-        ctx.throw(400, parsed.message || 'Comgate create error');
-      }
-  
-      // 7) zapíš transId do objednávky (prepojenie)
-      try {
-        await strapi.db.query('api::order.order').update({
-          where: { id: Number(ord.id) },
-          data: { comgateTransId: parsed.transId, paymentStatus: 'unpaid' },
-        });
-      } catch (e) {
-        strapi.log.warn(`[COMGATE][CREATE] could not persist transId for order ${ord.id}: ${String(e)}`);
-      }
-  
-      // 8) redirect URL (decode ak je percent-encodnutá)
-      let paymentUrl = parsed.redirect;
-      try { paymentUrl = decodeURIComponent(parsed.redirect); } catch {}
-  
-      ctx.body = { transId: parsed.transId, paymentUrl, message: parsed.message };
-    } catch (err: any) {
-      strapi.log.error('[COMGATE][CREATE] failed:', err?.message || err);
-      throw err;
+// 1) Uisti sa, že máš import qs a fetch (už máš)
+// import qs from 'qs';
+// import fetch from 'node-fetch';
+
+async create(ctx: any) {
+  try {
+    const { orderId } = ctx.request.body || {};
+    if (!MERCHANT || !SECRET) ctx.throw(500, 'Comgate not configured');
+    if (!orderId || !Number.isFinite(Number(orderId))) ctx.throw(400, 'orderId is required');
+
+    strapi.log.info(`[COMGATE][CREATE][IN] body=${redact(ctx.request.body)}`);
+
+    const { ord, expectedCents } = await getOrderAndExpectedCents(Number(orderId));
+
+    // --- Bridge base: /api/payments/return (server.url z konfigurácie Strapi)
+    const SERVER_URL = (strapi.config?.get?.('server.url') as string) || '';
+    const bridgeBase = `${String(SERVER_URL).replace(/\/$/, '')}/api/payments/return`;
+
+    // Preferuj ENV ak sú, inak použi bridgeBase. VŽDY pridaj status + placeholdery.
+    const url_paid      = (process.env.RETURN_PAID      || `${bridgeBase}?status=PAID&refId=\${refId}&transId=\${id}`);
+    const url_cancelled = (process.env.RETURN_CANCELLED || `${bridgeBase}?status=CANCELLED&refId=\${refId}&transId=\${id}`);
+    const url_pending   = (process.env.RETURN_PENDING   || `${bridgeBase}?status=PENDING&refId=\${refId}&transId=\${id}`);
+
+    // Pozn.: prepareOnly=true → my získame redirect URL a sami presmerujeme FE na Comgate
+    const body = qs.stringify({
+      merchant: MERCHANT,
+      test: TEST ? 'true' : 'false',
+      country: 'SK',
+      price: expectedCents,
+      curr: 'EUR',
+      label: clampLabel(`Order #${ord.id}`),
+      refId: String(ord.id),
+      method: 'ALL',
+      email: ord.customerEmail || '',
+      fullName: ord.customerName || 'Customer',
+      prepareOnly: 'true',
+      // --- kľúčové: návratové URL so šablónami ${id} (transId) a ${refId} (order)
+      url_paid,
+      url_cancelled,
+      url_pending,
+      secret: SECRET,
+    });
+
+    const res: any = await fetchWithTimeout(`${API}/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/x-www-form-urlencoded' },
+      body,
+    }, 8000);
+
+    const txt = await res.text();
+    const parsed = Object.fromEntries(new URLSearchParams(txt));
+    strapi.log.info(`[COMGATE][CREATE][OUT] code=${parsed.code} transId=${parsed.transId} redirect=${parsed.redirect ? '[present]' : '[missing]'}`);
+
+    if (parsed.code !== '0') {
+      strapi.log.error('[COMGATE][CREATE] error:', sanitizeComgateRaw(parsed));
+      ctx.throw(400, parsed.message || 'Comgate create error');
     }
-  },
+
+    // Ulož transId k objednávke (na istotu)
+    try {
+      await strapi.db.query('api::order.order').update({
+        where: { id: Number(ord.id) },
+        data: { comgateTransId: parsed.transId, paymentStatus: 'unpaid' },
+      });
+    } catch (e) {
+      strapi.log.warn(`[COMGATE][CREATE] could not persist transId for order ${ord.id}: ${String(e)}`);
+    }
+
+    let paymentUrl = parsed.redirect;
+    try { paymentUrl = decodeURIComponent(parsed.redirect); } catch {}
+
+    // FE si uloží transId a presmeruje zákazníka na paymentUrl
+    ctx.body = {
+      transId: parsed.transId,
+      paymentUrl,
+      message: parsed.message,
+      // pomocný debug blok – na chvíľu si ho tu nechaj
+      debug: { url_paid, url_cancelled, url_pending }
+    };
+  } catch (err: any) {
+    strapi.log.error('[COMGATE][CREATE] failed:', err?.message || err);
+    throw err;
+  }
+},
+
 
   // 2) Webhook (push)
   async webhook(ctx: any) {
