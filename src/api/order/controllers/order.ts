@@ -269,70 +269,59 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
   async shipPacketa(ctx) {
     const id = Number(ctx.params.id);
     const { weightKg } = ctx.request.body || {};
-
-    if (!id) return ctx.badRequest('Missing order id');
-    if (!weightKg || Number(weightKg) <= 0) return ctx.badRequest('weightKg is required');
-
-    // načítaj objednávku (kvôli kontrole a documentId)
-    const order = await strapi.entityService.findOne('api::order.order', id, {
+  
+    if (!Number.isFinite(id)) return ctx.badRequest('Invalid order id');
+    const w = Number(weightKg);
+    if (!Number.isFinite(w) || w <= 0) return ctx.badRequest('weightKg is required');
+  
+    // 🔁 Documents API – nájdi dokument podľa numeric id
+    const order = await strapi.documents('api::order.order').findFirst({
+      filters: { id },
       populate: ['deliveryDetails', 'deliveryAddress'],
-    }) as unknown as OrderWithPacketa;
-
+    }) as unknown as OrderWithPacketa | null;
+  
     if (!order) return ctx.notFound('Order not found');
-    if (order.deliveryMethod !== 'packeta_box') {
-      return ctx.badRequest('Order is not Packeta delivery');
+    if (order.deliveryMethod !== 'packeta_box') return ctx.badRequest('Order is not Packeta delivery');
+    if (!order.deliveryDetails?.packetaBoxId) return ctx.badRequest('Missing Packeta pickup point');
+    if (!order.documentId) {
+      // v Strapi v5 by mal mať každý záznam documentId – ak nie, radšej failni
+      return ctx.throw(500, 'Order has no documentId (unexpected in Strapi v5)');
     }
-    if (!order.deliveryDetails?.packetaBoxId) {
-      return ctx.badRequest('Missing Packeta pickup point');
-    }
-
-    // documentId je potrebné pre Document Service update
-    const documentId = (order as any).documentId as string | undefined;
-    if (!documentId) {
-      strapi.log.warn(`[PACKETA][SHIP] Missing documentId for order id=${id}, falling back to entityService.update (deprecated).`);
-    }
-
+  
     try {
-      // 1) vytvor zásielku cez service
+      // ⚠️ oprav názov service na tvoju Packeta službu
       const shipping = await strapi
-        .service('api::shipping.shipping')
-        .createShipmentFromOrder(order as any, { weightKg: Number(weightKg) });
-
-      // 2) ulož Packeta polia a posuň statusy
+        .service('api::packeta.packeta')
+        .createShipmentFromOrder(order as any, { weightKg: w });
+  
       const updateData = {
-        parcelWeightKg: Number(weightKg),
+        parcelWeightKg: w,
         packetaShipmentId: shipping.shipmentId ?? null,
         packetaTrackingNumber: shipping.trackingNumber ?? null,
         packetaLabelUrl: shipping.labelUrl ?? null,
         packetaStatus: 'created',
         deliveryStatus: 'label_created',
         fulfillmentStatus: 'processing',
-      } as any;
-
-      if (documentId) {
-        // preferovaný spôsob v Strapi v5 – Document Service
-        await strapi.documents('api::order.order').update({
-          documentId,
-          data: updateData,
-        });
-      } else {
-        // fallback: deprecated entityService.update (ak by dokument nemal documentId)
-        await strapi.entityService.update('api::order.order', id, { data: updateData });
-      }
-
-      // 3) odpoveď API
+      };
+  
+      // 🔁 Documents API update – žiadny deprecated fallback
+      await strapi.documents('api::order.order').update({
+        documentId: order.documentId,
+        data: updateData as any,
+      });
+  
       ctx.body = {
         ok: true,
         shipmentId: shipping.shipmentId ?? null,
         trackingNumber: shipping.trackingNumber ?? null,
         labelUrl: shipping.labelUrl ?? null,
       };
-    } catch (e) {
-      strapi.log.error('[PACKETA][SHIP] error', e);
-      return ctx.internalServerError('Packeta ship failed');
+    } catch (e: any) {
+      strapi.log.error('[PACKETA][SHIP] error', e?.message || e);
+      return ctx.throw(502, 'Packeta ship failed');
     }
   },
-
+  
   // GET /orders/my
   async my(ctx) {
     const user = ctx.state.user;
