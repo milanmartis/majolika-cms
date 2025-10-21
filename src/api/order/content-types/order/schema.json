@@ -89,7 +89,10 @@
     "packetaShipmentId": { "type": "string" },
     "packetaTrackingNumber": { "type": "string" },
     "packetaLabelUrl": { "type": "text" },
-    "packetaStatus": { "type": "string" },
+    "packetaStatus": {
+      "type": "enumeration",
+      "enum": ["created","label_downloaded","shipped","delivered","cancelled"]
+    },
 
     "temporaryId": { "type": "string" }
   }
