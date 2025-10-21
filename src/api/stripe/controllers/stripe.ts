@@ -781,120 +781,144 @@ async create(ctx: any) {
   },
 
   // 4) Bridge endpoint pre Comgate redirecty (PAID/CANCELLED/PENDING) -> aktualizuje DB a presmeruje na FE
-  async returnBridge(ctx: any) {
-    try {
-      const q: any = ctx.query || {};
-      const FRONTEND = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
   
-      // --- hore v returnBridge:
-const to = {
-  // pending -> pošleme na success, kde FE polluje a ukáže "prebieha"
-  pending:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
-  success:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
-  cancelled: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${id}` : `/checkout/cancelled?order=${id}`),
-  fallback:  ()            => (FRONTEND ? `${FRONTEND}/checkout` : `/checkout`),
-};
-  
-      const statusParam = String(q.status || q.state || '').toUpperCase();
-      let transId: string | null =
-        (q.transId || q.transID || q.transactionId || q.id)
-          ? String(q.transId || q.transID || q.transactionId || q.id)
-          : null;
-      const refIdQ: number | null =
-        Number(q.refId || q.refID || q.reference || q.order || q.orderId || 0) || null;
-  
-      // --- PENDING shortcut (len UI, bez DB zápisu) ---
-      if (statusParam === 'PENDING') {
-        if (refIdQ) { ctx.status = 302; ctx.redirect(to.pending(refIdQ)); return; }
-        ctx.status = 302; ctx.redirect(to.fallback()); return;
-      }
-  
-      // nájdi objednávku najprv podľa transId, potom podľa refId
-      let order: OrderRecord | null = null;
-      if (transId) {
-        order = await strapi.db.query('api::order.order').findOne({
-          where: { comgateTransId: String(transId) },
-          select: ['id','paymentStatus','orderStatus','fulfillmentStatus','comgateTransId'],
-        }) as any;
-      }
-      if (!order && refIdQ) {
-        order = await strapi.db.query('api::order.order').findOne({
-          where: { id: Number(refIdQ) },
-          select: ['id','paymentStatus','orderStatus','fulfillmentStatus','comgateTransId'],
-        }) as any;
-      }
-  
-      // nič nevieme → fallback /checkout
-      if (!order && !refIdQ) { ctx.status = 302; ctx.redirect(to.fallback()); return; }
-      // vieme aspoň refId → pošli pending pre danú objednávku
-      if (!order && refIdQ) { ctx.status = 302; ctx.redirect(to.pending(refIdQ)); return; }
-  
-      // doplň transId z DB, ak chýba v query
-      if (!transId && order!.comgateTransId) transId = String(order!.comgateTransId);
-  
-      // --- CANCELLED-like už v samotnom query → hneď zapíš a presmeruj ---
-      if (['CANCELLED','CANCELED','REJECTED','TIMEOUT','EXPIRED'].includes(statusParam)) {
-        try {
-          await strapi.db.query('api::order.order').update({
-            where: { id: order!.id },
-            data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },
-          });
-        } catch (e) { strapi.log.error(`[COMGATE][RETURN][CANCEL immediate] #${order!.id}:`, e); }
-        ctx.status = 302; ctx.redirect(to.cancelled(order!.id)); return;
-      }
-  
-      // bez transId nevieme overiť – ukáž pending pre túto objednávku
-      if (!transId) { ctx.status = 302; ctx.redirect(to.pending(order!.id)); return; }
-  
-      // dotiahni stav z Comgate
-      const s = await comgateStatus(String(transId));
-  
-      // cancel-like zo statusu → zapíš a presmeruj
-      if (isCancelledLike((s as any).status)) {
-        try {
-          await strapi.db.query('api::order.order').update({
-            where: { id: order!.id },
-            data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },
-          });
-        } catch (e) { strapi.log.error(`[COMGATE][RETURN][CANCEL] #${order!.id}:`, e); }
-        ctx.status = 302; ctx.redirect(to.cancelled(order!.id)); return;
-      }
-  
-      // code != 0 → nepresvedčivé dáta → UI pending (nie holý /checkout)
-      if (String((s as any).code) !== '0') {
-        ctx.status = 302; ctx.redirect(to.pending(order!.id)); return;
-      }
-  
-      // Guardy len pre "paid" vetvu (refId/currency/amount)
-      const { expectedCents } = await getOrderAndExpectedCents(order!.id);
-      const statusRefId = Number((s as any).refId || (s as any).refID || (s as any).reference || 0);
-      const statusCurr  = String((s as any).curr || (s as any).currency || '').toUpperCase();
-      const statusPrice = Number((s as any).price || (s as any).amount || 0);
-  
-      if ((statusRefId && statusRefId !== order!.id) ||
-          (statusCurr && statusCurr !== 'EUR') ||
-          (statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
-        ctx.status = 302; ctx.redirect(to.pending(order!.id)); return;
-      }
-  
-      // PAID → update + after-paid + success
-      const normalized = mapComgateToOrder(String((s as any).status || ''));
-      if (normalized === 'paid') {
-        try {
-          const prev = order!.paymentStatus || 'unpaid';
-          if (prev !== 'paid') {
-            await strapi.db.query('api::order.order').update({ where: { id: order!.id }, data: { paymentStatus: 'paid' } });
-            await runPostPaidFlow(order!.id);
-          }
-        } catch (e) { strapi.log.error('[COMGATE][RETURN][PAID] update/send:', e); }
-        ctx.status = 302; ctx.redirect(to.success(order!.id)); return;
-      }
-  
-      // iné → pending
-      ctx.status = 302; ctx.redirect(to.pending(order!.id));
-    } catch (e: any) {
-      strapi.log.error('[COMGATE][RETURN] error:', e?.message || e);
-      ctx.status = 500; ctx.body = 'Internal error';
+
+  // 4) Bridge endpoint pre Comgate redirecty (PAID/CANCELLED/PENDING)
+//    → aktualizuje DB a vždy presmeruje na FE:
+//       - CANCELLED → /checkout/cancelled?order=<id>
+//       - PENDING alebo nejednoznačný stav → /checkout/success?order=<id> (FE spraví polling)
+//       - PAID → /checkout/success?order=<id>
+async returnBridge(ctx: any) {
+  try {
+    const q: any = ctx.query || {};
+
+    const FRONTEND = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
+    const to = {
+      // 🔑 pending už neposielame na samostatnú stránku – nech to rieši success + polling
+      pending:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
+      success:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
+      cancelled: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${id}` : `/checkout/cancelled?order=${id}`),
+      fallback:  ()            => (FRONTEND ? `${FRONTEND}/checkout`                      : `/checkout`),
+    };
+
+    const redirect = (loc: string) => {
+      strapi.log.info(`[COMGATE][RETURN] 302 -> ${loc}`);
+      ctx.status = 302;
+      ctx.redirect(loc);
+    };
+
+    const statusParam = String(q.status || q.state || '').toUpperCase();
+    let transId: string | null =
+      (q.transId || q.transID || q.transactionId || q.id)
+        ? String(q.transId || q.transID || q.transactionId || q.id)
+        : null;
+
+    const refIdQ: number | null =
+      Number(q.refId || q.refID || q.reference || q.order || q.orderId || 0) || null;
+
+    // --- PENDING shortcut (len UI, bez DB zápisu) ---
+    if (statusParam === 'PENDING') {
+      if (refIdQ) return redirect(to.pending(refIdQ));
+      return redirect(to.fallback());
     }
-  },
+
+    // nájdi objednávku najprv podľa transId, potom podľa refId
+    let order: OrderRecord | null = null;
+    if (transId) {
+      order = await strapi.db.query('api::order.order').findOne({
+        where: { comgateTransId: String(transId) },
+        select: ['id','paymentStatus','orderStatus','fulfillmentStatus','comgateTransId'],
+      }) as any;
+    }
+    if (!order && refIdQ) {
+      order = await strapi.db.query('api::order.order').findOne({
+        where: { id: Number(refIdQ) },
+        select: ['id','paymentStatus','orderStatus','fulfillmentStatus','comgateTransId'],
+      }) as any;
+    }
+
+    // nič nevieme → fallback /checkout
+    if (!order && !refIdQ) return redirect(to.fallback());
+    // vieme aspoň refId → pošli "pending" (t.j. success+polling) pre danú objednávku
+    if (!order && refIdQ) return redirect(to.pending(refIdQ));
+
+    // doplň transId z DB, ak chýba v query
+    if (!transId && order!.comgateTransId) transId = String(order!.comgateTransId);
+
+    // --- CANCELLED-like už v samotnom query → hneď zapíš a presmeruj ---
+    if (['CANCELLED','CANCELED','REJECTED','TIMEOUT','EXPIRED'].includes(statusParam)) {
+      try {
+        await strapi.db.query('api::order.order').update({
+          where: { id: order!.id },
+          data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },
+        });
+      } catch (e) {
+        strapi.log.error(`[COMGATE][RETURN][CANCEL immediate] #${order!.id}:`, e);
+      }
+      return redirect(to.cancelled(order!.id));
+    }
+
+    // bez transId nevieme overiť – ukaž success (FE urobí polling)
+    if (!transId) return redirect(to.pending(order!.id));
+
+    // dotiahni stav z Comgate
+    const s = await comgateStatus(String(transId));
+
+    // cancel-like zo statusu → zapíš a presmeruj
+    if (isCancelledLike((s as any).status)) {
+      try {
+        await strapi.db.query('api::order.order').update({
+          where: { id: order!.id },
+          data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },
+        });
+      } catch (e) {
+        strapi.log.error(`[COMGATE][RETURN][CANCEL] #${order!.id}:`, e);
+      }
+      return redirect(to.cancelled(order!.id));
+    }
+
+    // code != 0 → nepresvedčivé dáta → UI success (polling vyrieši)
+    if (String((s as any).code) !== '0') {
+      return redirect(to.pending(order!.id));
+    }
+
+    // Guardy len pre "paid" vetvu (refId/currency/amount)
+    const { expectedCents } = await getOrderAndExpectedCents(order!.id);
+    const statusRefId = Number((s as any).refId || (s as any).refID || (s as any).reference || 0);
+    const statusCurr  = String((s as any).curr || (s as any).currency || '').toUpperCase();
+    const statusPrice = Number((s as any).price || (s as any).amount || 0);
+
+    if ((statusRefId && statusRefId !== order!.id) ||
+        (statusCurr && statusCurr !== 'EUR') ||
+        (statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
+      // radšej do success (FE ukáže "Platba prebieha" a spraví retry)
+      return redirect(to.pending(order!.id));
+    }
+
+    // PAID → update + after-paid + success
+    const normalized = mapComgateToOrder(String((s as any).status || ''));
+    if (normalized === 'paid') {
+      try {
+        const prev = order!.paymentStatus || 'unpaid';
+        if (prev !== 'paid') {
+          await strapi.db.query('api::order.order').update({
+            where: { id: order!.id },
+            data: { paymentStatus: 'paid' },
+          });
+          await runPostPaidFlow(order!.id);
+        }
+      } catch (e) {
+        strapi.log.error('[COMGATE][RETURN][PAID] update/send:', e);
+      }
+      return redirect(to.success(order!.id));
+    }
+
+    // iné → success (FE pending → paid cez polling)
+    return redirect(to.pending(order!.id));
+  } catch (e: any) {
+    strapi.log.error('[COMGATE][RETURN] error:', e?.message || e);
+    ctx.status = 500;
+    ctx.body = 'Internal error';
+  }
+}
 };
