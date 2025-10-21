@@ -39,7 +39,7 @@ type OrderWithShipping = {
 };
 
 export default factories.createCoreController('api::order.order', ({ strapi }) => ({
-
+  async ping(ctx) { ctx.send({ ok: true }); },
   async create(ctx) {
     const body = ctx.request.body || {};
     const data = body.data || {};
