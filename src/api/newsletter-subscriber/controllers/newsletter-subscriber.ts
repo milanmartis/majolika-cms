@@ -1,21 +1,64 @@
 // src/api/newsletter-subscriber/controllers/newsletter-subscriber.ts
 import { factories } from '@strapi/strapi';
-import type { Core } from '@strapi/types'; // ⬅️ namiesto 'Strapi' z @strapi/strapi
+import type { Core } from '@strapi/types';
 import { randomUUID } from 'node:crypto';
+import fetch from 'node-fetch'; // alebo undici
 
 const SUB_UID = 'api::newsletter-subscriber.newsletter-subscriber';
 const LOG_UID = 'api::newsletter-consent-log.newsletter-consent-log';
 
+const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+async function verifyTurnstile(token?: string | null): Promise<boolean> {
+  const secret = process.env.TURNSTILE_SECRET || '';
+  // Ak nechceš v DEV kontrolu, nechaj bez SECRET prejsť:
+  if (!secret) return true;
+  if (!token) return false;
+
+  try {
+    const res = await fetch(TURNSTILE_VERIFY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret, response: token }) as any,
+    });
+    const json: any = await res.json();
+    return !!json?.success;
+  } catch {
+    return false;
+  }
+}
+
 export default factories.createCoreController(SUB_UID as any, ({ strapi }) => ({
   async subscribe(ctx) {
+    // ⬇️ ANTI-BOT GUARD (honeypot + minimálny čas + captcha)
+    const now = Date.now();
     const {
       email,
       source = 'api',
       locale,
       consent_text_version,
       double_opt_in = true,
+
+      // anti-bot polia z FE:
+      hp,               // honeypot (skryté input)
+      ts,               // timestamp pri rendri (ms)
+      captchaToken,     // Turnstile/recaptcha token (ak používaš)
     } = ctx.request.body || {};
 
+    // Honeypot musí byť prázdny
+    if (hp) return ctx.badRequest('bot');
+
+    // Minimálny čas (napr. 1500 ms od "renderu" formulára)
+    const tsNum = Number(ts);
+    if (!Number.isFinite(tsNum) || now - tsNum < 1500) {
+      return ctx.badRequest('too_fast');
+    }
+
+    // (Voliteľné) Turnstile verifikácia
+    const captchaOk = await verifyTurnstile(captchaToken);
+    if (!captchaOk) return ctx.badRequest('captcha_failed');
+
+    // --- pôvodný kód pokračuje ---
     if (!email) return ctx.badRequest('Missing email');
 
     const norm = String(email).trim().toLowerCase();
@@ -61,9 +104,7 @@ export default factories.createCoreController(SUB_UID as any, ({ strapi }) => ({
           : await (strapi.documents as any)(SUB_UID).create({ data });
 
       const confirmUrlBase = process.env.PUBLIC_FRONT_URL ?? '';
-      const confirmUrl = `${confirmUrlBase}/newsletter/confirm?token=${encodeURIComponent(
-        token
-      )}`;
+      const confirmUrl = `${confirmUrlBase}/newsletter/confirm?token=${encodeURIComponent(token)}`;
 
       await strapi.plugin('email').service('email').send({
         to: norm,
@@ -114,6 +155,7 @@ export default factories.createCoreController(SUB_UID as any, ({ strapi }) => ({
   },
 
   async confirm(ctx) {
+    // ... NECHÁVAŠ BEZ ZMENY ...
     const token = String(ctx.request.query.token ?? '');
     if (!token) return ctx.badRequest('Missing token');
 
@@ -152,6 +194,7 @@ export default factories.createCoreController(SUB_UID as any, ({ strapi }) => ({
   },
 
   async unsubscribe(ctx) {
+    // ... NECHÁVAŠ BEZ ZMENY ...
     const { email } = ctx.request.body || {};
     if (!email) return ctx.badRequest('Missing email');
 
@@ -189,15 +232,11 @@ export default factories.createCoreController(SUB_UID as any, ({ strapi }) => ({
 
 async function logConsent(
   subscriberDocumentId: string,
-  event:
-    | 'subscribe_request'
-    | 'subscribe_confirm'
-    | 'unsubscribe'
-    | 'resubscribe',
+  event: 'subscribe_request' | 'subscribe_confirm' | 'unsubscribe' | 'resubscribe',
   ip: string,
   ua: string,
   version: string | undefined,
-  strapi: Core.Strapi // ⬅️ tu je správny typ
+  strapi: Core.Strapi
 ) {
   try {
     await (strapi.documents as any)(LOG_UID).create({

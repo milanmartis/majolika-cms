@@ -6,7 +6,7 @@ export default [
   // VLASTNÝ DEBUG MIDDLEWARE
   // { resolve: './src/middlewares/stripe-raw', config: {} },
 
-  // Rozšírené logovanie pre debug
+  // Rozšírené parsovanie tela (vrátane RAW pre Stripe webhooky)
   {
     name: 'strapi::body',
     config: {
@@ -48,6 +48,8 @@ export default [
             "'unsafe-eval'",
             'https://www.youtube.com',
             'https://cdn.ckeditor.com',
+            // (voliteľne) ak nasadíš Turnstile, odkomentuj:
+            // 'https://challenges.cloudflare.com',
           ],
           /* Štýly (CKEditor) */
           'style-src': [
@@ -89,6 +91,8 @@ export default [
             "'self'",
             'https://www.youtube.com',
             'https://www.youtube-nocookie.com',
+            // (voliteľne) Turnstile:
+            // 'https://challenges.cloudflare.com',
           ],
         },
       },
@@ -107,7 +111,6 @@ export default [
         // 'https://majolika.sk',
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      // povolené request headery pre preflight (vrátane cache-control)
       headers: [
         'Content-Type',
         'Authorization',
@@ -118,34 +121,28 @@ export default [
         'pragma',
       ],
       credentials: true,
-      keepHeadersOnError: true, // fix: správny názov kľúča
+      keepHeadersOnError: true,
     },
   },
 
-  // ✅ Ostatné default middlewares
+  // ✅ PoweredBy a query parser
   'strapi::poweredBy',
   'strapi::query',
 
-  // Session – secure len v produkcii; pre cross-site potrebuje SameSite=None + Secure
-  // {
-  //   name: 'strapi::session',
-  //   config: {
-  //     secure: isProd,                     // v produkcii vyžaduj HTTPS
-  //     sameSite: isProd ? 'none' : 'lax',  // v dev povolenejšie
-  //     proxy: true,                        // dôveruj X-Forwarded-* hlavičkám
-  //   },
-  // },
-  // <<< vlož debug >>>
-  // { name: 'global::https-debug' },
-  // session musí ostať secure v prod
+  // 🔒 Rate-limit a veľkostná kontrola pre /api/newsletter/subscribe
+  // (umiestnené ešte pred session/public, aby chytilo request včas)
+  { name: 'global::newsletter-guard' },
+
+  // Session – secure v produkcii; pre cross-site potrebuje Secure + vhodné SameSite
   {
     name: 'strapi::session',
     config: {
       key: 'strapi.sid',
-      secure: true,        // Secure cookie v prod
-      sameSite: 'lax',
+      secure: true,      // Secure cookie v prod
+      sameSite: 'lax',   // ak by si riešil cross-site cookies, zváž 'none' + HTTPS
     },
   },
+
   'strapi::favicon',
   'strapi::public',
 
