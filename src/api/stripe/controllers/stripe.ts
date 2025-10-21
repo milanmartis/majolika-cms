@@ -786,12 +786,14 @@ async create(ctx: any) {
       const q: any = ctx.query || {};
       const FRONTEND = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
   
-      const to = {
-        pending:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/pending?order=${id}`   : `/checkout/pending?order=${id}`),
-        success:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
-        cancelled: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${id}` : `/checkout/cancelled?order=${id}`),
-        fallback:  ()            => (FRONTEND ? `${FRONTEND}/checkout` : `/checkout`),
-      };
+      // --- hore v returnBridge:
+const to = {
+  // pending -> pošleme na success, kde FE polluje a ukáže "prebieha"
+  pending:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
+  success:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
+  cancelled: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${id}` : `/checkout/cancelled?order=${id}`),
+  fallback:  ()            => (FRONTEND ? `${FRONTEND}/checkout` : `/checkout`),
+};
   
       const statusParam = String(q.status || q.state || '').toUpperCase();
       let transId: string | null =
