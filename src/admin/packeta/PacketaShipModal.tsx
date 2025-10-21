@@ -6,7 +6,6 @@ type Props = {
   onClose: () => void;
   onSuccess?: () => void;
 };
-
 const PacketaShipModal: React.FC<Props> = ({ onClose, onSuccess }) => {
   const { initialData } = useCMEditViewDataManager();
   const orderId = Number(initialData?.id);              // ← číselné ID z edit view

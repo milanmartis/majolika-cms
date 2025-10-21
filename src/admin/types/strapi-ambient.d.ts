@@ -8,8 +8,6 @@ declare module '@strapi/helper-plugin' {
       put: (url: string, body?: any, cfg?: any) => Promise<any>;
       del: (url: string, cfg?: any) => Promise<any>;
     };
-    export function useCMEditViewDataManager(): {
-      initialData: any;
-    };
+    export function useCMEditViewDataManager(): { initialData: any };
   }
   
