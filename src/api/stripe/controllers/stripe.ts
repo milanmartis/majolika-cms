@@ -684,11 +684,18 @@ async create(ctx: any) {
     const statusCurr = String((status as any).curr || (status as any).currency || '').toUpperCase();
     const statusPrice = Number((status as any).price || (status as any).amount || 0);
 
-    const { expectedCents } = await getOrderAndExpectedCents(order.id);
+    let expectedCents: number | null = null;
+    try {
+      ({ expectedCents } = await getOrderAndExpectedCents(order.id));
+    } catch (e) {
+      strapi.log.warn('[COMGATE][WEBHOOK] guard calc failed, skipping amount check:', (e as Error)?.message || e);
+    }
 
     if (statusRefId && statusRefId !== order.id) { ctx.status = 200; ctx.body = 'OK'; return; }
     if (statusCurr && statusCurr !== 'EUR') { ctx.status = 200; ctx.body = 'OK'; return; }
-    if (statusPrice && Math.abs(statusPrice - expectedCents) > 1) { ctx.status = 200; ctx.body = 'OK'; return; }
+    if (expectedCents !== null && statusPrice && Math.abs(statusPrice - expectedCents) > 1) {
+      ctx.status = 200; ctx.body = 'OK'; return;
+    }
 
     // CANCELLED-like — označ a skonči (konzistentne nastav aj paymentStatus)
     if (isCancelledLike((status as any).status)) {
@@ -914,14 +921,19 @@ async returnBridge(ctx: any) {
     if (String((s as any).code) !== '0') return redirect(to.pending(order!.id));
 
     // Guardy pre PAID
-    const { expectedCents } = await getOrderAndExpectedCents(order!.id);
+    let expectedCents: number | null = null;
+    try {
+      ({ expectedCents } = await getOrderAndExpectedCents(order!.id));
+    } catch (e) {
+      strapi.log.warn('[COMGATE][RETURN] guard calc failed, continuing without amount check:', (e as Error)?.message || e);
+    }
     const statusRefId = Number((s as any).refId || (s as any).refID || (s as any).reference || 0);
     const statusCurr  = String((s as any).curr || (s as any).currency || '').toUpperCase();
     const statusPrice = Number((s as any).price || (s as any).amount || 0);
 
     if ((statusRefId && statusRefId !== order!.id) ||
         (statusCurr && statusCurr !== 'EUR') ||
-        (statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
+        (expectedCents !== null && statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
       return redirect(to.pending(order!.id));
     }
 
