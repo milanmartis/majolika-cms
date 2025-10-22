@@ -39,6 +39,9 @@
       "customerEmail": {
         "type": "email"
       },
+      "customerPhone": {
+        "type": "string"
+      },
       "session": {
         "type": "relation",
         "relation": "manyToOne",

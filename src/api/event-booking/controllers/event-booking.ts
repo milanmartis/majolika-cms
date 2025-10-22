@@ -16,6 +16,7 @@ export default factories.createCoreController('api::event-booking.event-booking'
       peopleCount,
       customerName,
       customerEmail,
+      customerPhone,
       orderId,
       temporaryId, // ← Pridane
     } = ctx.request.body.data || {};
@@ -40,6 +41,7 @@ export default factories.createCoreController('api::event-booking.event-booking'
         status: 'pending',
         customerName,
         customerEmail,
+
         orderId,
         session: Number(sessionId),
         temporaryId, // ← Tu ulož aj temporaryId!

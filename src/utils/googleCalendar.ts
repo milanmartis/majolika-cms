@@ -32,6 +32,7 @@ type Booking = {
   peopleCount?: number;
   customerEmail?: string;
   customerName?: string;
+  customerPhone?: string;
 };
 
 export function occupancyFromBookings(bookings: Booking[] = []) {

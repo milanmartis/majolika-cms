@@ -16,6 +16,7 @@ type OrderWithShipping = {
   documentId?: string;
   customerName?: string | null;
   customerEmail?: string | null;
+  customerPhone?: string | null;
   deliveryMethod: DeliveryMethod;
   deliveryDetails?: {
     provider?: string | null;
@@ -123,6 +124,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     // --- Post-create logika (email, párovanie bookingov) ---
     const customerEmail: string | undefined = (order as any).customerEmail;
     const customerName: string | undefined = (order as any).customerName;
+    const customerPhone: string | undefined = (order as any).customerPhone;
     const temporaryId: string | null = body.data?.temporaryId || null;
     const items: any[] = (order as any).items || [];
     const orderId = order.id;
@@ -170,6 +172,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
             where: {
               temporaryId,
               customerEmail,
+              customerPhone, 
               orderId: null,
             },
           });
@@ -243,6 +246,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
                   status: 'confirmed',
                   customerName,
                   customerEmail,
+                  customerPhone,
                   orderId: String(orderId),
                   session: Number(item.sessionId),
                 },
@@ -351,6 +355,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
         deliveryStatus: order.deliveryStatus,
         customerName: order.customerName,
         customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
         paymentMethod: order.paymentMethod,
         totalWithShipping: order.totalWithShipping,
         items: order.items,
