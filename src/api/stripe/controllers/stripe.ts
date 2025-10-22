@@ -133,12 +133,20 @@ function aesc(s?: string) {
 function absUrl(url?: string): string {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
+
+  // robustný base – uprednostni PUBLIC_UPLOADS_URL / UPLOADS_BASE_URL, inak server.url
+  const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
-    process.env.FRONTEND_URL ||
-    (strapi.config?.get?.('server.url') as string) ||
-    '';
-  return `${String(base).replace(/\/$/, '')}${url?.startsWith('/') ? '' : '/'}${url}`;
+    process.env.UPLOADS_BASE_URL ||
+    serverUrl; // ← povinný fallback
+
+  if (!base) {
+    strapi.log.warn('[EMAIL][IMG] Missing base URL for absUrl; returning relative path');
+    return url.startsWith('/') ? url : `/${url}`;
+  }
+
+  return `${String(base).replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 function pickProductImage(product: any): string {
@@ -391,14 +399,14 @@ async function runPostPaidFlow(orderId: number) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
       where: { temporaryId: freshOrder.temporaryId, orderId: null },
       data: { orderId: String(freshOrder.id), status: 'paid', customerEmail: freshOrder.customerEmail || undefined,
-        customerName:  freshOrder.customerName  || undefined, },
+        customerName:  freshOrder.customerName  || undefined,  customerPhone: (freshOrder as any).customerPhone || undefined},
     });
     strapi.log.info(`[COMGATE][BOOKINGS] temporaryId -> paid (${res.count})`);
   }
   const res2 = await strapi.db.query('api::event-booking.event-booking').updateMany({
     where: { orderId: String(freshOrder.id) },
     data: { status: 'paid',customerEmail: freshOrder.customerEmail || undefined,
-      customerName:  freshOrder.customerName  || undefined },
+      customerName:  freshOrder.customerName  || undefined, customerPhone: (freshOrder as any).customerPhone || undefined, },
   });
   strapi.log.info(`[COMGATE][BOOKINGS] by orderId -> paid (${res2.count})`);
 

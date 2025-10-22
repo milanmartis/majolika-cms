@@ -230,6 +230,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
                   orderId: String(orderId),
                   peopleCount: item.peopleCount || 1,
                   customerName,
+                  customerPhone,
                   status: 'confirmed',
                 },
               });

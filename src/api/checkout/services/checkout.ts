@@ -46,12 +46,21 @@ function formatEvent(event?: EventInfo): string {
 function absUrl(url?: string): string {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
+
+  // robustný base – uprednostni PUBLIC_UPLOADS_URL / UPLOADS_BASE_URL, inak server.url
+  const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
-    process.env.FRONTEND_URL ||
-    (strapi.config?.get?.('server.url') as string) ||
-    '';
-  return `${String(base).replace(/\/$/, '')}${url?.startsWith('/') ? '' : '/'}${url}`;
+    process.env.UPLOADS_BASE_URL ||
+    serverUrl; // ← povinný fallback
+
+  if (!base) {
+    // posledná záchrana: vráť relatívnu, ale zaloguj
+    strapi.log.warn('[EMAIL][IMG] Missing base URL for absUrl; returning relative path');
+    return url.startsWith('/') ? url : `/${url}`;
+  }
+
+  return `${String(base).replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 // Výber hlavného obrázka produktu podľa tvojho schema.json:
 // single media: picture_new; multiple media: pictures_new[]
