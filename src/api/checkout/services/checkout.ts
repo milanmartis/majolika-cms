@@ -401,6 +401,7 @@ export default () => ({
         customer: customerId,
         customerName: customer.name,
         customerEmail: customer.email,
+        customerPhone: customer.phone,
 
         shippingAddress: {
           street: customer.street,
@@ -439,7 +440,7 @@ export default () => ({
           const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
             where: { temporaryId: order.temporaryId, orderId: null },
             data: { orderId: String(order.id), status: 'confirmed', customerEmail: customer.email,
-              customerName:  customer.name },
+              customerName:  customer.name, customerPhone: customer.phone },
 
             
           });

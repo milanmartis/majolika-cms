@@ -41,20 +41,29 @@ export function occupancyFromBookings(bookings: Booking[] = []) {
     .filter(b => ok.has((b.status || '').toLowerCase()))
     .reduce((sum, b) => sum + Number(b.peopleCount || 0), 0);
 }
-function allAttendeeLines(attendees: Array<{ email: string; displayName?: string }>) {
-    if (!attendees.length) return [];
-    return [
-      'Účastníci:',
-      ...attendees.map(a => {
-        const email = (a.email || '').trim();
-        const name  = (a.displayName || '').trim();
-        if (email && name) return `• ${name} (${email})`;          // meno + email
-        if (email)         return `• ${email}`;                     // len email
-        if (name)          return `• ${name} (bez e-mailu)`;        // fallback bez emailu
-        return '• (neznámy účastník)';
-      }),
-    ];
-  }
+function allAttendeeLines(attendees: Array<{ email?: string; displayName?: string; phone?: string }>) {
+  if (!attendees?.length) return [];
+  return [
+    'Účastníci:',
+    ...attendees.map(a => {
+      const email = (a.email || '').trim();
+      const name  = (a.displayName || '').trim();
+      let phone   = (a.phone || '').trim();
+
+      // malá drobnosť: 00 -> + (napr. 00421 -> +421)
+      if (phone.startsWith('00')) phone = '+' + phone.slice(2);
+
+      const parts: string[] = [];
+      if (name)  parts.push(name);
+      if (email) parts.push(`(${email})`);
+      if (phone) parts.push(`— tel:${phone}`);
+
+      return parts.length ? `• ${parts.join(' ')}` : '• (neznámy účastník)';
+    }),
+  ];
+}
+
+//doplnenie phone
 
 
 function attendeeEmailsFromBookings(

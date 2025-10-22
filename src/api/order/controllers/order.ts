@@ -246,9 +246,10 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
                   status: 'confirmed',
                   customerName,
                   customerEmail,
+                  customerPhone,
                   orderId: String(orderId),
                   session: Number(item.sessionId),
-                },
+                } as any,
               },
             );
 

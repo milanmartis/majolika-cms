@@ -21,6 +21,34 @@ export default factories.createCoreController('api::event-booking.event-booking'
       temporaryId, // ← Pridane
     } = ctx.request.body.data || {};
 
+
+      // 1) telefón z FE (ak prišiel)
+        let resolvedPhone =
+        (customerPhone ?? '').toString().trim();
+
+      // 2) ak chýba a prišiel orderId → načítaj z objednávky
+      if (!resolvedPhone && orderId) {
+        const order = await strapi.entityService.findOne('api::order.order', Number(orderId), {
+          populate: ['customer'],
+        });
+        resolvedPhone =
+          (order as any)?.customerPhone?.toString().trim() ||
+          (order as any)?.customer?.phone?.toString().trim() ||
+          '';
+      }
+
+      // 3) ak stále nič → skús Customer podľa emailu
+      if (!resolvedPhone && customerEmail) {
+        const customers = await strapi.entityService.findMany('api::customer.customer', {
+          filters: { email: customerEmail },
+          limit: 1,
+        });
+        resolvedPhone = customers?.[0]?.phone?.toString().trim() || '';
+      }
+
+      // 4) ľahká sanitizácia (+ číslice/medzery)
+      resolvedPhone = resolvedPhone ? resolvedPhone.replace(/[^\d+\s]/g, '') : null;
+
     if (!sessionId || !peopleCount) {
       return ctx.badRequest('Missing required fields: session and peopleCount');
     }
@@ -41,11 +69,11 @@ export default factories.createCoreController('api::event-booking.event-booking'
         status: 'pending',
         customerName,
         customerEmail,
-
+        customerPhone: resolvedPhone,
         orderId,
         session: Number(sessionId),
         temporaryId, // ← Tu ulož aj temporaryId!
-      }
+      }as any,
     });
 
     ctx.status = 201;
