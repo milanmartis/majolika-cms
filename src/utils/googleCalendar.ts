@@ -65,7 +65,7 @@ function allAttendeeLines(attendees: Array<{ email?: string; displayName?: strin
       const parts: string[] = [];
 
       if (name)  parts.push(name);
-      if (email) parts.push(`(${email})`);
+      if (email) parts.push(`(${email}ooo)`);
       if (phone) parts.push(`— tel:${phone}`);
 
       return parts.length ? `• ${parts.join(' ')}` : '• (neznámy účastník)';
