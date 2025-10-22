@@ -24,7 +24,8 @@ function getCalendar() {
 }
 
 function getTimeZone(): string {
-  return process.env.GCAL_TZ || 'Europe/Prague';
+  // 💡 default zmenený na Europe/Bratislava
+  return process.env.GCAL_TZ || 'Europe/Bratislava';
 }
 
 type Booking = {
@@ -41,6 +42,18 @@ export function occupancyFromBookings(bookings: Booking[] = []) {
     .filter(b => ok.has((b.status || '').toLowerCase()))
     .reduce((sum, b) => sum + Number(b.peopleCount || 0), 0);
 }
+
+function normalizePhone(raw?: string): string {
+  let phone = (raw || '').trim();
+  if (!phone) return '';
+  // 💡 00 -> + (napr. 00421 -> +421)
+  if (phone.startsWith('00')) phone = '+' + phone.slice(2);
+  // voliteľná jemná sanitizácia – ponechaj +, číslice, medzery
+  phone = phone.replace(/[^\d+\s]/g, '');
+  return phone;
+}
+
+// ✅ upravené: pripravíme línie účastníkov aj s telefónom do description
 function allAttendeeLines(attendees: Array<{ email?: string; displayName?: string; phone?: string }>) {
   if (!attendees?.length) return [];
   return [
@@ -48,12 +61,9 @@ function allAttendeeLines(attendees: Array<{ email?: string; displayName?: strin
     ...attendees.map(a => {
       const email = (a.email || '').trim();
       const name  = (a.displayName || '').trim();
-      let phone   = (a.phone || '').trim();
-
-      // malá drobnosť: 00 -> + (napr. 00421 -> +421)
-      if (phone.startsWith('00')) phone = '+' + phone.slice(2);
-
+      const phone = normalizePhone(a.phone);
       const parts: string[] = [];
+
       if (name)  parts.push(name);
       if (email) parts.push(`(${email})`);
       if (phone) parts.push(`— tel:${phone}`);
@@ -63,26 +73,37 @@ function allAttendeeLines(attendees: Array<{ email?: string; displayName?: strin
   ];
 }
 
-//doplnenie phone
-
-
-function attendeeEmailsFromBookings(
+// ✅ NOVÉ: vyrob účastníkov s telefónmi z bookingov (unikátne podľa emailu)
+function attendeesFromBookings(
   bookings: Booking[] = []
-): Array<{ email: string; displayName?: string }> {
+): Array<{ email: string; displayName?: string; phone?: string }> {
   const ok = new Set(['paid', 'confirmed']);
-  const uniq = new Map<string, string | undefined>();
+  const uniq = new Map<string, { displayName?: string; phone?: string }>();
 
   for (const b of bookings) {
     if (!ok.has(String(b.status || '').toLowerCase())) continue;
-    const e = (b.customerEmail || '').trim().toLowerCase();
-    if (!e) continue;
-    if (!uniq.has(e)) uniq.set(e, b.customerName || undefined);
+
+    const email = (b.customerEmail || '').trim().toLowerCase();
+    if (!email) continue;
+
+    const existing = uniq.get(email);
+    if (!existing) {
+      uniq.set(email, {
+        displayName: b.customerName || undefined,
+        phone: normalizePhone(b.customerPhone),
+      });
+    } else {
+      // doplň, ak by neskôr prišla hodnota
+      if (!existing.displayName && b.customerName) existing.displayName = b.customerName;
+      const ph = normalizePhone(b.customerPhone);
+      if (!existing.phone && ph) existing.phone = ph;
+    }
   }
 
   const limit = Math.max(1, Number(process.env.GCAL_ATTENDEE_LIMIT || 10));
   return Array.from(uniq.entries())
     .slice(0, limit)
-    .map(([email, displayName]) => ({ email, displayName }));
+    .map(([email, { displayName, phone }]) => ({ email, displayName, phone }));
 }
 
 function buildSummary(baseTitle: string, reserved: number, cap: number) {
@@ -92,6 +113,11 @@ function buildSummary(baseTitle: string, reserved: number, cap: number) {
 
 function emailsCsv(attendees: Array<{ email: string; displayName?: string }>): string {
   return attendees.map(a => a.email).join(',');
+}
+
+// ✅ NOVÉ: CSV telefónov (pre extendedProperties.private)
+function phonesCsv(attendees: Array<{ phone?: string }>): string {
+  return attendees.map(a => normalizePhone(a.phone)).filter(Boolean).join(',');
 }
 
 function shouldIncludeAttendees(): boolean {
@@ -127,23 +153,55 @@ export async function upsertGoogleEvent(session: any) {
 
   const full = cap && reserved >= cap;
 
-  const attendees = attendeeEmailsFromBookings(session.bookings || []);
+  // ✅ získaj účastníkov aj s telefónmi
+  const attendeesRaw = attendeesFromBookings(session.bookings || []);
+
+  // 💡 toggle, či ich posielať aj ako attendees do API
   const includeAttendees = shouldIncludeAttendees();
 
+  // ✅ description – doplnené línie s menom/emailom/telefónom
   const descriptionLines = [
     session.product?.name ? `Produkt: ${session.product.name}` : null,
     session.product?.slug ? `Slug: ${session.product.slug}` : null,
     `Obsadenosť: ${reserved}/${cap}`,
     session.public_url ? `Registrácia: ${session.public_url}` : null,
   ].filter(Boolean) as string[];
-  descriptionLines.push(...allAttendeeLines(attendees));
+  descriptionLines.push(...allAttendeeLines(attendeesRaw));
 
-  // Ak chceš (napr. pre debug), dá sa prilepiť aj prvý email do description:
+  // Ak chceš (napr. pre debug), prilep aj primárny email/telefon do description:
   if (String(process.env.GCAL_DESCRIPTION_PRIMARY_EMAIL || 'false').toLowerCase() === 'true') {
-    if (attendees[0]?.email) descriptionLines.push(`Kontakt: ${attendees[0].email}`);
+    if (attendeesRaw[0]?.email) descriptionLines.push(`Kontakt email: ${attendeesRaw[0].email}`);
+  }
+  if (String(process.env.GCAL_DESCRIPTION_PRIMARY_PHONE || 'true').toLowerCase() === 'true') {
+    const p = normalizePhone(attendeesRaw[0]?.phone);
+    if (p) descriptionLines.push(`Kontakt telefón: ${p}`);
   }
 
-  // Základný request body s attendees (ak povolené)
+  // ✅ attendees pre API: len email + displayName (bez custom kľúčov)
+  // voliteľne vlož telefón do displayName za meno (lepšia viditeľnosť v UI)
+  const putPhoneInDisplayName =
+    String(process.env.GCAL_ATTENDEE_NAME_WITH_PHONE || 'true').toLowerCase() === 'true';
+
+  const attendeesForApi: Array<{ email: string; displayName?: string }> = attendeesRaw.map(a => {
+    const baseName = (a.displayName || '').trim();
+    const ph = normalizePhone(a.phone);
+    const displayName =
+      putPhoneInDisplayName && ph
+        ? (baseName ? `${baseName} (${ph})` : `(${ph})`)
+        : baseName || undefined;
+    return { email: a.email, displayName };
+  });
+
+  // ✅ extendedProperties.private – ulož aj telefóny
+  const extendedPrivate = {
+    strapiSessionId: String(session.id),
+    primaryCustomerEmail: attendeesRaw[0]?.email || '',
+    primaryCustomerPhone: normalizePhone(attendeesRaw[0]?.phone) || '',
+    attendeeEmails: emailsCsv(attendeesForApi),
+    attendeePhones: phonesCsv(attendeesRaw),
+  };
+
+  // Základný request body
   const baseBody: any = {
     summary,
     description: descriptionLines.join('\n'),
@@ -155,19 +213,16 @@ export async function upsertGoogleEvent(session: any) {
     guestsCanSeeOtherGuests: false,
     guestsCanModify: false,
     extendedProperties: {
-      private: {
-        strapiSessionId: String(session.id),
-        primaryCustomerEmail: attendees[0]?.email || '',
-        // ulož aj všetky e-maily pre istotu (API-only)
-        attendeeEmails: emailsCsv(attendees),
-      },
+      private: extendedPrivate,
     },
   };
 
-  const withAttendees = includeAttendees && attendees.length
-    ? { ...baseBody, attendees }
+  // varianta s attendees
+  const withAttendees = includeAttendees && attendeesForApi.length
+    ? { ...baseBody, attendees: attendeesForApi }
     : baseBody;
 
+  // varianta bez attendees
   const withoutAttendees = { ...baseBody };
   delete (withoutAttendees as any).attendees;
 
@@ -198,7 +253,7 @@ export async function upsertGoogleEvent(session: any) {
 
   const doCall = async () => {
     try {
-      eventId = await callOnce(Boolean(includeAttendees && attendees.length));
+      eventId = await callOnce(Boolean(includeAttendees && attendeesForApi.length));
     } catch (err: any) {
       // ak je to práve „Service accounts cannot invite attendees…“, retry bez attendees
       if (isAttendeeError(err)) {
