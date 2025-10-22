@@ -39,6 +39,7 @@ type OrderRecord = {
   id: number;
   customerEmail?: string;
   customerName?: string;
+  customerPhone?: string;
   shippingFee?: number | string;
   total?: number | string;
   totalWithShipping?: number | string;
@@ -73,7 +74,7 @@ function redact(obj: unknown) {
       typeof obj === 'string'
         ? Object.fromEntries(new URLSearchParams(obj))
         : { ...(obj as Record<string, unknown> || {}) };
-    for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'phone', 'name', 'full_name']) {
+    for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'customerPhone', 'name', 'full_name']) {
       if ((o as any)[k] != null) (o as any)[k] = '[redacted]';
     }
     if ((o as any).secret) (o as any).secret = '[redacted]';
@@ -134,18 +135,16 @@ function absUrl(url?: string): string {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
 
-  // robustný base – uprednostni PUBLIC_UPLOADS_URL / UPLOADS_BASE_URL, inak server.url
   const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
     process.env.UPLOADS_BASE_URL ||
-    serverUrl; // ← povinný fallback
+    serverUrl;
 
   if (!base) {
     strapi.log.warn('[EMAIL][IMG] Missing base URL for absUrl; returning relative path');
     return url.startsWith('/') ? url : `/${url}`;
   }
-
   return `${String(base).replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
@@ -336,7 +335,7 @@ function isCancelledLike(s?: string) {
 async function getOrderAndExpectedCents(orderId: number) {
   const ord = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['items', 'deliveryAddress', 'deliveryDetails'],
-    fields: ['id','total','totalWithShipping','customerEmail','customerName','paymentStatus','deliveryMethod'] as any,
+    fields: ['id','total','totalWithShipping','customerEmail','customerName', 'customerPhone','paymentStatus','deliveryMethod'] as any,
   })) as unknown as OrderRecord | null;
 
   if (!ord) throw new Error('Order not found');
@@ -423,29 +422,37 @@ async function runPostPaidFlow(orderId: number) {
   const orderItems = Array.isArray(freshOrder.items) ? freshOrder.items : [];
   const emailItems = await Promise.all(
     orderItems.map(async (it) => {
-      let image = '';
-      try {
-        if (it.productId) {
-          const product = await strapi.entityService.findOne('api::product.product', it.productId, {
-            populate: {
-              picture_new: { fields: ['url', 'formats'] },
-              pictures_new: { fields: ['url', 'formats'] },
-            },
-          });
-          image = pickProductImage(product);
+      // 1) preferuj uložené imageUrl z objednávky (stabilné)
+      let image = (it as any).imageUrl || '';
+  
+      // 2) fallback: skús načítať produkt a dorátať obrázok
+      if (!image && it.productId) {
+        try {
+          const pid = Number(it.productId);  // ← dôležité: string -> number
+          if (Number.isFinite(pid)) {
+            const product = await strapi.entityService.findOne('api::product.product', pid, {
+              populate: {
+                picture_new: { fields: ['url', 'formats'] },
+                pictures_new: { fields: ['url', 'formats'] },
+              },
+            });
+            image = pickProductImage(product); // používa absUrl() (nižšie upravená)
+          }
+        } catch (e) {
+          strapi.log.warn(`[EMAIL][ORDER ITEMS] Nepodarilo sa načítať produkt ${it.productId}: ${String(e)}`);
         }
-      } catch (e) {
-        strapi.log.warn(`[EMAIL][ORDER ITEMS] Nepodarilo sa načítať produkt ${it.productId}: ${String(e)}`);
       }
+  
       return {
         productName: it.productName || `Produkt #${it.productId}`,
         unitPrice: Number(it.unitPrice),
         quantity: Number(it.quantity),
-        image,
+        image,                          // ← teraz budeš mať hodnotu
         event: (it as any).event || null,
       };
     })
   );
+
 
   const FRONTEND_URL = process.env.FRONTEND_URL || '';
   const to = freshOrder.customerEmail;
