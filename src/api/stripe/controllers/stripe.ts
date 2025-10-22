@@ -134,12 +134,14 @@ function aesc(s?: string) {
 function absUrl(url?: string): string {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
+
+  const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
-    process.env.FRONTEND_URL ||
-    (strapi.config?.get?.('server.url') as string) ||
-    '';
-  return `${String(base).replace(/\/$/, '')}${url?.startsWith('/') ? '' : '/'}${url}`;
+    process.env.UPLOADS_BASE_URL ||
+    serverUrl;
+
+  return `${String(base).replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 function pickProductImage(product: any): string {
@@ -413,13 +415,20 @@ async function runPostPaidFlow(orderId: number) {
   }
 
   // Zloženie položiek pre email (s obrázkami)
-  const orderItems = Array.isArray(freshOrder.items) ? freshOrder.items : [];
-  const emailItems = await Promise.all(
-    orderItems.map(async (it) => {
-      let image = '';
+// Zloženie položiek pre email (s obrázkami)
+// 1) preferuj uložené imageUrl z objednávky (stabilné), 2) fallback: načítaj produkt
+const orderItems = Array.isArray(freshOrder.items) ? freshOrder.items : [];
+const emailItems = await Promise.all(
+  orderItems.map(async (it) => {
+    // preferuj imageUrl uložené v order.items
+    let image = (it as any).imageUrl || '';
+
+    // fallback – načítanie z produktu
+    if (!image && it.productId) {
       try {
-        if (it.productId) {
-          const product = await strapi.entityService.findOne('api::product.product', it.productId, {
+        const pid = Number(it.productId);
+        if (Number.isFinite(pid)) {
+          const product = await strapi.entityService.findOne('api::product.product', pid, {
             populate: {
               picture_new: { fields: ['url', 'formats'] },
               pictures_new: { fields: ['url', 'formats'] },
@@ -430,15 +439,18 @@ async function runPostPaidFlow(orderId: number) {
       } catch (e) {
         strapi.log.warn(`[EMAIL][ORDER ITEMS] Nepodarilo sa načítať produkt ${it.productId}: ${String(e)}`);
       }
-      return {
-        productName: it.productName || `Produkt #${it.productId}`,
-        unitPrice: Number(it.unitPrice),
-        quantity: Number(it.quantity),
-        image,
-        event: (it as any).event || null,
-      };
-    })
-  );
+    }
+
+    return {
+      productName: it.productName || `Produkt #${it.productId}`,
+      unitPrice: Number(it.unitPrice),
+      quantity: Number(it.quantity),
+      image,
+      event: (it as any).event || null,
+    };
+  })
+);
+
 
   const FRONTEND_URL = process.env.FRONTEND_URL || '';
   const to = freshOrder.customerEmail;
