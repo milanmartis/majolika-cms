@@ -428,7 +428,10 @@ export default () => ({
         total: itemsTotal,
         totalWithShipping,
 
-        items: orderItems.map(({ _image, ...rest }) => rest), // do DB bez _image
+        items: orderItems.map(({ _image, ...rest }) => ({
+          ...rest,
+          imageUrl: _image,                 
+        })),
         status: 'pending',
         orderStatus: 'pending',
         fulfillmentStatus,

@@ -422,7 +422,7 @@ const emailItems = await Promise.all(
   orderItems.map(async (it) => {
     // preferuj imageUrl uložené v order.items
     let image = (it as any).imageUrl || '';
-
+    image = absUrl(image);
     // fallback – načítanie z produktu
     if (!image && it.productId) {
       try {
