@@ -31,6 +31,7 @@ type OrderItem = {
   quantity: number;
   unitPrice: number;
   event?: EventInfo | null;
+  imageUrl?: string;   
 };
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
@@ -39,7 +40,6 @@ type OrderRecord = {
   id: number;
   customerEmail?: string;
   customerName?: string;
-  customerPhone?: string;
   shippingFee?: number | string;
   total?: number | string;
   totalWithShipping?: number | string;
@@ -74,7 +74,7 @@ function redact(obj: unknown) {
       typeof obj === 'string'
         ? Object.fromEntries(new URLSearchParams(obj))
         : { ...(obj as Record<string, unknown> || {}) };
-    for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'customerPhone', 'name', 'full_name']) {
+    for (const k of ['email', 'fullName', 'customerEmail', 'customerName', 'phone', 'name', 'full_name']) {
       if ((o as any)[k] != null) (o as any)[k] = '[redacted]';
     }
     if ((o as any).secret) (o as any).secret = '[redacted]';
@@ -134,18 +134,12 @@ function aesc(s?: string) {
 function absUrl(url?: string): string {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
-
-  const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
-    process.env.UPLOADS_BASE_URL ||
-    serverUrl;
-
-  if (!base) {
-    strapi.log.warn('[EMAIL][IMG] Missing base URL for absUrl; returning relative path');
-    return url.startsWith('/') ? url : `/${url}`;
-  }
-  return `${String(base).replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+    process.env.FRONTEND_URL ||
+    (strapi.config?.get?.('server.url') as string) ||
+    '';
+  return `${String(base).replace(/\/$/, '')}${url?.startsWith('/') ? '' : '/'}${url}`;
 }
 
 function pickProductImage(product: any): string {
@@ -335,7 +329,7 @@ function isCancelledLike(s?: string) {
 async function getOrderAndExpectedCents(orderId: number) {
   const ord = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['items', 'deliveryAddress', 'deliveryDetails'],
-    fields: ['id','total','totalWithShipping','customerEmail','customerName', 'customerPhone','paymentStatus','deliveryMethod'] as any,
+    fields: ['id','total','totalWithShipping','customerEmail','customerName','paymentStatus','deliveryMethod'] as any,
   })) as unknown as OrderRecord | null;
 
   if (!ord) throw new Error('Order not found');
@@ -398,14 +392,14 @@ async function runPostPaidFlow(orderId: number) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
       where: { temporaryId: freshOrder.temporaryId, orderId: null },
       data: { orderId: String(freshOrder.id), status: 'paid', customerEmail: freshOrder.customerEmail || undefined,
-        customerName:  freshOrder.customerName  || undefined,  customerPhone: (freshOrder as any).customerPhone || undefined},
+        customerName:  freshOrder.customerName  || undefined, },
     });
     strapi.log.info(`[COMGATE][BOOKINGS] temporaryId -> paid (${res.count})`);
   }
   const res2 = await strapi.db.query('api::event-booking.event-booking').updateMany({
     where: { orderId: String(freshOrder.id) },
     data: { status: 'paid',customerEmail: freshOrder.customerEmail || undefined,
-      customerName:  freshOrder.customerName  || undefined, customerPhone: (freshOrder as any).customerPhone || undefined, },
+      customerName:  freshOrder.customerName  || undefined },
   });
   strapi.log.info(`[COMGATE][BOOKINGS] by orderId -> paid (${res2.count})`);
 
@@ -422,37 +416,29 @@ async function runPostPaidFlow(orderId: number) {
   const orderItems = Array.isArray(freshOrder.items) ? freshOrder.items : [];
   const emailItems = await Promise.all(
     orderItems.map(async (it) => {
-      // 1) preferuj uložené imageUrl z objednávky (stabilné)
-      let image = (it as any).imageUrl || '';
-  
-      // 2) fallback: skús načítať produkt a dorátať obrázok
-      if (!image && it.productId) {
-        try {
-          const pid = Number(it.productId);  // ← dôležité: string -> number
-          if (Number.isFinite(pid)) {
-            const product = await strapi.entityService.findOne('api::product.product', pid, {
-              populate: {
-                picture_new: { fields: ['url', 'formats'] },
-                pictures_new: { fields: ['url', 'formats'] },
-              },
-            });
-            image = pickProductImage(product); // používa absUrl() (nižšie upravená)
-          }
-        } catch (e) {
-          strapi.log.warn(`[EMAIL][ORDER ITEMS] Nepodarilo sa načítať produkt ${it.productId}: ${String(e)}`);
+      let image = '';
+      try {
+        if (it.productId) {
+          const product = await strapi.entityService.findOne('api::product.product', it.productId, {
+            populate: {
+              picture_new: { fields: ['url', 'formats'] },
+              pictures_new: { fields: ['url', 'formats'] },
+            },
+          });
+          image = pickProductImage(product);
         }
+      } catch (e) {
+        strapi.log.warn(`[EMAIL][ORDER ITEMS] Nepodarilo sa načítať produkt ${it.productId}: ${String(e)}`);
       }
-  
       return {
         productName: it.productName || `Produkt #${it.productId}`,
         unitPrice: Number(it.unitPrice),
         quantity: Number(it.quantity),
-        image,                          // ← teraz budeš mať hodnotu
+        image,
         event: (it as any).event || null,
       };
     })
   );
-
 
   const FRONTEND_URL = process.env.FRONTEND_URL || '';
   const to = freshOrder.customerEmail;
@@ -684,18 +670,11 @@ async create(ctx: any) {
     const statusCurr = String((status as any).curr || (status as any).currency || '').toUpperCase();
     const statusPrice = Number((status as any).price || (status as any).amount || 0);
 
-    let expectedCents: number | null = null;
-    try {
-      ({ expectedCents } = await getOrderAndExpectedCents(order.id));
-    } catch (e) {
-      strapi.log.warn('[COMGATE][WEBHOOK] guard calc failed, skipping amount check:', (e as Error)?.message || e);
-    }
+    const { expectedCents } = await getOrderAndExpectedCents(order.id);
 
     if (statusRefId && statusRefId !== order.id) { ctx.status = 200; ctx.body = 'OK'; return; }
     if (statusCurr && statusCurr !== 'EUR') { ctx.status = 200; ctx.body = 'OK'; return; }
-    if (expectedCents !== null && statusPrice && Math.abs(statusPrice - expectedCents) > 1) {
-      ctx.status = 200; ctx.body = 'OK'; return;
-    }
+    if (statusPrice && Math.abs(statusPrice - expectedCents) > 1) { ctx.status = 200; ctx.body = 'OK'; return; }
 
     // CANCELLED-like — označ a skonči (konzistentne nastav aj paymentStatus)
     if (isCancelledLike((status as any).status)) {
@@ -921,19 +900,14 @@ async returnBridge(ctx: any) {
     if (String((s as any).code) !== '0') return redirect(to.pending(order!.id));
 
     // Guardy pre PAID
-    let expectedCents: number | null = null;
-    try {
-      ({ expectedCents } = await getOrderAndExpectedCents(order!.id));
-    } catch (e) {
-      strapi.log.warn('[COMGATE][RETURN] guard calc failed, continuing without amount check:', (e as Error)?.message || e);
-    }
+    const { expectedCents } = await getOrderAndExpectedCents(order!.id);
     const statusRefId = Number((s as any).refId || (s as any).refID || (s as any).reference || 0);
     const statusCurr  = String((s as any).curr || (s as any).currency || '').toUpperCase();
     const statusPrice = Number((s as any).price || (s as any).amount || 0);
 
     if ((statusRefId && statusRefId !== order!.id) ||
         (statusCurr && statusCurr !== 'EUR') ||
-        (expectedCents !== null && statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
+        (statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
       return redirect(to.pending(order!.id));
     }
 
