@@ -527,7 +527,7 @@ const emailItems = await Promise.all(
     deliverySummary,
   });
 
-  
+
   try {
     if (to) {
       await sendEmail({
@@ -606,9 +606,9 @@ async create(ctx: any) {
     const SERVER_URL = (strapi.config?.get?.('server.url') as string) || '';
     const bridgeBase = `${String(SERVER_URL).replace(/\/$/, '')}/api/payments/return`;
 
-    const url_paid      = (process.env.RETURN_PAID      || `${bridgeBase}?status=PAID&refId={refId}&transId={id}`);
-    const url_cancelled = (process.env.RETURN_CANCELLED || `${bridgeBase}?status=CANCELLED&refId={refId}&transId={id}`);
-    const url_pending   = (process.env.RETURN_PENDING   || `${bridgeBase}?status=PENDING&refId={refId}&transId={id}`);
+    const url_paid      = (process.env.RETURN_PAID      || `${bridgeBase}?status=PAID&refId=\${refId}&transId=\${id}`);
+    const url_cancelled = (process.env.RETURN_CANCELLED || `${bridgeBase}?status=CANCELLED&refId=\${refId}&transId=\${id}`);
+    const url_pending   = (process.env.RETURN_PENDING   || `${bridgeBase}?status=PENDING&refId=\${refId}&transId=\${id}`);
 
 
     // Pozn.: prepareOnly=true → my získame redirect URL a sami presmerujeme FE na Comgate
@@ -677,7 +677,7 @@ async create(ctx: any) {
   // 2) Webhook (push)
   async webhook(ctx: any) {
     strapi.log.info(`[COMGATE][WEBHOOK][IN] body=${redact(ctx.request.body)}`);
-
+  
     let data: any = {};
     try {
       if (typeof ctx.request.body === 'string') {
@@ -688,28 +688,41 @@ async create(ctx: any) {
         data = ctx.request.body || {};
       }
     } catch { data = {}; }
-
+  
     const transId = (data as any).transId || (data as any).id;
     const refId = (data as any).refId;
-
+  
+    // Namiesto 400 -> zaloguj a vráť 200, aby Comgate zbytočne neeskaloval chybu
     if (!transId) {
       strapi.log.error('[COMGATE][WEBHOOK] missing transId');
-      ctx.status = 400; ctx.body = 'Bad Request'; return;
+      ctx.status = 200; ctx.body = 'OK';
+      return;
     }
-
-    const status = await comgateStatus(String(transId));
-    if (String((status as any).code) !== '0') {
+  
+    // === TOTO JE TEN NOVÝ BLOK S try/catch ===
+    let status: any = null;
+    try {
+      status = await comgateStatus(String(transId));
+    } catch (e) {
+      strapi.log.error('[COMGATE][STATUS] request failed (timeout or network):', e);
+      ctx.status = 200; ctx.body = 'OK';
+      return;
+    }
+  
+    if (String(status.code) !== '0') {
       strapi.log.error('[COMGATE][STATUS] code!=0', sanitizeComgateRaw(status));
-      ctx.status = 200; ctx.body = 'OK'; return;
+      ctx.status = 200; ctx.body = 'OK';
+      return;
     }
-
+    // ==========================================
+  
     let order: OrderRecord | null = null;
     try {
       order = (await strapi.db.query('api::order.order').findOne({
         where: { comgateTransId: String(transId) },
         select: ['id','paymentStatus','comgateTransId','orderStatus','fulfillmentStatus'],
       })) as any;
-
+  
       if (!order && refId) {
         order = (await strapi.db.query('api::order.order').findOne({
           where: { id: Number(refId) },
@@ -719,23 +732,23 @@ async create(ctx: any) {
     } catch (e) {
       strapi.log.error('[COMGATE][WEBHOOK] order lookup error:', e);
     }
-
+  
     if (!order) {
       strapi.log.error(`[COMGATE][WEBHOOK] No order found for transId=${transId}, refId=${refId || '-'}`);
-      ctx.status = 200; ctx.body = 'OK'; return;
+      ctx.status = 200; ctx.body = 'OK';
+      return;
     }
-
+  
     const statusRefId = Number((status as any).refId || (status as any).refID || (status as any).reference || 0);
     const statusCurr = String((status as any).curr || (status as any).currency || '').toUpperCase();
     const statusPrice = Number((status as any).price || (status as any).amount || 0);
-
+  
     const { expectedCents } = await getOrderAndExpectedCents(order.id);
-
+  
     if (statusRefId && statusRefId !== order.id) { ctx.status = 200; ctx.body = 'OK'; return; }
-    if (statusCurr && statusCurr !== 'EUR') { ctx.status = 200; ctx.body = 'OK'; return; }
+    if (statusCurr && statusCurr !== 'EUR')      { ctx.status = 200; ctx.body = 'OK'; return; }
     if (statusPrice && Math.abs(statusPrice - expectedCents) > 1) { ctx.status = 200; ctx.body = 'OK'; return; }
-
-    // CANCELLED-like — označ a skonči (konzistentne nastav aj paymentStatus)
+  
     if (isCancelledLike((status as any).status)) {
       try {
         await strapi.db.query('api::order.order').update({
@@ -746,20 +759,21 @@ async create(ctx: any) {
       } catch (e) {
         strapi.log.error(`[COMGATE][ORDER CANCEL][WEBHOOK] failed #${order.id}:`, e);
       }
-      ctx.status = 200; ctx.body = 'OK'; return;
+      ctx.status = 200; ctx.body = 'OK';
+      return;
     }
-
+  
     const mapped = mapComgateToOrder(String((status as any).status || ''));
     const prev: PaymentStatus | null = (order.paymentStatus ?? null) as PaymentStatus | null;
     let next: PaymentStatus = prev ?? 'unpaid';
-
+  
     if (mapped === 'paid' && prev !== 'paid') next = 'paid';
     else if (mapped === 'refunded' && prev !== 'refunded') next = 'refunded';
     else if (mapped === 'unpaid' && (!prev || prev === 'unpaid')) next = 'unpaid';
-
+  
     const needStatusChange = next !== prev;
     const needTransPersist = order.comgateTransId !== String(transId);
-
+  
     if (needStatusChange || needTransPersist) {
       try {
         await strapi.db.query('api::order.order').update({
@@ -770,11 +784,11 @@ async create(ctx: any) {
         strapi.log.error('[COMGATE][ORDER UPDATE] error:', e);
       }
     }
-
+  
     if (next === 'paid' && prev !== 'paid') {
       try { await runPostPaidFlow(order.id); } catch (e) { strapi.log.error('[COMGATE][WEBHOOK][AFTER-PAID] error:', e); }
     }
-
+  
     ctx.status = 200; ctx.body = 'OK';
   },
 
