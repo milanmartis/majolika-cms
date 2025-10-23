@@ -218,9 +218,8 @@ function renderEmail(opts: {
 
 /** Špeciálny blok s inštrukciami pre bankový prevod */
 function renderBankTransferBlock(orderId: string | number, total: number) {
-  const IBAN = 'SK97 0900 0000 0051 3558 7112';
-  const SWIFT = 'GIBASKBX';
-  const ACCOUNT_NAME = 'Slovenská ľudová majolika';
+  const IBAN = 'SK97 0900 0000 0051 3558 7112 (Slovenská sporiteľňa)';
+  const IBAN2 = 'SK17 0200 0000 0000 0241 9112 (VUB banka)';
   const vs = String(orderId); // ← kľúčové
 
   return `
@@ -228,9 +227,8 @@ function renderBankTransferBlock(orderId: string | number, total: number) {
       <div style="font-weight:700;color:#0e29a0;margin-bottom:8px;">Platba bankovým prevodom</div>
       <div style="line-height:1.7;color:#333;">
         Prosíme Vás o úhradu podľa nasledovných údajov:<br/>
-        • Názov účtu: ${ACCOUNT_NAME}<br/>
         • IBAN: ${IBAN}<br/>
-        • BIC/SWIFT: ${SWIFT}<br/>
+        • IBAN: ${IBAN2}<br/>
         • Variabilný symbol: ${vs}<br/>
         • Suma: ${money(total)}<br/><br/>
         Objednávku začneme spracovávať hneď po pripísaní platby na náš účet.

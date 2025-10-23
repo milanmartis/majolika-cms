@@ -6,6 +6,7 @@ export async function sendEmail({ to, subject, text, html }: {
   subject: string;
   text?: string;
   html?: string;
+  from?: string;
 }) {
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.m1.websupport.sk",
@@ -16,9 +17,9 @@ export async function sendEmail({ to, subject, text, html }: {
       pass: process.env.SMTP_PASS,
     },
   });
-
+  const defaultFrom = process.env.MAIL_FROM || '"MAJOLIKA MODRA" <info@majolika.sk>';
   const info = await transporter.sendMail({
-    from: process.env.EMAIL_DEFAULT_FROM || "info@appdesign.sk",
+    from: defaultFrom,
     to,
     subject,
     text,

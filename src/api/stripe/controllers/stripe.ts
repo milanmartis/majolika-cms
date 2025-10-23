@@ -38,6 +38,8 @@ type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
 
 type OrderRecord = {
   id: number;
+  orderNumber?: string | null;   // <— PRIDANÉ
+  createdAt?: string | null;     // <— PRIDANÉ
   customerEmail?: string;
   customerName?: string;
   shippingFee?: number | string;
@@ -67,6 +69,26 @@ type OrderRecord = {
 };
 
 // ========================= Helpery (bezpečnosť, render, logy) =========================
+function formatDateSk(iso?: string) {
+  const dt = iso ? new Date(iso) : new Date();
+  return new Intl.DateTimeFormat('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(dt);
+}
+
+function humanDeliveryShort(method?: DeliveryMethod): string {
+  switch (method) {
+    case 'pickup': return 'osobný odber';
+    case 'post_office': return 'pošta';
+    case 'packeta_box': return 'Packeta';
+    case 'post_courier': return 'kuriér';
+    default: return String(method || '');
+  }
+}
+
 
 function redact(obj: unknown) {
   try {
@@ -331,7 +353,7 @@ function isCancelledLike(s?: string) {
 async function getOrderAndExpectedCents(orderId: number) {
   const ord = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['items', 'deliveryAddress', 'deliveryDetails'],
-    fields: ['id','total','totalWithShipping','customerEmail','customerName','paymentStatus','deliveryMethod'] as any,
+    fields: ['id','orderNumber','createdAt','total','totalWithShipping','customerEmail','customerName','paymentStatus','deliveryMethod'] as any,
   })) as unknown as OrderRecord | null;
 
   if (!ord) throw new Error('Order not found');
@@ -387,6 +409,7 @@ function mapComgateToOrder(s: string): PaymentStatus {
 async function runPostPaidFlow(orderId: number) {
   const freshOrder = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['deliveryAddress', 'deliveryDetails', 'items'],
+    fields: ['id','orderNumber','createdAt','customerEmail','customerName','shippingFee','total','totalWithShipping','deliveryMethod'] as any,
   })) as unknown as OrderRecord;
 
   // Previazanie bookingov
@@ -458,12 +481,25 @@ const emailItems = await Promise.all(
   const shippingFee = Number(freshOrder.shippingFee || 0);
   const totalWithShipping = Number(freshOrder.totalWithShipping || freshOrder.total || 0);
 
+  const orderNo = freshOrder.orderNumber || String(freshOrder.id);
+  const orderDate = formatDateSk(freshOrder.createdAt || undefined);
+  const pmHuman = 'kartou';
+  const deliveryHuman = humanDeliveryShort(freshOrder.deliveryMethod);
+  const subjectCustomer = `Potvrdenie objednávky č. ${orderNo}`;
+  const subjectAdmin    = `Nová objednávka č. ${orderNo} – zaplatené`;
+  
   const customerEmailHtml = renderOrderEmail({
-    title: `Potvrdenie objednávky ${freshOrder.id}`,
+    title: subjectCustomer,
     heading: 'Ďakujeme, platba prijatá',
     introLines: [
       `Dobrý deň${freshOrder.customerName ? `, ${esc(freshOrder.customerName)}` : ''}.`,
-      `Platba za vašu objednávku #${freshOrder.id} prebehla úspešne.`,
+      `Ďakujeme za Vašu objednávku na našom e-shope majolika.sk.`,
+      `Podrobnosti objednávky:`,
+      `• Číslo objednávky: ${orderNo}`,
+      `• Dátum: ${orderDate}`,
+      `• Spôsob platby: ${pmHuman}`,
+      `• Spôsob doručenia: ${deliveryHuman}`,
+      `O ďalšom priebehu Vás budeme informovať emailom.`,
     ],
     cta: FRONTEND_URL
       ? {
@@ -476,10 +512,10 @@ const emailItems = await Promise.all(
     totalWithShipping,
     deliverySummary,
   });
-
+  
   const adminEmailHtml = renderOrderEmail({
-    title: `Nová objednávka #${freshOrder.id} – zaplatené`,
-    heading: `Nová objednávka #${freshOrder.id} – platba prijatá`,
+    title: subjectAdmin,
+    heading: `Nová objednávka č. ${orderNo} – platba prijatá`,
     introLines: [
       `Zákazník: ${esc(freshOrder.customerName || '-')} (${esc(freshOrder.customerEmail || '-')})`,
       `Doručenie: ${deliverySummary}`,
@@ -491,14 +527,25 @@ const emailItems = await Promise.all(
     deliverySummary,
   });
 
+  
   try {
     if (to) {
-      await sendEmail({ to, subject: 'Potvrdenie objednávky – platba prijatá', html: customerEmailHtml });
+      await sendEmail({
+        from: '"MAJOLIKA MODRA" <info@majolika.sk>', // ⬅ názov odosielateľa
+        to,
+        subject: subjectCustomer,
+        html: customerEmailHtml,
+      });
       strapi.log.info(`[EMAIL] Sent to customer [redacted] for order #${freshOrder.id}`);
     } else {
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${freshOrder.id}`);
     }
-    await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
+    await sendEmail({
+      from: '"MAJOLIKA MODRA" <info@majolika.sk>', // ⬅ názov odosielateľa
+      to: 'info@appdesign.sk',
+      subject: subjectAdmin,
+      html: adminEmailHtml,
+    });
     strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
   } catch (e) {
     strapi.log.error('[COMGATE][EMAIL] send failed:', e);
