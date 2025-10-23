@@ -108,7 +108,7 @@ export default [
         'https://staging.d2y68xwoabt006.amplifyapp.com',
         'https://majolika-cms.appdesign.sk',
         // prípadne produkčný FE:
-        // 'https://majolika.sk',
+        'https://majolika.sk',
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       headers: [
