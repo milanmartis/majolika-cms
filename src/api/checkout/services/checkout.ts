@@ -3,27 +3,25 @@ import { sendEmail } from '../../../utils/email';
 import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
 
 /* ========================= Helpery ========================= */
-// + pridaj toto nad CheckoutItem
+
 interface EventInfo {
   sessionId?: number;
-  type?: 'workshop' | 'tour' | string; // prehliadka = 'tour' alebo nechávam string
-  startDateTime?: string;              // ISO v UTC
+  type?: 'workshop' | 'tour' | string;
+  startDateTime?: string;   // ISO v UTC
   peopleCount?: number;
   bookingId?: number;
 }
 
-// uprav CheckoutItem
 interface CheckoutItem {
   productId: number;
   productName?: string;
   quantity: number;
   unitPrice: number;
-  event?: EventInfo; // <— PRIDANÉ
+  event?: EventInfo;
 }
 
 function formatEvent(event?: EventInfo): string {
   if (!event?.startDateTime) return '';
-  // Europe/Bratislava
   const dt = new Date(event.startDateTime);
   const d = new Intl.DateTimeFormat('sk-SK', {
     timeZone: 'Europe/Bratislava',
@@ -37,39 +35,42 @@ function formatEvent(event?: EventInfo): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(dt);
-
   const people = typeof event.peopleCount === 'number' ? ` • Osoby: ${event.peopleCount}` : '';
   return `Termín: ${d}, ${t}${people}`;
 }
 
-// Absolutizácia URL pre obrázky z Upload pluginu (ak vracia relatívne cesty)
+function formatNowSk(): string {
+  const now = new Date();
+  return new Intl.DateTimeFormat('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(now);
+}
+
 function absUrl(url?: string): string {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return url;
 
-  // robustný base – uprednostni PUBLIC_UPLOADS_URL / UPLOADS_BASE_URL, inak server.url
   const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
     process.env.UPLOADS_BASE_URL ||
-    serverUrl; // ← povinný fallback
+    serverUrl;
 
   if (!base) {
-    // posledná záchrana: vráť relatívnu, ale zaloguj
     strapi.log.warn('[EMAIL][IMG] Missing base URL for absUrl; returning relative path');
     return url.startsWith('/') ? url : `/${url}`;
   }
-
   return `${String(base).replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
 }
-// Výber hlavného obrázka produktu podľa tvojho schema.json:
-// single media: picture_new; multiple media: pictures_new[]
+
 function pickProductImage(product: any): string {
   const single = product?.picture_new;
   const firstMulti = Array.isArray(product?.pictures_new) ? product.pictures_new[0] : null;
   const media = single || firstMulti || null;
 
-  // Strapi Upload má formáty: thumbnail, small, medium, large
   const url =
     media?.formats?.thumbnail?.url ||
     media?.formats?.small?.url ||
@@ -84,26 +85,26 @@ function money(n: number) {
   return `${n.toFixed(2)} €`;
 }
 
-// HTML riadky položiek objednávky
-function renderItemsRows(items: Array<{ 
-  productName: string; 
-  unitPrice: number; 
-  quantity: number; 
-  image?: string; 
-  event?: EventInfo; // <— PRIDANÉ
+function renderItemsRows(items: Array<{
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  image?: string;
+  event?: EventInfo;
 }>) {
   return items
     .map((it) => {
       const subtotal = it.unitPrice * it.quantity;
-      const eventLine = it.event?.startDateTime ? `
-        <div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">
-          ${formatEvent(it.event)}
-        </div>` : '';
+      const eventLine = it.event?.startDateTime
+        ? `<div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">${formatEvent(it.event)}</div>`
+        : '';
       return `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #eee;">
             <div style="display:flex;align-items:center;gap:12px;">
-              ${it.image ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />` : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
+              ${it.image
+                ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
+                : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
               <div>
                 <div style="font-weight:600;color:#333;padding:4px;">${it.productName}</div>
                 ${eventLine}
@@ -114,23 +115,22 @@ function renderItemsRows(items: Array<{
           <td align="right" style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;color:#333;">
             ${money(subtotal)}
           </td>
-        </tr>
-      `;
+        </tr>`;
     })
     .join('');
 }
 
-// Kompletný email podľa tvojej šablóny so zhrnutím objednávky
-function renderOrderEmail(opts: {
+/** Jednotná HTML šablóna – fixná hlavička a päta, premenné: heading, bodyHtml, tabuľka so zhrnutím */
+function renderEmail(opts: {
   title: string;
   heading: string;
-  introLines: string[];
-  cta?: { label: string; href: string } | null;
-  items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string }>;
+  bodyHtml: string; // ← iba toto sa mení podľa variantu
+  items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo }>;
   shippingFee: number;
   paymentFee: number;
   totalWithShipping: number;
   deliverySummary: string;
+  cta?: { label: string; href: string } | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
   return `<!DOCTYPE html>
@@ -164,12 +164,8 @@ function renderOrderEmail(opts: {
     <div class="header"><h1>Vitajte v Majolike</h1></div>
     <div class="content">
       <h2>${opts.heading}</h2>
-      ${opts.introLines.map((t) => `<p>${t}</p>`).join('')}
-      ${
-        opts.cta
-          ? `<p style="text-align:center;"><a class="button" href="${opts.cta.href}">${opts.cta.label}</a></p>`
-          : ''
-      }
+      ${opts.bodyHtml}
+      ${opts.cta ? `<p style="text-align:center;"><a class="button" href="${opts.cta.href}">${opts.cta.label}</a></p>` : ''}
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
@@ -220,6 +216,28 @@ function renderOrderEmail(opts: {
 </html>`;
 }
 
+/** Špeciálny blok s inštrukciami pre bankový prevod */
+function renderBankTransferBlock(orderId: string | number, total: number) {
+  const IBAN = 'SK97 0900 0000 0051 3558 7112';
+  const SWIFT = 'GIBASKBX';
+  const ACCOUNT_NAME = 'Slovenská ľudová majolika';
+  const vs = String(orderId); // ← kľúčové
+
+  return `
+    <div style="margin:20px 0;padding:16px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;">
+      <div style="font-weight:700;color:#0e29a0;margin-bottom:8px;">Platba bankovým prevodom</div>
+      <div style="line-height:1.7;color:#333;">
+        Prosíme Vás o úhradu podľa nasledovných údajov:<br/>
+        • Názov účtu: ${ACCOUNT_NAME}<br/>
+        • IBAN: ${IBAN}<br/>
+        • BIC/SWIFT: ${SWIFT}<br/>
+        • Variabilný symbol: ${vs}<br/>
+        • Suma: ${money(total)}<br/><br/>
+        Objednávku začneme spracovávať hneď po pripísaní platby na náš účet.
+      </div>
+    </div>`;
+}
+
 /* ========================= Typy ========================= */
 
 type PaymentMethod = 'card' | 'cod' | 'bank' | 'onsite' | 'post';
@@ -233,15 +251,15 @@ interface Address {
 }
 
 interface DeliveryDetails {
-  provider?: string;         // 'packeta' alebo 'carrier:<id>'
-  postOfficeId?: string;     // Slovenská pošta
-  packetaBoxId?: string;     // Packeta/Carrier PUDO ID
-  notes?: string;            // sumár z widgetu
+  provider?: string;      // 'packeta' alebo 'carrier:<id>'
+  postOfficeId?: string;  // Slovenská pošta
+  packetaBoxId?: string;  // Packeta/Carrier PUDO ID
+  notes?: string;         // sumár z widgetu
 }
 
 interface Delivery {
   method: DeliveryMethod;
-  address?: Address | null;     // pre kuriéra
+  address?: Address | null;
   details?: DeliveryDetails | null;
 }
 
@@ -260,9 +278,9 @@ interface CheckoutPayload {
   temporaryId?: string | null;
   paymentMethod: PaymentMethod;
   delivery: Delivery;
-  shippingFee?: number;  
-  paymentFee?: number;  
-  locale?: string; // 'sk' | 'en' | ... 
+  shippingFee?: number;
+  paymentFee?: number;
+  locale?: string;
 }
 
 /* ========================= Konštanty ========================= */
@@ -273,6 +291,8 @@ const SHIPPING_PRICING: Record<DeliveryMethod, number> = {
   packeta_box: 2.9,
   post_courier: 4.9,
 };
+
+const FREE_SHIPPING_THRESHOLD = 100;
 
 /* ========================= Validácia & sumarizácia ========================= */
 
@@ -323,14 +343,22 @@ function summarizeDelivery(delivery: Delivery): string {
   }
 }
 
+function humanDelivery(deliveryMethod: DeliveryMethod): string {
+  switch (deliveryMethod) {
+    case 'pickup': return 'osobný odber';
+    case 'post_office': return 'pošta';
+    case 'packeta_box': return 'Packeta';
+    case 'post_courier': return 'kuriér';
+    default: return String(deliveryMethod);
+  }
+}
+
 /* ========================= Service ========================= */
 
 export default () => ({
   async createSession(payload: CheckoutPayload) {
     const FRONTEND_URL = process.env.FRONTEND_URL || '';
-    if (!FRONTEND_URL) {
-      throw new Error('Missing FRONTEND_URL in environment variables.');
-    }
+    if (!FRONTEND_URL) throw new Error('Missing FRONTEND_URL in environment variables.');
 
     const { customer, items, temporaryId, paymentMethod, delivery } = payload;
 
@@ -368,37 +396,38 @@ export default () => ({
             pictures_new: { fields: ['url', 'formats'] },
           },
         });
-    
+
         if (!product || (typeof product.price !== 'number' && typeof product.price !== 'string')) {
           throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
         }
-    
+
         return {
           productId: item.productId,
           productName: item.productName ?? product.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          event: item.event ?? undefined,       // <— PRIDANÉ
-          _image: pickProductImage(product),    // len pre email
+          event: item.event ?? undefined,
+          _image: pickProductImage(product),
         };
       })
     );
 
     const itemsTotal = orderItems.reduce((sum: number, i: any) => sum + i.quantity * i.unitPrice, 0);
     const deliveryMethod: DeliveryMethod = delivery.method;
-    // const shippingFee = Number(SHIPPING_PRICING[deliveryMethod] ?? 0);
-    const shippingFee = Number(
-      (payload as any).shippingFee ?? SHIPPING_PRICING[deliveryMethod] ?? 0
-    );
+
+    // doprava (s prahom pre free shipping)
+    const baseShipping = Number((payload as any).shippingFee ?? SHIPPING_PRICING[deliveryMethod] ?? 0);
+    const shippingFee = itemsTotal >= FREE_SHIPPING_THRESHOLD ? 0 : baseShipping;
+
     const paymentFee = Number((payload as any).paymentFee ?? 0);
     const totalWithShipping = Number((itemsTotal + shippingFee + paymentFee).toFixed(2));
     const isCard = paymentMethod === 'card';
 
     // Enumy podľa schémy
-    const fulfillmentStatus = 'new';        // ["new","processing","shipped","delivered","cancelled"]
-    const deliveryStatus = 'label_created'; // ["label_created","in_transit","at_pickup","delivered","returned"]
-    const paymentStatus = 'unpaid';         // ["unpaid","paid","refunded"]
-    
+    const fulfillmentStatus = 'new';
+    const deliveryStatus = 'label_created';
+    const paymentStatus = 'unpaid';
+
     function clampLabel(s: string, def = 'Order') {
       const v = (s || def).trim();
       return v.length <= 16 ? v : v.slice(0, 16);
@@ -430,7 +459,7 @@ export default () => ({
 
         items: orderItems.map(({ _image, ...rest }) => ({
           ...rest,
-          imageUrl: _image,                 
+          imageUrl: _image,
         })),
         status: 'pending',
         orderStatus: 'pending',
@@ -445,16 +474,17 @@ export default () => ({
 
     // 4A) NE-KARTA – prelinkuj bookingy + pošli emaily + redirect na success
     if (!isCard) {
-      // 🔗 prelinkovanie bookingov: temporaryId -> orderId (bez zmeny statusu)
       try {
         if (order.temporaryId) {
-          
           const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
             where: { temporaryId: order.temporaryId, orderId: null },
-            data: { orderId: String(order.id), status: 'confirmed', customerEmail: customer.email,
-              customerName:  customer.name, customerPhone: customer.phone },
-
-            
+            data: {
+              orderId: String(order.id),
+              status: 'confirmed',
+              customerEmail: customer.email,
+              customerName: customer.name,
+              customerPhone: customer.phone,
+            },
           });
           strapi.log.info(`[CHECKOUT][BOOKINGS][NON-CARD] linked by temporaryId (${res.count}) → orderId=${order.id}`);
         }
@@ -463,36 +493,68 @@ export default () => ({
       }
 
       try {
-        if (order.temporaryId) {
-          await recalcSessionsByTemporaryId(order.temporaryId);
-        }
+        if (order.temporaryId) await recalcSessionsByTemporaryId(order.temporaryId);
         await recalcSessionsByOrderId(order.id);
       } catch (e) {
         strapi.log.error('[GCAL][NON-CARD] recalc failed:', e);
       }
 
-
       const deliverySummary = summarizeDelivery(delivery);
-
       const emailItems = orderItems.map((i: any) => ({
         productName: i.productName,
         unitPrice: i.unitPrice,
         quantity: i.quantity,
         image: i._image,
-        event: i.event
+        event: i.event,
       }));
 
-      const customerEmailHtml = renderOrderEmail({
-        title: 'Potvrdenie objednávky',
-        heading: 'Ďakujeme za objednávku',
-        introLines: [
-          `Dobrý deň, ${customer.name}, vaša objednávka bola prijatá.`,
-          `O detailoch vás budeme informovať v ďalšom e-maile.`,
-        ],
-        cta: {
-          label: 'Zobraziť objednávku',
-          href: `${FRONTEND_URL}/checkout/success?order=${order.id}`,
-        },
+      const orderNo = order.id;
+      const orderDate = formatNowSk();
+      const deliveryHuman = humanDelivery(deliveryMethod);
+      const subject = `Potvrdenie objednávky č. ${orderNo}`;
+
+      let bodyCustomerHtml = '';
+      let bodyAdminIntro = '';
+
+      if (paymentMethod === 'bank') {
+        // Bankový prevod – špeciálne telo
+        bodyCustomerHtml = `
+          <p>Dobrý deň,</p>
+          <p>ďakujeme za Vašu objednávku v našom e-shope.</p>
+          <p><b>Podrobnosti objednávky:</b><br/>
+          • Číslo objednávky: ${orderNo}<br/>
+          • Dátum: ${orderDate}<br/>
+          • Spôsob platby: bankový prevod<br/>
+          • Spôsob doručenia: ${deliveryHuman}</p>
+          ${renderBankTransferBlock(orderNo, totalWithShipping)}
+        `;
+        bodyAdminIntro = `Platba: bankový prevod`;
+      } else {
+        // Ostatné nekartové (dobierka / na mieste / pošta)
+        const pmHuman =
+          paymentMethod === 'cod' ? 'dobierka' :
+          paymentMethod === 'onsite' ? 'platba na mieste' :
+          paymentMethod === 'post' ? 'platba na pošte' :
+          'nekartová platba';
+
+        bodyCustomerHtml = `
+          <p>Dobrý deň,</p>
+          <p>ďakujeme za Vašu objednávku na našom e-shope majolika.sk.</p>
+          <p><b>Podrobnosti objednávky:</b><br/>
+          • Číslo objednávky: ${orderNo}<br/>
+          • Dátum: ${orderDate}<br/>
+          • Spôsob platby: ${pmHuman}<br/>
+          • Spôsob doručenia: ${deliveryHuman}</p>
+          <p>O ďalšom priebehu Vás budeme informovať emailom.</p>
+        `;
+        bodyAdminIntro = `Platba: ${pmHuman}`;
+      }
+
+      const customerEmailHtml = renderEmail({
+        title: subject,
+        heading: `Potvrdenie objednávky č. ${orderNo}`,
+        bodyHtml: bodyCustomerHtml,
+        cta: { label: 'Zobraziť objednávku', href: `${FRONTEND_URL}/checkout/success?order=${order.id}` },
         items: emailItems,
         shippingFee,
         paymentFee,
@@ -500,13 +562,14 @@ export default () => ({
         deliverySummary,
       });
 
-      const adminEmailHtml = renderOrderEmail({
+      const adminEmailHtml = renderEmail({
         title: `Nová objednávka #${order.id}`,
         heading: `Nová objednávka #${order.id}`,
-        introLines: [
-          `Zákazník: ${customer.name} (${customer.email})`,
-          `Doručenie: ${deliverySummary}`,
-        ],
+        bodyHtml: `
+          <p>Zákazník: ${customer.name} (${customer.email})</p>
+          <p>Doručenie: ${deliverySummary}</p>
+          <p>${bodyAdminIntro}</p>
+        `,
         cta: null,
         items: emailItems,
         shippingFee,
@@ -516,16 +579,8 @@ export default () => ({
       });
 
       try {
-        await sendEmail({
-          to: customer.email,
-          subject: 'Potvrdenie objednávky',
-          html: customerEmailHtml,
-        });
-        await sendEmail({
-          to: 'info@appdesign.sk',
-          subject: `Nová objednávka #${order.id}`,
-          html: adminEmailHtml,
-        });
+        await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
+        await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
       } catch (e) {
         strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
       }
@@ -539,7 +594,7 @@ export default () => ({
       const MERCHANT = process.env.COMGATE_MERCHANT!;
       const SECRET   = process.env.COMGATE_SECRET!;
       const TEST     = String(process.env.COMGATE_TEST || 'false') === 'true';
-    
+
       const qsBody = new URLSearchParams({
         merchant: MERCHANT,
         secret: SECRET,
@@ -558,7 +613,7 @@ export default () => ({
         url_cancelled: process.env.RETURN_CANCELLED || '',
         url_pending: process.env.RETURN_PENDING || '',
       });
-    
+
       const resp = await fetch(`${API}/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/x-www-form-urlencoded' },
@@ -566,13 +621,12 @@ export default () => ({
       });
       const txt = await resp.text();
       const parsed = Object.fromEntries(new URLSearchParams(txt));
-    
+
       if (parsed.code !== '0') {
         strapi.log.error('[COMGATE][CREATE] error:', parsed);
         throw new Error(parsed.message || 'Comgate create error');
       }
-    
-      // (odporúčané) ulož transId k objednávke
+
       try {
         await strapi.db.query('api::order.order').update({
           where: { id: order.id },
@@ -581,9 +635,9 @@ export default () => ({
       } catch (e) {
         strapi.log.warn(`[COMGATE][CREATE] persist transId failed for order #${order.id}: ${String(e)}`);
       }
-    
+
       return {
-        checkoutUrl: decodeURIComponent(parsed.redirect), // FE ostáva bez zmeny
+        checkoutUrl: decodeURIComponent(parsed.redirect),
         sessionUrl: null,
         orderId: order.id,
         totalWithShippingCents: Math.round(totalWithShipping * 100),

@@ -459,7 +459,7 @@ const emailItems = await Promise.all(
   const totalWithShipping = Number(freshOrder.totalWithShipping || freshOrder.total || 0);
 
   const customerEmailHtml = renderOrderEmail({
-    title: 'Potvrdenie objednávky – platba prijatá',
+    title: `Potvrdenie objednávky ${freshOrder.id}`,
     heading: 'Ďakujeme, platba prijatá',
     introLines: [
       `Dobrý deň${freshOrder.customerName ? `, ${esc(freshOrder.customerName)}` : ''}.`,
