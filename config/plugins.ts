@@ -46,8 +46,8 @@ export default ({ env }) => {
             provider: 'google',
             clientId: env('GOOGLE_CLIENT_ID'),
             clientSecret: env('GOOGLE_CLIENT_SECRET'),
-            redirectUri: 'https://staging.d2y68xwoabt006.amplifyapp.com/login-success',
-            // redirectUri: 'https://majolika.sk/login-success',
+            // redirectUri: 'https://staging.d2y68xwoabt006.amplifyapp.com/login-success',
+            redirectUri: 'https://majolika.sk/login-success',
           },
           // prípadne ďalší provider…
         ],
