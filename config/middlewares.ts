@@ -126,6 +126,8 @@ export default [
     },
   },
 
+
+  // ✅ PoweredBy a query parser
   // ✅ PoweredBy a query parser
   'strapi::poweredBy',
   'strapi::query',
