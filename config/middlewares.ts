@@ -106,9 +106,11 @@ export default [
       origin: [
         'http://localhost:4200',
         'https://staging.d2y68xwoabt006.amplifyapp.com',
+        'https://staging.d7zf1c6evjf3z.amplifyapp.com',
         'https://majolika-cms.appdesign.sk',
         // prípadne produkčný FE:
         'https://majolika.sk',
+        'https://www.majolika.sk',
       ],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       headers: [
