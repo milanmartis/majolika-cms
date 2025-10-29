@@ -105,7 +105,7 @@ export default [
     config: {
       origin: [
         'http://localhost:4200',
-        'https://majolika.dgxjq5lkrnwly.amplifyapp.com',
+        'https://staging.dxzvn9ta3v1he.amplifyapp.com',
         'https://majolika-cms.appdesign.sk',
         // prípadne produkčný FE:
         'https://majolika.sk',
