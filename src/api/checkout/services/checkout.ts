@@ -181,7 +181,7 @@ function renderEmail(opts: {
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
-      ${opts.orderNotes}<p style="font-size:14px;color:#666;margin:6px 0;"><b>Poznámka:</b> ${escapeHtml(opts.orderNotes)}</p>
+      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Poznámka:</b> ${escapeHtml(opts.orderNotes)}</p>
 
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
         <thead>
@@ -594,7 +594,7 @@ export default () => ({
         orderNotes
       });
 
-      
+
       const adminEmails = ['majolika@majolika.sk', 'info@appdesign.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
 
       try {
