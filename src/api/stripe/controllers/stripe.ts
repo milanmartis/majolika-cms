@@ -38,6 +38,7 @@ type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
 
 type OrderRecord = {
   id: number;
+  notes?: string | null;
   customerEmail?: string;
   customerName?: string;
   shippingFee?: number | string;
@@ -215,6 +216,7 @@ function renderOrderEmail(opts: {
   shippingFee: number;
   totalWithShipping: number;
   deliverySummary: string;
+  orderNotes?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
   return `<!DOCTYPE html>
@@ -389,6 +391,8 @@ async function runPostPaidFlow(orderId: number) {
     populate: ['deliveryAddress', 'deliveryDetails', 'items'],
   })) as unknown as OrderRecord;
 
+  const orderNotes = (freshOrder as any)?.notes ? String((freshOrder as any).notes) : null;
+
   // Previazanie bookingov
   if (freshOrder.temporaryId) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
@@ -475,6 +479,7 @@ const emailItems = await Promise.all(
     shippingFee,
     totalWithShipping,
     deliverySummary,
+    orderNotes
   });
 
   const adminEmailHtml = renderOrderEmail({
@@ -489,6 +494,7 @@ const emailItems = await Promise.all(
     shippingFee,
     totalWithShipping,
     deliverySummary,
+    orderNotes
   });
 
   try {

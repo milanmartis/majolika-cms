@@ -3,6 +3,17 @@ import { sendEmail } from '../../../utils/email';
 import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
 
 /* ========================= Helpery ========================= */
+function escapeHtml(s: string = ''): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+
+
 
 interface EventInfo {
   sessionId?: number;
@@ -131,6 +142,7 @@ function renderEmail(opts: {
   totalWithShipping: number;
   deliverySummary: string;
   cta?: { label: string; href: string } | null;
+  orderNotes?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
   return `<!DOCTYPE html>
@@ -169,6 +181,7 @@ function renderEmail(opts: {
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
+      ${opts.orderNotes}<p style="font-size:14px;color:#666;margin:6px 0;"><b>Poznámka:</b> ${escapeHtml(opts.orderNotes)}</p>
 
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
         <thead>
@@ -279,6 +292,8 @@ interface CheckoutPayload {
   shippingFee?: number;
   paymentFee?: number;
   locale?: string;
+  notes?: string;        
+
 }
 
 /* ========================= Konštanty ========================= */
@@ -359,7 +374,7 @@ export default () => ({
     if (!FRONTEND_URL) throw new Error('Missing FRONTEND_URL in environment variables.');
 
     const { customer, items, temporaryId, paymentMethod, delivery } = payload;
-
+    const orderNotes = (payload.notes || '').trim();
     if (!customer?.email) throw new Error('customer.email is required');
     if (!items?.length) throw new Error('items are required');
     if (!paymentMethod) throw new Error('paymentMethod is required');
@@ -438,6 +453,7 @@ export default () => ({
         customerName: customer.name,
         customerEmail: customer.email,
         customerPhone: customer.phone,
+        notes: orderNotes || null,
 
         shippingAddress: {
           street: customer.street,
@@ -558,6 +574,7 @@ export default () => ({
         paymentFee,
         totalWithShipping,
         deliverySummary,
+        orderNotes,
       });
 
       const adminEmailHtml = renderEmail({
@@ -574,7 +591,10 @@ export default () => ({
         paymentFee,
         totalWithShipping,
         deliverySummary,
+        orderNotes
       });
+
+      
       const adminEmails = ['majolika@majolika.sk', 'info@appdesign.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
 
       try {
