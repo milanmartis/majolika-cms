@@ -504,7 +504,7 @@ const emailItems = await Promise.all(
     } else {
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${freshOrder.id}`);
     }
-    await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
+    await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
     strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
   } catch (e) {
     strapi.log.error('[COMGATE][EMAIL] send failed:', e);

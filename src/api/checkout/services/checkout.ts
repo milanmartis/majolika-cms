@@ -599,15 +599,17 @@ export default () => ({
 
       try {
         await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
-        await Promise.all(
-          adminEmails.map((email) =>
-            sendEmail({
-              to: email,
-              subject: `Nová objednávka #${order.id}`,
-              html: adminEmailHtml,
-            })
-          )
-        );
+        await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
+
+        // await Promise.all(
+        //   adminEmails.map((email) =>
+        //     sendEmail({
+        //       to: email,
+        //       subject: `Nová objednávka #${order.id}`,
+        //       html: adminEmailHtml,
+        //     })
+        //   )
+        // );
       } catch (e) {
         strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
       }
