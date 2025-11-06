@@ -10,7 +10,8 @@ const isOrderCT = (model: string) => model === 'api::order.order';
  * - Logs out the admin user after a period of REAL user inactivity (no mouse/keyboard/touch/scroll).
  * - Uses Strapi's own logout endpoint and then redirects to the admin login page.
  */
-const IDLE_MS = 3 * 60 * 60 * 1000; // 3 hours; for testing set e.g. 30 * 1000
+// const IDLE_MS = 3 * 60 * 60 * 1000; // 3 hours; for testing set e.g. 30 * 1000
+const IDLE_MS = 2 * 60 * 1000; // 3 hours; for testing set e.g. 30 * 1000
 
 function mountIdleLogout() {
   let timeoutId: number | undefined;
