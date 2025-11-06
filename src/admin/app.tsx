@@ -6,37 +6,80 @@ import PacketaShipModal from './packeta/PacketaShipModal';
 const isOrderCT = (model: string) => model === 'api::order.order';
 
 /**
- * Idle logout guard
- * - Logs out the admin user after a period of REAL user inactivity (no mouse/keyboard/touch/scroll).
- * - Uses Strapi's own logout endpoint and then redirects to the admin login page.
+ * === Idle logout guard (robustný) ===
+ * - Sleduje reálnu nečinnosť (myš/klávesnica/scroll/touch/focus/visibility).
+ * - Po IDLE_MS:
+ *    a) zablokuje ďalšie volania /admin/renew-token (aby sa session NEobnovila),
+ *    b) pokúsi sa o serverový logout (vymazanie HttpOnly cookie),
+ *    c) hard redirect na /admin/auth/login.
  */
-// const IDLE_MS = 3 * 60 * 60 * 1000; // 3 hours; for testing set e.g. 30 * 1000
-const IDLE_MS = 3 * 60 * 60 * 1000; // 3 hours; for testing set e.g. 30 * 1000
+const IDLE_MS = 10 * 60 * 1000; // 3 h; na test daj napr. 30 * 1000
+// const IDLE_MS = 3 * 60 * 60 * 1000; // 3 h; na test daj napr. 30 * 1000
+const ADMIN_BASE = '/admin';
 
 function mountIdleLogout() {
   let timeoutId: number | undefined;
+  let idleArmed = false;
 
-  const adminBase = '/admin'; // keep simple & robust; works behind proxies too
-
-  const logout = async () => {
+  // --- A) patch fetch: po idle blokuj renew/init, aby sa session neobnovila ---
+  const origFetch = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     try {
-      await fetch(`${adminBase}/logout`, {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (idleArmed) {
+        // Zablokuj všetky pokusy o keep-alive/renew/init
+        if (url.includes(`${ADMIN_BASE}/renew-token`) || url.includes(`${ADMIN_BASE}/init`)) {
+          // vráť „odhlásený“ stav bez kontaktu so serverom
+          return new Response(null, { status: 401, statusText: 'Idle lock' });
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return origFetch(input as any, init);
+  };
+
+  const hardRedirectToLogin = () => {
+    // Poistka: vyčisti local/session storage (Strapi si tu drží pár UI stavov)
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {}
+    // Hard redirect bez návratu v histórii
+    window.location.replace(`${ADMIN_BASE}/auth/login?reason=idle`);
+  };
+
+  const serverLogout = async () => {
+    // 1) zablokuj renew
+    idleArmed = true;
+
+    // 2) pokus o serverový logout (vymazanie HttpOnly cookies)
+    try {
+      // v5 používa POST /admin/logout; necháme credentials, aby sa poslala cookie
+      await fetch(`${ADMIN_BASE}/logout`, {
         method: 'POST',
         credentials: 'include',
       });
     } catch {
-      // ignore network errors — we still force redirect to login
+      // ignore
     } finally {
-      window.location.href = `${adminBase}/auth/login`;
+      // 3) a nakoniec hard redirect na login
+      hardRedirectToLogin();
     }
   };
 
-  const reset = () => {
+  const armTimer = () => {
     if (timeoutId) window.clearTimeout(timeoutId);
-    timeoutId = window.setTimeout(logout, IDLE_MS);
+    timeoutId = window.setTimeout(serverLogout, IDLE_MS);
   };
 
-  // Window-driven user events
+  // Reštart timeru len pri reálnej interakcii používateľa
+  const onActivity = () => {
+    if (idleArmed) return; // už smerujeme na logout
+    armTimer();
+  };
+
+  // Window events
   const windowEvents: (keyof WindowEventMap)[] = [
     'mousemove',
     'mousedown',
@@ -45,76 +88,71 @@ function mountIdleLogout() {
     'touchstart',
     'focus',
   ];
+  windowEvents.forEach((ev) => window.addEventListener(ev, onActivity, { passive: true }));
 
-  windowEvents.forEach((ev) => {
-    window.addEventListener(ev, reset, { passive: true });
-  });
-
-  // Document-driven events (e.g., visibilitychange)
+  // Document events (TS: tu patrí visibilitychange)
   const documentEvents: (keyof DocumentEventMap)[] = ['visibilitychange'];
-  documentEvents.forEach((ev) => {
-    document.addEventListener(ev, reset, { passive: true } as AddEventListenerOptions);
-  });
+  documentEvents.forEach((ev) => document.addEventListener(ev, onActivity, { passive: true } as AddEventListenerOptions));
 
-  // Start the initial countdown
-  reset();
+  // štart
+  armTimer();
 }
 
 export default {
   register(_app: StrapiApp) {},
 
   bootstrap(app: StrapiApp) {
-    // ---- 1) Mount idle-logout guard (always, independent of other plugins) ----
+    // 1) spusti idle guard
     mountIdleLogout();
 
-    // ---- 2) Packeta action in Content Manager ----
+    // 2) tvoj Packeta action v Content Manageri
     const cm = app.getPlugin('content-manager');
     const apis = cm?.apis;
-
     if (!apis || typeof apis.addDocumentAction !== 'function') {
       console.warn('[Packeta] Content Manager APIs are not available.');
-      // Do NOT return — we still want the idle guard active above.
-    } else {
-      apis.addDocumentAction((actions: any[]) => [
-        ((props: any) => {
-          const { model, document, documentId } = props;
-          if (!isOrderCT(model) || !document || !documentId) {
-            return { label: 'Ship with Packeta', disabled: true };
-          }
-
-          const attrs =
-            (document as any).data?.attributes ??
-            (document as any).data ??
-            (document as any);
-
-          const deliveryMethod = attrs?.deliveryMethod;
-          const packetaBoxId = attrs?.deliveryDetails?.packetaBoxId ?? null;
-          const alreadyShipped = Boolean(attrs?.packetaShipmentId);
-
-          const enabled =
-            deliveryMethod === 'packeta_box' && !!packetaBoxId && !alreadyShipped;
-
-          return {
-            label: 'Ship with Packeta',
-            position: 'panel' as const,
-            disabled: !enabled,
-            dialog: {
-              type: 'modal',
-              title: 'Packeta shipment',
-              content: ({ onClose }: { onClose: () => void }) => (
-                <PacketaShipModal
-                  orderId={Number(documentId)}
-                  defaultWeightKg={1.0}
-                  onSuccess={onClose}
-                  onClose={onClose}
-                />
-              ),
-            },
-            variant: 'default' as const,
-          };
-        }) as any,
-        ...actions,
-      ]);
+      // idle guard zostáva aktívny
+      return;
     }
+
+    apis.addDocumentAction((actions: any[]) => [
+      ((props: any) => {
+        const { model, document, documentId } = props;
+        if (!isOrderCT(model) || !document || !documentId) {
+          return { label: 'Ship with Packeta', disabled: true };
+        }
+
+        const attrs =
+          (document as any).data?.attributes ??
+          (document as any).data ??
+          (document as any);
+
+        const deliveryMethod = attrs?.deliveryMethod;
+        const packetaBoxId = attrs?.deliveryDetails?.packetaBoxId ?? null;
+        const alreadyShipped = Boolean(attrs?.packetaShipmentId);
+
+        const enabled =
+          deliveryMethod === 'packeta_box' && !!packetaBoxId && !alreadyShipped;
+
+        return {
+          label: 'Ship with Packeta',
+          position: 'panel' as const,
+          disabled: !enabled,
+          dialog: {
+            type: 'modal',
+            title: 'Packeta shipment',
+            content: ({ onClose }: { onClose: () => void }) => (
+              <PacketaShipModal
+                orderId={Number(documentId)}
+                defaultWeightKg={1.0}
+                onSuccess={onClose}
+                onClose={onClose}
+              />
+            ),
+          },
+          variant: 'default' as const,
+        };
+      }) as any,
+      ...actions,
+    ]);
   },
 };
