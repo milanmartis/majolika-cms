@@ -2,11 +2,11 @@ export default ({ env }) => ({
   auth: {
     secret: env('ADMIN_JWT_SECRET'),
     sessions: {
-      accessTokenLifespan: 30,       // 30 s
-      idleRefreshTokenLifespan: 30,  // 30 s nečinnosti
-      maxRefreshTokenLifespan: 90,   // absolútne max 90 s
-      idleSessionLifespan: 90,       // 90 s nečinnosti
-      maxSessionLifespan: 90,        // absolútne max 90 s
+      accessTokenLifespan: 1800,      // 30 min access token
+      idleSessionLifespan: 10800,     // 3 h nečinnosti
+      maxSessionLifespan: 10800,      // absolútne max 3 h
+      idleRefreshTokenLifespan: 10800,// 3 h nečinnosti
+      maxRefreshTokenLifespan: 10800, // absolútne max 3 h
     },
     cookie: {
       path: '/admin',
