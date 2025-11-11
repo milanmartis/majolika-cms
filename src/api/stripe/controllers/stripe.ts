@@ -140,8 +140,14 @@ function absUrl(url?: string): string {
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
     process.env.UPLOADS_BASE_URL ||
-    serverUrl;
+    serverUrl ||
+    process.env.FRONTEND_URL || // posledný fallback, nech je absolútna
+    '';
 
+  if (!base) {
+    strapi.log.warn('[EMAIL][IMG] Missing base URL; cannot build absolute image URL');
+    return ''; // radšej prázdne -> renderer použije logo, nie rozbitý <img>
+  }
   return `${String(base).replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
@@ -394,6 +400,7 @@ function mapComgateToOrder(s: string): PaymentStatus {
 
 async function runPostPaidFlow(orderId: number) {
   const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
+    // fields: ['id','notes','shippingFee','total','totalWithShipping','customerEmail','customerName','deliveryMethod'],
     populate: {
       deliveryAddress: true,
       deliveryDetails: true,
@@ -401,8 +408,9 @@ async function runPostPaidFlow(orderId: number) {
     },
   }) as unknown as OrderRecord;
 
-  const orderNotes = (freshOrder as any)?.notes ? String((freshOrder as any).notes) : null;
-
+  
+  const orderNotes = freshOrder?.notes ? String(freshOrder.notes) : null;
+  strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
   // Previazanie bookingov
   if (freshOrder.temporaryId) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({

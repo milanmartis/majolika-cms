@@ -68,11 +68,13 @@ function absUrl(url?: string): string {
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
     process.env.UPLOADS_BASE_URL ||
-    serverUrl;
+    serverUrl ||
+    process.env.FRONTEND_URL ||
+    '';
 
   if (!base) {
-    strapi.log.warn('[EMAIL][IMG] Missing base URL for absUrl; returning relative path');
-    return url.startsWith('/') ? url : `/${url}`;
+    strapi.log.warn('[EMAIL][IMG] Missing base URL; cannot build absolute image URL');
+    return '';
   }
   return `${String(base).replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
 }
@@ -145,6 +147,14 @@ function renderEmail(opts: {
   orderNotes?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
+  // v renderEmail v checkout.ts nahraď časť s "Poznámka:" za tento blok:
+const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
+? `<div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:6px;background:#fcfcfc;">
+     <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
+     <div style="font-size:14px;color:#444;line-height:1.5;">${escapeHtml(String(opts.orderNotes)).replace(/\n/g,'<br>')}</div>
+   </div>`
+: '';
+
   return `<!DOCTYPE html>
 <html lang="sk">
 <head>
@@ -181,7 +191,9 @@ function renderEmail(opts: {
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
-      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Poznámka:</b> ${escapeHtml(opts.orderNotes)}</p>
+
+      ${notesHtml}
+
 
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
         <thead>
@@ -473,7 +485,8 @@ export default () => ({
 
         items: orderItems.map(({ _image, ...rest }) => ({
           ...rest,
-          imageUrl: _image,
+          imageUrl: absUrl(_image),
+
         })),
         status: 'pending',
         orderStatus: 'pending',

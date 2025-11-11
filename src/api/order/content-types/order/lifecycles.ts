@@ -17,6 +17,7 @@ type OrderItem = {
   quantity: number;
   unitPrice: number;
   event?: EventInfo;
+  imageUrl?: string | null;
 };
 
 type OrderEntity = {
@@ -48,6 +49,9 @@ type OrderEntity = {
 
   deliveryStatus?: string | null;
   fulfillmentStatus?: string | null;
+
+  notes?: string | null;
+  paymentStatus?: string | null;
 };
 
 const ADMIN_EMAIL =
@@ -113,15 +117,47 @@ function formatEvent(event?: EventInfo): string {
   return `Termín: ${d}, ${t}${people}`;
 }
 
-function absUrl(url?: string): string {
-  if (!url) return '';
-  if (/^https?:\/\//i.test(url)) return url;
+function esc(s?: string) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function aesc(s?: string) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+function isHttpUrl(u?: string | null) {
+  return typeof u === 'string' && /^https?:\/\//i.test(u);
+}
+
+function absUrl(url?: string | null): string {
+  const u = String(url || '');
+  if (!u) return '';
+  if (/^https?:\/\//i.test(u)) return u;
+
+  const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
   const base =
     process.env.PUBLIC_UPLOADS_URL ||
-    process.env.FRONTEND_URL ||
-    (strapi.config?.get?.('server.url') as string) ||
-    '';
-  return `${String(base).replace(/\/$/, '')}${url?.startsWith('/') ? '' : '/'}${url}`;
+    process.env.UPLOADS_BASE_URL ||
+    serverUrl;
+
+  if (!base) {
+    strapi.log.error('[ORDER][LC][IMG] Missing PUBLIC_UPLOADS_URL/UPLOADS_BASE_URL/server.url – cannot build absolute URL');
+    return '';
+  }
+
+  const root = String(base).replace(/\/$/, '');
+  const rel  = u.startsWith('/') ? u : `/${u}`;
+  return `${root}${rel}`;
 }
 
 function pickProductImage(product: any): string {
@@ -149,16 +185,14 @@ function summarizeDelivery(order: OrderEntity): string {
         : `Packeta Box (ID: ${order?.deliveryDetails?.packetaBoxId ?? '-'})`;
     case 'post_courier': {
       const a = order?.deliveryAddress || ({} as any);
-      return `Kuriér na adresu: ${[a.street, a.city, a.zip, a.country]
-        .filter(Boolean)
-        .join(', ')}`;
+      return `Kuriér na adresu: ${[a.street, a.city, a.zip, a.country].filter(Boolean).join(', ')}`;
     }
     default:
       return String(order?.deliveryMethod || '-');
   }
 }
 
-/* --------------------- HTML renderer v tvojom štýle --------------------- */
+/* --------------------- HTML renderer --------------------- */
 function renderItemsRows(
   items: Array<{
     productName: string;
@@ -174,20 +208,21 @@ function renderItemsRows(
       const eventLine = it.event?.startDateTime
         ? `
         <div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">
-          ${formatEvent(it.event)}
+          ${esc(formatEvent(it.event))}
         </div>`
         : '';
+
+      const imgHtml = isHttpUrl(it.image)
+        ? `<img src="${aesc(it.image!)}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
+        : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />';
+
       return `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #eee;">
             <div style="display:flex;align-items:center;gap:12px;">
-              ${
-                it.image
-                  ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
-                  : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'
-              }
+              ${imgHtml}
               <div>
-                <div style="font-weight:600;color:#333;padding:4px;">${it.productName}</div>
+                <div style="font-weight:600;color:#333;padding:4px;">${esc(it.productName)}</div>
                 ${eventLine}
                 <div style="font-size:13px;color:#777;padding:4px;">${money(
                   it.unitPrice,
@@ -214,17 +249,26 @@ function renderOrderEmail(opts: {
   paymentFee: number;
   totalWithShipping: number;
   deliverySummary: string;
+  orderNotes?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
+  const notesHtml = opts.orderNotes
+    ? `
+      <div style="margin-top:16px;padding:12px;border:1px solid #eaeaea;border-radius:6px;background:#fcfcfc;">
+        <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
+        <div style="font-size:14px;color:#444;line-height:1.5;">${esc(opts.orderNotes).replace(/\n/g, '<br>')}</div>
+      </div>
+    `
+    : '';
   return `<!DOCTYPE html>
 <html lang="sk">
 <head>
   <meta charset="UTF-8" />
-  <title>${opts.title}</title>
+  <title>${esc(opts.title)}</title>
   <style>
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
     .container {
-      max-width: 600px; margin: 40px auto; background: #fff url('https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/corner6.png') no-repeat right bottom;
+      max-width: 600px; margin: 40px auto; background: #fff url('https://www.majolika.sk/assets/img/corner6.png') no-repeat right bottom;
       background-size: 200px auto; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden;
     }
     .header { background-color: #0e29a0; color: white; padding: 24px; text-align: center; }
@@ -246,16 +290,13 @@ function renderOrderEmail(opts: {
   <div class="container">
     <div class="header"><h1>Vitajte v Majolike</h1></div>
     <div class="content">
-      <h2>${opts.heading}</h2>
-      ${opts.introLines.map((t) => `<p>${t}</p>`).join('')}
-      ${
-        opts.cta
-          ? `<p style="text-align:center;"><a class="button" href="${opts.cta.href}">${opts.cta.label}</a></p>`
-          : ''
-      }
+      <h2>${esc(opts.heading)}</h2>
+      ${opts.introLines.map((t) => `<p>${esc(t)}</p>`).join('')}
+      ${opts.cta ? `<p style="text-align:center;"><a class="button" href="${aesc(opts.cta.href)}">${esc(opts.cta.label)}</a></p>` : ''}
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
-      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
+      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${esc(opts.deliverySummary)}</p>
+      ${notesHtml}
 
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
         <thead>
@@ -295,7 +336,7 @@ function renderOrderEmail(opts: {
         Otváracie hodiny: Po–Pia 8:00–16:00 | So–Ne 10:00–16:00
       </p>
       <div class="footer-logo">
-        <img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="SLM logo" />
+        <img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="SLM logo" />
       </div>
     </div>
   </div>
@@ -340,13 +381,45 @@ const fetchFullOrderForEmail = async (id: number): Promise<OrderEntity> => {
   return full as OrderEntity;
 };
 
+/* --------- Dopĺňanie obrázkov do položiek (persist) --------- */
+const fillImages = async (items?: OrderItem[] | null) => {
+  if (!Array.isArray(items) || !items.length) return;
+  for (const it of items) {
+    try {
+      // ak máme imageUrl, sprav z neho absolútne URL
+      if (it.imageUrl) {
+        it.imageUrl = absUrl(it.imageUrl);
+        continue;
+      }
+      if (!it.productId) continue;
+
+      const product = await strapi.entityService.findOne(
+        'api::product.product',
+        Number(it.productId),
+        {
+          populate: {
+            picture_new: { fields: ['url', 'formats'] },
+            pictures_new: { fields: ['url', 'formats'] },
+          },
+        },
+      );
+      const img = pickProductImage(product);
+      it.imageUrl = img || null;
+    } catch (e) {
+      strapi.log.warn(`[ORDER][LC] fillImages failed for productId=${it.productId}: ${String(e)}`);
+    }
+  }
+};
+
+/* --------- Build položiek pre email (preferuj uložené imageUrl) --------- */
 const buildEmailItems = async (order: OrderEntity) => {
   const items = order.items || [];
   return Promise.all(
     items.map(async (it) => {
-      // pokus o obrázok z produktu
-      let image = '';
-      if (it.productId) {
+      // 1) preferuj uložené imageUrl z objednávky
+      let image = absUrl(it.imageUrl || '');
+      // 2) fallback – skús načítať produkt
+      if (!isHttpUrl(image) && it.productId) {
         try {
           const product = await strapi.entityService.findOne(
             'api::product.product',
@@ -377,10 +450,23 @@ const buildEmailItems = async (order: OrderEntity) => {
 /* ========================= Lifecycles ========================= */
 export default {
   async beforeCreate(event) {
-    event.params.data ??= {};
-    stripStatus(event.params.data);
-    event.params.data.fulfillmentStatus = mapFulfillment(event.params.data.fulfillmentStatus);
-    event.params.data.deliveryStatus = mapDelivery(event.params.data.deliveryStatus);
+    const d = (event.params.data ??= {});
+    stripStatus(d);
+    d.fulfillmentStatus = mapFulfillment(d.fulfillmentStatus);
+    d.deliveryStatus = mapDelivery(d.deliveryStatus);
+
+    // normalize notes
+    if (typeof d.notes === 'string') d.notes = d.notes.trim() || null;
+
+    // doplň a normalizuj imageUrl v položkách (persistne)
+    if (Array.isArray(d.items) && d.items.length) {
+      await fillImages(d.items);
+      // krátky log náhľadu
+      try {
+        strapi.log.info('[ORDER][LC][beforeCreate] items imageUrl preview',
+          (d.items || []).map((i: any) => ({ pid: i.productId, img: (i.imageUrl || '').slice(0, 120) })));
+      } catch {}
+    }
   },
 
   async beforeUpdate(event) {
@@ -391,6 +477,18 @@ export default {
 
     if (!('fulfillmentStatus' in d) || d.fulfillmentStatus === '') d.fulfillmentStatus = 'new';
     if (!('deliveryStatus' in d) || d.deliveryStatus === '') d.deliveryStatus = 'label_created';
+
+    // normalize notes
+    if ('notes' in d && typeof d.notes === 'string') d.notes = d.notes.trim() || null;
+
+    // doplň a normalizuj imageUrl v položkách aj pri update
+    if (Array.isArray(d.items) && d.items.length) {
+      await fillImages(d.items);
+      try {
+        strapi.log.info('[ORDER][LC][beforeUpdate] items imageUrl preview',
+          (d.items || []).map((i: any) => ({ pid: i.productId, img: (i.imageUrl || '').slice(0, 120) })));
+      } catch {}
+    }
 
     try {
       const prev = await fetchPrevOrder(event);
@@ -428,23 +526,24 @@ export default {
             ? Number(full.totalWithShipping)
             : Number((itemsTotal + shippingFee + paymentFee).toFixed(2));
         const deliverySummary = summarizeDelivery(full);
+        const orderNotes = (full.notes || '').trim() || null;
 
         const subject = `Zmena stavu doručenia: ${statusLabel(nextStatus)} (objednávka #${full.id})`;
 
         const FRONTEND_URL = process.env.FRONTEND_URL || '';
         const cta =
           FRONTEND_URL
-            ? { label: 'Zobraziť objednávku', href: `${FRONTEND_URL}/checkout/success?order=${full.id}` }
+            ? { label: 'Zobraziť objednávku', href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${full.id}` }
             : null;
 
         const customerHtml = renderOrderEmail({
           title: subject,
           heading: `Stav doručenia: ${statusLabel(nextStatus)}`,
           introLines: [
-            `Dobrý deň${full.customerName ? ', ' + full.customerName : ''},`,
-            `stav vašej objednávky č. <b>${full.id}</b> bol zmenený z <b>${statusLabel(
+            `Dobrý deň${full.customerName ? ', ' + esc(full.customerName) : ''},`,
+            `stav vašej objednávky č. ${full.id} bol zmenený z „${statusLabel(
               prevStatus,
-            )}</b> na <b>${statusLabel(nextStatus)}</b>.`,
+            )}“ na „${statusLabel(nextStatus)}“.`,
           ],
           cta,
           items: emailItems,
@@ -452,14 +551,15 @@ export default {
           paymentFee,
           totalWithShipping,
           deliverySummary,
+          orderNotes,
         });
 
         const adminHtml = renderOrderEmail({
           title: `[ADMIN] ${subject}`,
           heading: `Objednávka #${full.id} – ${statusLabel(prevStatus)} → ${statusLabel(nextStatus)}`,
           introLines: [
-            `Zákazník: ${full.customerName || '-'} (${full.customerEmail || '-'})`,
-            `Doručenie: ${deliverySummary}`,
+            `Zákazník: ${esc(full.customerName || '-')} (${esc(full.customerEmail || '-')})`,
+            `Doručenie: ${esc(deliverySummary)}`,
           ],
           cta: null,
           items: emailItems,
@@ -467,6 +567,7 @@ export default {
           paymentFee,
           totalWithShipping,
           deliverySummary,
+          orderNotes,
         });
 
         const tasks: Promise<any>[] = [];

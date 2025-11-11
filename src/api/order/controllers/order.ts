@@ -51,6 +51,36 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     const details = delivery.details || {};
     const addr = delivery.address || {};
 
+    // --- normalizácia poznámky z FE
+    if (typeof data.notes === 'string') {
+      data.notes = data.notes.trim() || null;
+    }
+
+    // --- doplnenie imageUrl do položiek (ak chýba)
+    if (Array.isArray(data.items) && data.items.length) {
+      data.items = await Promise.all(
+        data.items.map(async (it: any) => {
+          const out = { ...it };
+          if (!out.imageUrl && out.productId) {
+            try {
+              const product = await strapi.entityService.findOne('api::product.product', Number(out.productId), {
+                populate: {
+                  picture_new: { fields: ['url', 'formats'] },
+                  pictures_new: { fields: ['url', 'formats'] },
+                },
+              });
+              out.imageUrl = pickProductImage(product);
+            } catch (e) {
+              strapi.log.warn(`[ORDER][CREATE] imageUrl fill failed for product ${out.productId}: ${String(e)}`);
+            }
+          }
+          // ešte pre istotu urob absolútnu URL, ak prišlo z FE relatívne:
+          if (out.imageUrl) out.imageUrl = absUrl(out.imageUrl);
+          return out;
+        })
+      );
+    }
+
     // --- Normalizácia a validácia podľa metódy doručenia ---
     if (method === 'post_office') {
       if (!details.postOfficeId) {
@@ -113,6 +143,33 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       };
       data.deliveryAddress = null;
     }
+
+
+
+    // helpery si vytiahni do shared util, tu inline kvôli stručnosti:
+function absUrl(url?: string): string {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
+  const base = process.env.PUBLIC_UPLOADS_URL || process.env.UPLOADS_BASE_URL || serverUrl;
+  if (!base) return ''; // do emailu relatívnu cestu nechceme
+  const root = String(base).replace(/\/$/, '');
+  const rel = url.startsWith('/') ? url : `/${url}`;
+  return `${root}${rel}`;
+}
+
+function pickProductImage(product: any): string {
+  const single = product?.picture_new;
+  const firstMulti = Array.isArray(product?.pictures_new) ? product.pictures_new[0] : null;
+  const media = single || firstMulti || null;
+  const url =
+    media?.formats?.thumbnail?.url ||
+    media?.formats?.small?.url ||
+    media?.formats?.medium?.url ||
+    media?.formats?.large?.url ||
+    media?.url;
+  return absUrl(url);
+}
 
     // --- Vytvor objednávku s už normalizovanými dátami ---
     // Pozn.: populate doplň podľa potreby
