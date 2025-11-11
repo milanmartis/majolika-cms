@@ -116,8 +116,8 @@ function renderItemsRows(items: Array<{
           <td style="padding:8px 12px;border-bottom:1px solid #eee;">
             <div style="display:flex;align-items:center;gap:12px;">
               ${it.image
-                ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
-                : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
+                ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />`
+                : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />'}
               <div>
                 <div style="font-weight:600;color:#333;padding:4px;">${it.productName}</div>
                 ${eventLine}
@@ -149,7 +149,7 @@ function renderEmail(opts: {
   const itemsRows = renderItemsRows(opts.items);
   // v renderEmail v checkout.ts nahraď časť s "Poznámka:" za tento blok:
 const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
-? `<div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:6px;background:#fcfcfc;">
+? `<div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
      <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
      <div style="font-size:14px;color:#444;line-height:1.5;">${escapeHtml(String(opts.orderNotes)).replace(/\n/g,'<br>')}</div>
    </div>`
@@ -163,14 +163,13 @@ const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
   <style>
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
     .container {
-      max-width: 600px; margin: 40px auto; background: #fff url('https://www.majolika.sk/assets/img/corner6.png') no-repeat right bottom;
-      background-size: 200px auto; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden;
+      max-width: 600px; margin: 40px auto; border-radius: 0px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden;
     }
     .header { background-color: #0e29a0; color: white; padding: 24px; text-align: center; }
     .content { padding: 32px; }
     .content h2 { margin-top: 0; color: #333; }
     .content p { font-size: 16px; line-height: 1.6; color: #444; }
-    .button { display: inline-block; margin-top: 24px; padding: 12px 24px; background-color: #0e29a0; color: white !important; text-decoration: none; border-radius: 4px; font-weight: bold; transition: background-color 0.3s ease; }
+    .button { display: inline-block; margin-top: 24px; padding: 12px 24px; background-color: #0e29a0; color: white !important; text-decoration: none; border-radius: 0px; font-weight: bold; transition: background-color 0.3s ease; }
     .button:hover { background-color: #0b1e7c; }
     .footer { background-color: #fafafa; color: #777; font-size: 13px; padding: 24px; text-align: center; line-height: 1.5; }
     .footer a { color: #0e29a0; text-decoration: none; }
@@ -248,7 +247,7 @@ function renderBankTransferBlock(orderId: string | number, total: number) {
   const vs = String(orderId); // ← kľúčové
 
   return `
-    <div style="margin:20px 0;padding:16px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;">
+    <div style="margin:20px 0;padding:16px;border:1px solid #e2e8f0;border-radius:0px;background:#f8fafc;">
       <div style="font-weight:700;color:#0e29a0;margin-bottom:8px;">Platba bankovým prevodom</div>
       <div style="line-height:1.7;color:#333;">
         Prosíme Vás o úhradu podľa nasledovných údajov:<br/>
@@ -613,6 +612,7 @@ export default () => ({
       try {
         await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
         await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
+        await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
 
         // await Promise.all(
         //   adminEmails.map((email) =>

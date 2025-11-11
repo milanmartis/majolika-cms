@@ -196,8 +196,8 @@ function renderItemsRows(items: Array<{ productName: string; unitPrice: number; 
         <td style="padding:8px 12px;border-bottom:1px solid #eee;">
           <div style="display:flex;align-items:center;gap:12px;">
             ${it.image
-              ? `<img src="${aesc(it.image)}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
-              : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
+              ? `<img src="${aesc(it.image)}" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />`
+              : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />'}
             <div>
               <div style="font-weight:600;color:#333;">${esc(it.productName)}</div>
               ${eventLine}
@@ -220,6 +220,7 @@ function renderOrderEmail(opts: {
   cta?: { label: string; href: string } | null;
   items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null }>;
   shippingFee: number;
+  paymentFee: number; 
   totalWithShipping: number;
   deliverySummary: string;
   orderNotes?: string | null;
@@ -238,13 +239,12 @@ function renderOrderEmail(opts: {
   <title>${esc(opts.title)}</title>
   <style>
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 40px auto; background: #fff url('https://www.majolika.sk/assets/img/corner6.png') no-repeat right bottom;
-      background-size: 200px auto; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden; }
+    .container { max-width: 600px; margin: 40px auto; border-radius: 0px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden; }
     .header { background-color: #0e29a0; color: white; padding: 24px; text-align: center; }
     .content { padding: 32px; }
     .content h2 { margin-top: 0; color: #333; }
     .content p { font-size: 16px; line-height: 1.6; color: #444; }
-    .button { display: inline-block; margin-top: 24px; padding: 12px 24px; background-color: #0e29a0; color: white !important; text-decoration: none; border-radius: 4px; font-weight: bold; transition: background-color 0.3s ease; }
+    .button { display: inline-block; margin-top: 24px; padding: 12px 24px; background-color: #0e29a0; color: white !important; text-decoration: none; border-radius: 0px; font-weight: bold; transition: background-color 0.3s ease; }
     .button:hover { background-color: #0b1e7c; }
     .footer { background-color: #fafafa; color: #777; font-size: 13px; padding: 24px; text-align: center; line-height: 1.5; }
     .footer a { color: #0e29a0; text-decoration: none; }
@@ -272,6 +272,8 @@ function renderOrderEmail(opts: {
           ${itemsRows}
           <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Doprava</td>
               <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td></tr>
+                <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za platbu</td>
+     <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td></tr>
           <tr><td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">Celkom</td>
               <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td></tr>
         </tbody>
@@ -467,7 +469,7 @@ const emailItems = await Promise.all(
       productName: it.productName || `Produkt #${it.productId}`,
       unitPrice: Number(it.unitPrice),
       quantity: Number(it.quantity),
-      image,
+      image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
       event: (it as any).event || null,
     };
   })
@@ -478,6 +480,7 @@ const emailItems = await Promise.all(
   const to = freshOrder.customerEmail;
   const deliverySummary = summarizeDeliveryFromOrder(freshOrder);
   const shippingFee = Number(freshOrder.shippingFee || 0);
+  const paymentFee   = Number((freshOrder as any).paymentFee || 0);
   const totalWithShipping = Number(freshOrder.totalWithShipping || freshOrder.total || 0);
 
   const customerEmailHtml = renderOrderEmail({
@@ -495,6 +498,7 @@ const emailItems = await Promise.all(
       : null,
     items: emailItems,
     shippingFee,
+    paymentFee,
     totalWithShipping,
     deliverySummary,
     orderNotes
@@ -510,6 +514,7 @@ const emailItems = await Promise.all(
     cta: null,
     items: emailItems,
     shippingFee,
+    paymentFee,
     totalWithShipping,
     deliverySummary,
     orderNotes
@@ -523,6 +528,9 @@ const emailItems = await Promise.all(
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${freshOrder.id}`);
     }
     await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
+    
+    await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
+
     strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
   } catch (e) {
     strapi.log.error('[COMGATE][EMAIL] send failed:', e);
