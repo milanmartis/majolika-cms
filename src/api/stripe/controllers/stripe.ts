@@ -191,7 +191,7 @@ function renderItemsRows(items: Array<{ productName: string; unitPrice: number; 
           <div style="display:flex;align-items:center;gap:12px;">
             ${it.image
               ? `<img src="${aesc(it.image)}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
-              : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
+              : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
             <div>
               <div style="font-weight:600;color:#333;">${esc(it.productName)}</div>
               ${eventLine}
@@ -219,6 +219,12 @@ function renderOrderEmail(opts: {
   orderNotes?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
+  const notesHtml = opts.orderNotes
+  ? `<div style="margin-top:16px;padding:12px;border:1px solid #eaeaea;border-radius:6px;background:#fcfcfc;">
+       <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
+       <div style="font-size:14px;color:#444;line-height:1.5;">${esc(opts.orderNotes).replace(/\n/g, '<br>')}</div>
+     </div>`
+  : '';
   return `<!DOCTYPE html>
 <html lang="sk">
 <head>
@@ -226,7 +232,7 @@ function renderOrderEmail(opts: {
   <title>${esc(opts.title)}</title>
   <style>
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 40px auto; background: #fff url('https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/corner6.png') no-repeat right bottom;
+    .container { max-width: 600px; margin: 40px auto; background: #fff url('https://www.majolika.sk/assets/img/corner6.png') no-repeat right bottom;
       background-size: 200px auto; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden; }
     .header { background-color: #0e29a0; color: white; padding: 24px; text-align: center; }
     .content { padding: 32px; }
@@ -253,7 +259,7 @@ function renderOrderEmail(opts: {
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${esc(opts.deliverySummary)}</p>
-
+      ${notesHtml}
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
         <thead><tr><th>Položka</th><th style="text-align:right;">Spolu</th></tr></thead>
         <tbody>
@@ -276,7 +282,7 @@ function renderOrderEmail(opts: {
         Otváracie hodiny: Po–Pia 8:00–16:00 | So–Ne 10:00–16:00
       </p>
       <div class="footer-logo">
-        <img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="SLM logo" />
+        <img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="SLM logo" width="200" />
       </div>
     </div>
   </div>
@@ -387,9 +393,13 @@ function mapComgateToOrder(s: string): PaymentStatus {
 }
 
 async function runPostPaidFlow(orderId: number) {
-  const freshOrder = (await strapi.entityService.findOne('api::order.order', orderId, {
-    populate: ['deliveryAddress', 'deliveryDetails', 'items'],
-  })) as unknown as OrderRecord;
+  const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
+    populate: {
+      deliveryAddress: true,
+      deliveryDetails: true,
+      items: true,
+    },
+  }) as unknown as OrderRecord;
 
   const orderNotes = (freshOrder as any)?.notes ? String((freshOrder as any).notes) : null;
 

@@ -115,7 +115,7 @@ function renderItemsRows(items: Array<{
             <div style="display:flex;align-items:center;gap:12px;">
               ${it.image
                 ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />`
-                : '<img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
+                : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:4px;" />'}
               <div>
                 <div style="font-weight:600;color:#333;padding:4px;">${it.productName}</div>
                 ${eventLine}
@@ -153,7 +153,7 @@ function renderEmail(opts: {
   <style>
     body { font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
     .container {
-      max-width: 600px; margin: 40px auto; background: #fff url('https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/corner6.png') no-repeat right bottom;
+      max-width: 600px; margin: 40px auto; background: #fff url('https://www.majolika.sk/assets/img/corner6.png') no-repeat right bottom;
       background-size: 200px auto; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); overflow: hidden;
     }
     .header { background-color: #0e29a0; color: white; padding: 24px; text-align: center; }
@@ -221,7 +221,7 @@ function renderEmail(opts: {
         Otváracie hodiny: Po–Pia 8:00–16:00 | So–Ne 10:00–16:00
       </p>
       <div class="footer-logo">
-        <img src="https://staging.d2y68xwoabt006.amplifyapp.com/assets/img/logo-SLM-modre.gif" alt="SLM logo" />
+        <img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="SLM logo" width="200" />
       </div>
     </div>
   </div>
