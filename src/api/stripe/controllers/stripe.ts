@@ -667,28 +667,38 @@ async previewEmail(ctx: any) {
     const idQ = Number(q.order || q.orderId || 0) || null;
     const type = String(q.type || 'paid').toLowerCase(); // 'paid' | 'noncard'
     const notesOverride = typeof q.notes === 'string' ? q.notes : undefined;
+    const doCheck = String(q.check || '0') === '1';
+    const source = String(q.source || 'order'); // 'order' | 'product'
 
     if (!idQ) return ctx.badRequest('Provide ?order=<orderId>');
 
     // 1) načítaj objednávku
     const order = await strapi.entityService.findOne('api::order.order', idQ, {
-      populate: {
-        deliveryAddress: true,
-        deliveryDetails: true,
-        items: true,
-      },
+      populate: { deliveryAddress: true, deliveryDetails: true, items: true },
     }) as any;
-
     if (!order) return ctx.notFound('Order not found');
 
-    // 2) priprav položky (preferuj uložené imageUrl; fallback na produkt)
+    // 2) priprav položky (preferuj uložené imageUrl; alebo vynúť produkt)
     const items = Array.isArray(order.items) ? order.items : [];
+    const diagnostics: Array<{
+      name: string; rawFrom: 'order.imageUrl' | 'product.media';
+      rawUrl?: string; resolvedUrl?: string; headOk?: boolean; headStatus?: number;
+      note?: string;
+    }> = [];
+
     const emailItems = await Promise.all(
       items.map(async (it: any) => {
-        let image = it.imageUrl ? String(it.imageUrl) : '';
-        image = absUrl(image);
+        let image = '';
+        let rawFrom: 'order.imageUrl' | 'product.media' = 'order.imageUrl';
+        let rawUrl: string | undefined;
 
-        if (!image && it.productId) {
+        if (source === 'order') {
+          rawUrl = it.imageUrl ? String(it.imageUrl) : '';
+          image = absUrl(rawUrl);
+        }
+
+        if (!image) {
+          // fallback / alebo ak source=product
           try {
             const product = await strapi.entityService.findOne('api::product.product', Number(it.productId), {
               populate: {
@@ -696,17 +706,40 @@ async previewEmail(ctx: any) {
                 pictures_new: { fields: ['url', 'formats'] },
               },
             });
-            image = pickProductImage(product);
+            rawFrom = 'product.media';
+            rawUrl = pickProductImage(product); // už vracia absolútnu
+            image = rawUrl;
           } catch (e) {
             strapi.log.warn(`[PREVIEW][ITEM IMG] product ${it.productId} load failed: ${String(e)}`);
           }
         }
 
+        // voliteľná diagnostika – HEAD na obrázok
+        let headOk: boolean | undefined;
+        let headStatus: number | undefined;
+        let note: string | undefined;
+        if (doCheck && image) {
+          try {
+            const res = await fetch(image, { method: 'HEAD' });
+            headOk = res.ok;
+            headStatus = res.status;
+            if (!res.ok) note = 'HEAD not OK – skontroluj PUBLIC_UPLOADS_URL/UPLOADS_BASE_URL a cestu k súboru';
+          } catch (e: any) {
+            headOk = false; headStatus = 0;
+            note = `HEAD error: ${e?.message || e}`;
+          }
+        }
+
+        diagnostics.push({
+          name: it.productName || `Produkt #${it.productId}`,
+          rawFrom, rawUrl, resolvedUrl: image, headOk, headStatus, note,
+        });
+
         return {
           productName: it.productName || `Produkt #${it.productId}`,
           unitPrice: Number(it.unitPrice || 0),
           quantity: Number(it.quantity || 1),
-          image,
+          image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
           event: it.event || null,
         };
       })
@@ -719,12 +752,12 @@ async previewEmail(ctx: any) {
     const deliverySummary = summarizeDeliveryFromOrder(order);
     const FRONTEND_URL = process.env.FRONTEND_URL || '';
 
-    // poznámka: prednosť má override z query
+    // poznámka (override má prednosť)
     const orderNotes = typeof notesOverride === 'string'
       ? notesOverride
       : (order.notes ? String(order.notes) : null);
 
-    // 4) vyber variant obsahu
+    // 4) texty podľa typu
     let title = '';
     let heading = '';
     let introLines: string[] = [];
@@ -734,7 +767,7 @@ async previewEmail(ctx: any) {
       title = `Potvrdenie objednávky ${order.id}`;
       heading = 'Ďakujeme, platba prijatá';
       introLines = [
-        `Dobrý deň${order.customerName ? `, ${esc(order.customerName)}` : ''}.`,
+        `Dobrý deň${order.customerName ? `, ${order.customerName}` : ''}.`,
         `Platba za vašu objednávku #${order.id} prebehla úspešne.`,
       ];
       if (FRONTEND_URL) {
@@ -750,9 +783,8 @@ async previewEmail(ctx: any) {
         : pm === 'onsite' ? 'platba na mieste'
         : pm === 'post' ? 'platba na pošte'
         : 'nekartová platba';
-
       introLines = [
-        `Dobrý deň${order.customerName ? `, ${esc(order.customerName)}` : ''}.`,
+        `Dobrý deň${order.customerName ? `, ${order.customerName}` : ''}.`,
         `ďakujeme za Vašu objednávku.`,
         `Spôsob platby: ${pmHuman}.`,
       ];
@@ -761,19 +793,56 @@ async previewEmail(ctx: any) {
       }
     }
 
-    // 5) vyrenderuj HTML pomocou rovnakej šablóny ako v produkcii
-    const html = renderOrderEmail({
-      title,
-      heading,
-      introLines,
-      cta,
+    // 5) HTML email (produkčná šablóna)
+    let html = renderOrderEmail({
+      title, heading, introLines, cta,
       items: emailItems,
-      shippingFee,
-      paymentFee,
-      totalWithShipping,
-      deliverySummary,
-      orderNotes,
+      shippingFee, paymentFee, totalWithShipping,
+      deliverySummary, orderNotes,
     });
+
+    // 6) Ak je diagnostika zapnutá, pridaj report pod email
+    if (doCheck) {
+      const rows = diagnostics.map(d => `
+        <tr>
+          <td style="padding:6px;border:1px solid #ddd;">${d.name}</td>
+          <td style="padding:6px;border:1px solid #ddd;">${d.rawFrom}</td>
+          <td style="padding:6px;border:1px solid #ddd;word-break:break-all;">${d.rawUrl || '-'}</td>
+          <td style="padding:6px;border:1px solid #ddd;word-break:break-all;">${d.resolvedUrl || '-'}</td>
+          <td style="padding:6px;border:1px solid #ddd;">${d.headOk === undefined ? '-' : (d.headOk ? 'OK' : 'FAIL')}</td>
+          <td style="padding:6px;border:1px solid #ddd;">${d.headStatus ?? '-'}</td>
+          <td style="padding:6px;border:1px solid #ddd;">${d.note || ''}</td>
+        </tr>
+      `).join('');
+
+      const diagBlock = `
+        <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb;">
+        <div style="font-family:Arial,sans-serif;">
+          <h3 style="margin:0 0 8px 0;">Diagnostika obrázkov (preview)</h3>
+          <p style="margin:0 0 12px 0;font-size:13px;color:#555;">
+            Parametre: <code>check=${doCheck ? '1' : '0'}</code>, <code>source=${source}</code>.<br>
+            Ak je <strong>HEAD FAIL</strong>, skontroluj <code>PUBLIC_UPLOADS_URL</code> / <code>UPLOADS_BASE_URL</code>
+            a či súbor existuje na ceste.
+          </p>
+          <table style="border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:6px;border:1px solid #ddd;">Item</th>
+                <th style="text-align:left;padding:6px;border:1px solid #ddd;">Zdroj</th>
+                <th style="text-align:left;padding:6px;border:1px solid #ddd;">Raw URL</th>
+                <th style="text-align:left;padding:6px;border:1px solid #ddd;">Resolved URL</th>
+                <th style="text-align:left;padding:6px;border:1px solid #ddd;">HEAD</th>
+                <th style="text-align:left;padding:6px;border:1px solid #ddd;">Status</th>
+                <th style="text-align:left;padding:6px;border:1px solid #ddd;">Pozn.</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+      // vlož diagnostiku pod closing </html> – aby si vizuálne videl aj email aj report
+      html = html.replace(/<\/html>\s*$/i, `${diagBlock}\n</html>`);
+    }
 
     ctx.type = 'text/html; charset=utf-8';
     ctx.body = html;

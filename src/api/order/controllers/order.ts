@@ -2,6 +2,7 @@
 import { factories } from '@strapi/strapi';
 import { sendEmail } from '../../../utils/email';
 
+
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
 
 type OrderWithPacketa = {
