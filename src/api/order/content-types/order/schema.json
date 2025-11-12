@@ -12,6 +12,8 @@
     "customerEmail": { "type": "email", "required": true },
     "shippingAddress": { "type": "json", "required": true },
 
+    "notes": { "type": "text" },  
+
     "total": { "type": "decimal", "required": true },
     "shippingFee": { "type": "decimal", "default": 0 },
     "totalWithShipping": { "type": "decimal", "default": 0 },
