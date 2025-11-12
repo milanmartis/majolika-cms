@@ -528,7 +528,7 @@ const emailItems = await Promise.all(
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${freshOrder.id}`);
     }
     await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
-    
+
     await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
 
     strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
@@ -657,6 +657,134 @@ async create(ctx: any) {
     throw err;
   }
 },
+
+
+
+// GET /api/payments/preview-email?order=123&type=paid|noncard&notes=override
+async previewEmail(ctx: any) {
+  try {
+    const q = ctx.query || {};
+    const idQ = Number(q.order || q.orderId || 0) || null;
+    const type = String(q.type || 'paid').toLowerCase(); // 'paid' | 'noncard'
+    const notesOverride = typeof q.notes === 'string' ? q.notes : undefined;
+
+    if (!idQ) return ctx.badRequest('Provide ?order=<orderId>');
+
+    // 1) načítaj objednávku
+    const order = await strapi.entityService.findOne('api::order.order', idQ, {
+      populate: {
+        deliveryAddress: true,
+        deliveryDetails: true,
+        items: true,
+      },
+    }) as any;
+
+    if (!order) return ctx.notFound('Order not found');
+
+    // 2) priprav položky (preferuj uložené imageUrl; fallback na produkt)
+    const items = Array.isArray(order.items) ? order.items : [];
+    const emailItems = await Promise.all(
+      items.map(async (it: any) => {
+        let image = it.imageUrl ? String(it.imageUrl) : '';
+        image = absUrl(image);
+
+        if (!image && it.productId) {
+          try {
+            const product = await strapi.entityService.findOne('api::product.product', Number(it.productId), {
+              populate: {
+                picture_new: { fields: ['url', 'formats'] },
+                pictures_new: { fields: ['url', 'formats'] },
+              },
+            });
+            image = pickProductImage(product);
+          } catch (e) {
+            strapi.log.warn(`[PREVIEW][ITEM IMG] product ${it.productId} load failed: ${String(e)}`);
+          }
+        }
+
+        return {
+          productName: it.productName || `Produkt #${it.productId}`,
+          unitPrice: Number(it.unitPrice || 0),
+          quantity: Number(it.quantity || 1),
+          image,
+          event: it.event || null,
+        };
+      })
+    );
+
+    // 3) výpočty + sumarizácia
+    const shippingFee = Number(order.shippingFee || 0);
+    const paymentFee  = Number(order.paymentFee || 0);
+    const totalWithShipping = Number(order.totalWithShipping || order.total || 0);
+    const deliverySummary = summarizeDeliveryFromOrder(order);
+    const FRONTEND_URL = process.env.FRONTEND_URL || '';
+
+    // poznámka: prednosť má override z query
+    const orderNotes = typeof notesOverride === 'string'
+      ? notesOverride
+      : (order.notes ? String(order.notes) : null);
+
+    // 4) vyber variant obsahu
+    let title = '';
+    let heading = '';
+    let introLines: string[] = [];
+    let cta: { label: string; href: string } | undefined;
+
+    if (type === 'paid') {
+      title = `Potvrdenie objednávky ${order.id}`;
+      heading = 'Ďakujeme, platba prijatá';
+      introLines = [
+        `Dobrý deň${order.customerName ? `, ${esc(order.customerName)}` : ''}.`,
+        `Platba za vašu objednávku #${order.id} prebehla úspešne.`,
+      ];
+      if (FRONTEND_URL) {
+        cta = { label: 'Zobraziť objednávku', href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${order.id}` };
+      }
+    } else {
+      title = `Potvrdenie objednávky ${order.id}`;
+      heading = `Potvrdenie objednávky č. ${order.id}`;
+      const pm = String(order.paymentMethod || '').toLowerCase();
+      const pmHuman =
+        pm === 'bank' ? 'bankový prevod'
+        : pm === 'cod' ? 'dobierka'
+        : pm === 'onsite' ? 'platba na mieste'
+        : pm === 'post' ? 'platba na pošte'
+        : 'nekartová platba';
+
+      introLines = [
+        `Dobrý deň${order.customerName ? `, ${esc(order.customerName)}` : ''}.`,
+        `ďakujeme za Vašu objednávku.`,
+        `Spôsob platby: ${pmHuman}.`,
+      ];
+      if (FRONTEND_URL) {
+        cta = { label: 'Zobraziť objednávku', href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${order.id}` };
+      }
+    }
+
+    // 5) vyrenderuj HTML pomocou rovnakej šablóny ako v produkcii
+    const html = renderOrderEmail({
+      title,
+      heading,
+      introLines,
+      cta,
+      items: emailItems,
+      shippingFee,
+      paymentFee,
+      totalWithShipping,
+      deliverySummary,
+      orderNotes,
+    });
+
+    ctx.type = 'text/html; charset=utf-8';
+    ctx.body = html;
+  } catch (e: any) {
+    strapi.log.error('[PAYMENTS][PREVIEW EMAIL] error:', e?.message || e);
+    ctx.throw(500, 'Preview failed');
+  }
+},
+
+
+
 
 
   // 2) Webhook (push)

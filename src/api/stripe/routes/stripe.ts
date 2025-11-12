@@ -5,5 +5,11 @@ export default {
     { method: 'POST', path: '/payments/webhook', handler: 'api::stripe.stripe.webhook',       config: { auth: false } },
     { method: 'GET',  path: '/payments/return',  handler: 'api::stripe.stripe.returnBridge',  config: { auth: false } },
     { method: 'POST', path: '/payments/status',  handler: 'api::stripe.stripe.status',        config: { auth: false } },
+    {
+      method: 'GET',
+      path: '/payments/preview-email',
+      handler: 'payment.previewEmail',
+      config: { auth: false }, 
+    },
   ],
 };
