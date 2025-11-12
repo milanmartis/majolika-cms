@@ -8,7 +8,7 @@ export default {
     {
       method: 'GET',
       path: '/payments/preview-email',
-      handler: 'payment.previewEmail',
+      handler: 'stripe.previewEmail',
       config: { auth: false }, 
     },
   ],
