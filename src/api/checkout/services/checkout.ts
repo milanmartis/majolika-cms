@@ -100,6 +100,7 @@ function money(n: number) {
 
 function renderItemsRows(items: Array<{
   productName: string;
+  slug: string;
   unitPrice: number;
   quantity: number;
   image?: string;
@@ -119,7 +120,13 @@ function renderItemsRows(items: Array<{
                 ? `<img src="${it.image}" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />`
                 : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />'}
               <div>
-                <div style="font-weight:600;color:#333;padding:4px;">${it.productName}</div>
+                <div style="font-weight:600;color:#333;padding:4px;">
+                  <a href="https://www.majolika.sk/produkt/${it.slug}"
+                    style="color:#0e29a0;text-decoration:none;"
+                    target="_blank">
+                    ${escapeHtml(it.productName)}
+                  </a>
+                </div>
                 ${eventLine}
                 <div style="font-size:13px;color:#777;padding:4px;">${money(it.unitPrice)} × ${it.quantity}</div>
               </div>
@@ -138,7 +145,7 @@ function renderEmail(opts: {
   title: string;
   heading: string;
   bodyHtml: string; // ← iba toto sa mení podľa variantu
-  items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo }>;
+  items: Array<{ productName: string;  slug: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo }>;
   shippingFee: number;
   paymentFee: number;
   totalWithShipping: number;
@@ -435,6 +442,7 @@ export default () => ({
         return {
           productId: item.productId,
           productName: item.productName ?? product.name,
+          slug: product.slug, 
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           event: item.event ?? undefined,
@@ -536,6 +544,7 @@ export default () => ({
       const deliverySummary = summarizeDelivery(delivery);
       const emailItems = orderItems.map((i: any) => ({
         productName: i.productName,
+        slug: i.slug, 
         unitPrice: i.unitPrice,
         quantity: i.quantity,
         image: i._image,

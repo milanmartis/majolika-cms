@@ -28,6 +28,7 @@ type EventInfo = {
 type OrderItem = {
   productId: number;
   productName?: string;
+  slug?: string;
   quantity: number;
   unitPrice: number;
   event?: EventInfo | null;
@@ -185,7 +186,7 @@ function formatEventSk(event?: EventInfo): string {
   return `Termín: ${d}, ${t}${ppl}`;
 }
 
-function renderItemsRows(items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null; }>) {
+function renderItemsRows(items: Array<{ productName: string; slug: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null; }>) {
   return items.map((it) => {
     const subtotal = it.unitPrice * it.quantity;
     const eventLine = it?.event?.startDateTime
@@ -199,7 +200,14 @@ function renderItemsRows(items: Array<{ productName: string; unitPrice: number; 
               ? `<img src="${aesc(it.image)}" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />`
               : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />'}
             <div>
-              <div style="font-weight:600;color:#333;">${esc(it.productName)}</div>
+                <div style="font-weight:600;color:#333;padding:4px;">
+                  <a href="https://www.majolika.sk/produkt/${it.slug}"
+                    style="color:#0e29a0;text-decoration:none;"
+                    target="_blank">
+                    ${esc(it.productName)}
+                  </a>
+                </div>
+
               ${eventLine}
               <div style="font-size:13px;color:#777;">${money(it.unitPrice)} × ${it.quantity}</div>
             </div>
@@ -218,7 +226,7 @@ function renderOrderEmail(opts: {
   heading: string;
   introLines: string[];
   cta?: { label: string; href: string } | null;
-  items: Array<{ productName: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null }>;
+  items: Array<{ productName: string; slug: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null }>;
   shippingFee: number;
   paymentFee: number; 
   totalWithShipping: number;
@@ -467,6 +475,7 @@ const emailItems = await Promise.all(
 
     return {
       productName: it.productName || `Produkt #${it.productId}`,
+      slug: it.slug || '', 
       unitPrice: Number(it.unitPrice),
       quantity: Number(it.quantity),
       image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
@@ -770,6 +779,7 @@ async previewEmail(ctx: any) {
 
         return {
           productName: it.productName || `Produkt #${it.productId}`,
+          slug: it.slug || '', 
           unitPrice: Number(it.unitPrice || 0),
           quantity: Number(it.quantity || 1),
           image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
