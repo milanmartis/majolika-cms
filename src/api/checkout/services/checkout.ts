@@ -425,6 +425,13 @@ export default () => ({
           throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
         }
 
+        const ean =
+          (product as any).ean ||
+          (product as any).eanCode ||
+          (product as any).ean_code ||
+          (product as any).ean_kod ||
+          null;
+
         return {
           productId: item.productId,
           productName: item.productName ?? product.name,
@@ -432,6 +439,7 @@ export default () => ({
           unitPrice: item.unitPrice,
           event: item.event ?? undefined,
           _image: pickProductImage(product),
+          ean,
         };
       })
     );

@@ -11,6 +11,9 @@
       "relation": "manyToOne",
       "target": "api::product.product"
     },
+    "productId": {
+      "type": "integer"
+    },
     "productName": {
       "type": "string",
       "required": true
@@ -22,6 +25,15 @@
     "unitPrice": {
       "type": "decimal",
       "required": true
+    },
+    "imageUrl": {
+      "type": "string"
+    },
+    "ean": {
+      "type": "string"
+    },
+    "event": {
+      "type": "json"
     }
   }
 }

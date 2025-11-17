@@ -272,7 +272,7 @@ function renderOrderEmail(opts: {
           ${itemsRows}
           <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Doprava</td>
               <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td></tr>
-                <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za platbu</td>
+                <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za dobierku</td>
      <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td></tr>
           <tr><td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">Celkom</td>
               <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td></tr>
@@ -504,21 +504,48 @@ const emailItems = await Promise.all(
     orderNotes
   });
 
-  const adminEmailHtml = renderOrderEmail({
-    title: `Nová objednávka #${freshOrder.id} – zaplatené`,
-    heading: `Nová objednávka #${freshOrder.id} – platba prijatá`,
-    introLines: [
-      `Zákazník: ${esc(freshOrder.customerName || '-')} (${esc(freshOrder.customerEmail || '-')})`,
+    // --------- podrobné info len pre ADMIN email ---------
+    const addr = freshOrder.deliveryAddress || {};
+    const customerPhone =
+      (freshOrder as any).customerPhone ||
+      (freshOrder as any).phone ||
+      '';
+  
+    const adminIntroLines = [
+      `Zákazník: ${freshOrder.customerName || '-'}`,
+      `E-mail: ${freshOrder.customerEmail || '-'}`,
+      `Telefón: ${customerPhone || '-'}`,
+      `Adresa: ${
+        [addr.street, addr.zip, addr.city, addr.country]
+          .filter(Boolean)
+          .join(', ') || '-'
+      }`,
       `Doručenie: ${deliverySummary}`,
-    ],
-    cta: null,
-    items: emailItems,
-    shippingFee,
-    paymentFee,
-    totalWithShipping,
-    deliverySummary,
-    orderNotes
-  });
+      '',
+      'Produkty (s EAN):',
+      ...orderItems.map((it) => {
+        const ean =
+          (it as any).ean ||
+          (it as any).eanCode ||
+          (it as any).ean_code ||
+          (it as any).ean_kod ||
+          '-';
+        return `• ${it.productName || `Produkt #${it.productId}`} - EAN: ${ean}, množstvo: ${it.quantity}`;
+      }),
+    ];
+  
+    const adminEmailHtml = renderOrderEmail({
+      title: `Nová objednávka #${freshOrder.id} - zaplatené`,
+      heading: `Nová objednávka #${freshOrder.id} - platba prijatá`,
+      introLines: adminIntroLines,
+      cta: null,
+      items: emailItems,
+      shippingFee,
+      paymentFee,
+      totalWithShipping,
+      deliverySummary,
+      orderNotes,
+    });
 
   try {
     if (to) {
