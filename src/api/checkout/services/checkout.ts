@@ -597,21 +597,51 @@ export default () => ({
         orderNotes,
       });
 
+      const addrLine = [
+        customer.street,
+        `${customer.zip} ${customer.city}`.trim(),
+        customer.country,
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      const productsWithEanHtml = orderItems
+        .map((it: any) => {
+          const ean =
+            it.ean ||
+            it.eanCode ||
+            it.ean_code ||
+            it.ean_kod ||
+            '-';
+          return `• ${escapeHtml(it.productName || `Produkt #${it.productId}`)} – EAN: ${escapeHtml(String(ean))}, množstvo: ${it.quantity}`;
+        })
+        .join('<br/>');
+
+      const adminBodyHtml = `
+        <p><b>Objednávka č. ${orderNo}</b> (${orderDate})</p>
+        <p><b>Zákazník:</b><br/>
+          Meno a priezvisko: ${escapeHtml(customer.name)}<br/>
+          E-mail: ${escapeHtml(customer.email)}<br/>
+          Telefón: ${escapeHtml(customer.phone || '')}<br/>
+          Adresa: ${escapeHtml(addrLine || '-')}</p>
+        <p><b>Doručenie:</b> ${escapeHtml(deliverySummary)}</p>
+        <p>${escapeHtml(bodyAdminIntro)}</p>
+        <p><b>Položky (s EAN):</b><br/>
+          ${productsWithEanHtml}
+        </p>
+      `;
+
       const adminEmailHtml = renderEmail({
         title: `Nová objednávka #${order.id}`,
         heading: `Nová objednávka #${order.id}`,
-        bodyHtml: `
-          <p>Zákazník: ${customer.name} (${customer.email})</p>
-          <p>Doručenie: ${deliverySummary}</p>
-          <p>${bodyAdminIntro}</p>
-        `,
+        bodyHtml: adminBodyHtml,
         cta: null,
         items: emailItems,
         shippingFee,
         paymentFee,
         totalWithShipping,
         deliverySummary,
-        orderNotes
+        orderNotes,
       });
 
 
