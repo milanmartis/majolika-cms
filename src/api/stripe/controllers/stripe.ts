@@ -522,14 +522,20 @@ const emailItems = await Promise.all(
 
   try {
     if (to) {
-      await sendEmail({ to, subject: 'Potvrdenie objednávky – platba prijatá', html: customerEmailHtml });
+      await sendEmail({ to, subject: 'Potvrdenie objednávky - platba prijatá', html: customerEmailHtml });
       strapi.log.info(`[EMAIL] Sent to customer [redacted] for order #${freshOrder.id}`);
     } else {
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${freshOrder.id}`);
     }
-    await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
+    await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${freshOrder.id} - zaplatené`, html: adminEmailHtml });
 
-    await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
+    const adminEmails = ['info@appdesign.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
+    await sendEmail({
+      to: adminEmails.join(','),
+      subject: `Nová objednávka #${freshOrder.id} - zaplatené`,
+      html: adminEmailHtml,
+    });
+    // await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${freshOrder.id} – zaplatené`, html: adminEmailHtml });
 
     strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
   } catch (e) {

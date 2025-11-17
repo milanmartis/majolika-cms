@@ -607,13 +607,17 @@ export default () => ({
       });
 
 
-      const adminEmails = ['majolika@majolika.sk', 'info@appdesign.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
+      const adminEmails = ['info@appdesign.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
 
       try {
         await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
         await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
-        await sendEmail({ to: 'info@appdesign.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
-
+        // await sendEmail({ to: adminEmails, subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
+        await sendEmail({
+          to: adminEmails.join(','),
+          subject: `Nová objednávka #${order.id}`,
+          html: adminEmailHtml,
+        });
         // await Promise.all(
         //   adminEmails.map((email) =>
         //     sendEmail({
