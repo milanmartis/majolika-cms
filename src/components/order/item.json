@@ -14,6 +14,9 @@
     "productId": {
       "type": "integer"
     },
+    "slug": {
+      "type": "string"
+    },
     "productName": {
       "type": "string",
       "required": true
