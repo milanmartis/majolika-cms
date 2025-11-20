@@ -268,7 +268,7 @@ function renderBankTransferBlock(orderId: string | number, total: number) {
 }
 
 /* ========================= Typy ========================= */
-
+type DeliveryUrgency = 'standard' | 'rush';
 type PaymentMethod = 'card' | 'cod' | 'bank' | 'onsite' | 'post';
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
 
@@ -311,7 +311,7 @@ interface CheckoutPayload {
   paymentFee?: number;
   locale?: string;
   notes?: string;        
-
+  deliveryUrgency?: DeliveryUrgency;
 }
 
 /* ========================= Konštanty ========================= */
@@ -391,7 +391,15 @@ export default () => ({
     const FRONTEND_URL = process.env.FRONTEND_URL || '';
     if (!FRONTEND_URL) throw new Error('Missing FRONTEND_URL in environment variables.');
 
-    const { customer, items, temporaryId, paymentMethod, delivery } = payload;
+    const {
+      customer,
+      items,
+      temporaryId,
+      paymentMethod,
+      delivery,
+      deliveryUrgency = 'standard',
+    } = payload;
+
     const orderNotes = (payload.notes || '').trim();
     if (!customer?.email) throw new Error('customer.email is required');
     if (!items?.length) throw new Error('items are required');
@@ -492,6 +500,7 @@ export default () => ({
         deliveryMethod,
         deliveryAddress: delivery.address || null,
         deliveryDetails: delivery.details || null,
+        deliveryUrgency,
 
         shippingFee,
         paymentFee,
@@ -541,7 +550,13 @@ export default () => ({
         strapi.log.error('[GCAL][NON-CARD] recalc failed:', e);
       }
 
-      const deliverySummary = summarizeDelivery(delivery);
+      // const deliverySummary = summarizeDelivery(delivery);
+      const baseDeliverySummary = summarizeDelivery(delivery);
+      const urgencySuffix =
+        deliveryUrgency === 'rush'
+          ? ' – objednávka ponáhľa'
+          : ' – štandardná doba dodania (cca 2 týždne)';
+      const deliverySummary = `${baseDeliverySummary}${urgencySuffix}`;
       const emailItems = orderItems.map((i: any) => ({
         productName: i.productName,
         slug: i.slug, 

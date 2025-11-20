@@ -42,6 +42,7 @@ type OrderRecord = {
   notes?: string | null;
   customerEmail?: string;
   customerName?: string;
+  customerPhone?: string;
   shippingFee?: number | string;
   total?: number | string;
   totalWithShipping?: number | string;
@@ -66,6 +67,14 @@ type OrderRecord = {
 
   orderStatus?: OrderStatus | null;
   fulfillmentStatus?: FulfillmentStatus | null;
+  deliveryUrgency?: 'standard' | 'rush' | string | null;
+
+  customer?: {
+    id: number;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
 };
 
 // ========================= Helpery (bezpečnosť, render, logy) =========================
@@ -307,20 +316,41 @@ function renderOrderEmail(opts: {
 }
 
 function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
+  let base: string;
+
   switch (order?.deliveryMethod) {
-    case 'pickup': return 'Osobné vyzdvihnutie na mieste';
-    case 'post_office': return `Na poštu (ID: ${esc(order?.deliveryDetails?.postOfficeId || '-')})`;
+    case 'pickup':
+      base = 'Osobné vyzdvihnutie na mieste';
+      break;
+    case 'post_office':
+      base = `Na poštu (ID: ${esc(order?.deliveryDetails?.postOfficeId || '-')})`;
+      break;
     case 'packeta_box':
-      return order?.deliveryDetails?.notes
+      base = order?.deliveryDetails?.notes
         ? `Packeta/Carrier box: ${esc(order.deliveryDetails.notes)}`
         : `Packeta Box (ID: ${esc(order?.deliveryDetails?.packetaBoxId || '-')})`;
+      break;
     case 'post_courier': {
       const a = order?.deliveryAddress || {};
-      return `Kuriér na adresu: ${esc(a.street)}; ${esc(a.city)} ${esc(a.zip)}, ${esc(a.country)}`;
+      base = `Kuriér na adresu: ${esc(a.street)}; ${esc(a.city)} ${esc(a.zip)}, ${esc(a.country)}`;
+      break;
     }
-    default: return esc(String(order?.deliveryMethod || ''));
+    default:
+      base = esc(String(order?.deliveryMethod || ''));
+      break;
   }
+
+  const u = (order as any).deliveryUrgency;
+  const suffix =
+    u === 'rush'
+      ? ' – objednávka ponáhľa'
+      : u === 'standard'
+        ? ' – štandardná doba dodania (cca 2 týždne)'
+        : '';
+
+  return base + suffix;
 }
+
 
 // ========================= DB & Comgate helpery =========================
 
@@ -355,7 +385,7 @@ function isCancelledLike(s?: string) {
 async function getOrderAndExpectedCents(orderId: number) {
   const ord = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['items', 'deliveryAddress', 'deliveryDetails'],
-    fields: ['id','total','totalWithShipping','customerEmail','customerName','paymentStatus','deliveryMethod'] as any,
+    fields: ['id','total','totalWithShipping','customerEmail','customerName', 'customerPhone', 'paymentStatus','deliveryMethod'] as any,
   })) as unknown as OrderRecord | null;
 
   if (!ord) throw new Error('Order not found');
@@ -410,30 +440,58 @@ function mapComgateToOrder(s: string): PaymentStatus {
 
 async function runPostPaidFlow(orderId: number) {
   const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
-    // fields: ['id','notes','shippingFee','total','totalWithShipping','customerEmail','customerName','deliveryMethod'],
+    fields: [
+      'id',
+      'notes',
+      'shippingFee',
+      'paymentFee',       // môžeš pridať, aj tak ho nižšie čítaš
+      'total',
+      'totalWithShipping',
+      'customerEmail',
+      'customerName',
+      'customerPhone',    // 🔹 dôležité
+      'deliveryMethod',
+      'temporaryId',
+      'deliveryUrgency',  
+    ] as any,
     populate: {
       deliveryAddress: true,
       deliveryDetails: true,
       items: true,
+      customer: { fields: ['phone', 'email', 'name'] },
     },
   }) as unknown as OrderRecord;
 
   
   const orderNotes = freshOrder?.notes ? String(freshOrder.notes) : null;
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
+
+  const customerPhone =
+    (freshOrder as any).customerPhone ||       // keby si niekedy pridal stĺpec do orders
+    freshOrder.customer?.phone ||              // 🔹 hlavný zdroj – tabuľka customers
+    '';
   // Previazanie bookingov
   if (freshOrder.temporaryId) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
       where: { temporaryId: freshOrder.temporaryId, orderId: null },
-      data: { orderId: String(freshOrder.id), status: 'paid', customerEmail: freshOrder.customerEmail || undefined,
-        customerName:  freshOrder.customerName  || undefined, },
+      data: {
+        orderId: String(freshOrder.id),
+        status: 'paid',
+        customerEmail: freshOrder.customerEmail || undefined,
+        customerName:  freshOrder.customerName  || undefined,
+        customerPhone: customerPhone || undefined,   // 🔹 TU
+      },
     });
     strapi.log.info(`[COMGATE][BOOKINGS] temporaryId -> paid (${res.count})`);
   }
   const res2 = await strapi.db.query('api::event-booking.event-booking').updateMany({
     where: { orderId: String(freshOrder.id) },
-    data: { status: 'paid',customerEmail: freshOrder.customerEmail || undefined,
-      customerName:  freshOrder.customerName  || undefined },
+    data: {
+      status: 'paid',
+      customerEmail: freshOrder.customerEmail || undefined,
+      customerName:  freshOrder.customerName  || undefined,
+      customerPhone: customerPhone || undefined,   // 🔹 tu použi prepočítaný customerPhone
+    },
   });
   strapi.log.info(`[COMGATE][BOOKINGS] by orderId -> paid (${res2.count})`);
 
@@ -515,15 +573,13 @@ const emailItems = await Promise.all(
 
     // --------- podrobné info len pre ADMIN email ---------
     const addr = freshOrder.deliveryAddress || {};
-    const customerPhone =
-      (freshOrder as any).customerPhone ||
-      (freshOrder as any).phone ||
-      '';
-  
-    const adminIntroLines = [
-      `Zákazník: ${freshOrder.customerName || '-'}`,
-      `E-mail: ${freshOrder.customerEmail || '-'}`,
-      `Telefón: ${customerPhone || '-'}`,
+    const customerPhoneLine =
+    customerPhone || (freshOrder as any).phone || '';
+
+  const adminIntroLines = [
+    `Zákazník: ${freshOrder.customerName || '-'}`,
+    `E-mail: ${freshOrder.customerEmail || '-'}`,
+    `Telefón: ${customerPhoneLine || '-'}`, 
       `Adresa: ${
         [addr.street, addr.zip, addr.city, addr.country]
           .filter(Boolean)

@@ -11,7 +11,11 @@
     "customerName": { "type": "string", "required": true },
     "customerEmail": { "type": "email", "required": true },
     "shippingAddress": { "type": "json", "required": true },
-
+    "deliveryUrgency": {
+        "type": "enumeration",
+        "enum": ["standard", "rush"],
+        "default": "standard"
+      },
     "notes": { "type": "text" },  
 
     "total": { "type": "decimal", "required": true },
