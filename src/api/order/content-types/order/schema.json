@@ -10,6 +10,9 @@
   "attributes": {
     "customerName": { "type": "string", "required": true },
     "customerEmail": { "type": "email", "required": true },
+    "customerPhone": {
+      "type": "string"
+    },
     "shippingAddress": { "type": "json", "required": true },
     "deliveryUrgency": {
         "type": "enumeration",

@@ -621,7 +621,7 @@ const emailItems = await Promise.all(
     }
     await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${freshOrder.id} - zaplatené`, html: adminEmailHtml });
 
-    const adminEmails = ['info@appdesign.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
+    const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
     await sendEmail({
       to: adminEmails.join(','),
       subject: `Nová objednávka #${freshOrder.id} - zaplatené`,

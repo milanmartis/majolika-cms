@@ -669,7 +669,7 @@ export default () => ({
       });
 
 
-      const adminEmails = ['info@appdesign.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
+      const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
 
       try {
         await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
