@@ -36,7 +36,7 @@ module.exports = {
     // --- produkty ---
     products.forEach(p => {
       urls.push({
-        loc: `${base}/product/${p.slug}`,
+        loc: `${base}/produkt/${p.slug}`,
         changefreq: 'weekly',
         priority: '0.7',
         lastmod: p.updatedAt,
