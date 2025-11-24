@@ -9,7 +9,7 @@ module.exports = {
     const products = await strapi.entityService.findMany('api::product.product', {
       fields: ['slug', 'updatedAt'],
       filters: { public: true },
-      limit: 1000,
+      limit: 3000,
     });
 
     const urls = [];
