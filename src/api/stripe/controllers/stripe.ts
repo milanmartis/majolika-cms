@@ -462,8 +462,8 @@ async function runPostPaidFlow(orderId: number) {
       deliveryAddress: true,
       deliveryDetails: true,
       items: true,
-      customer: { fields: ['phone', 'email', 'name', 'street', 'city', 'zip', 'country'] },
-    } as any, 
+      customer: true, // 👈 nechaj Strapi načítať všetko, nešpecifikuj fields
+    },
   }) as unknown as OrderRecord;
 
   
