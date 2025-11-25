@@ -47,12 +47,21 @@ type OrderRecord = {
   total?: number | string;
   totalWithShipping?: number | string;
   deliveryMethod?: DeliveryMethod;
+
+  shippingAddress?: {
+    street?: string;
+    city?: string;
+    zip?: string;
+    country?: string;
+  } | null;
+
   deliveryAddress?: {
     street?: string;
     city?: string;
     zip?: string;
     country?: string;
   } | null;
+
   deliveryDetails?: {
     provider?: string;
     postOfficeId?: string;
@@ -457,6 +466,7 @@ async function runPostPaidFlow(orderId: number) {
       'deliveryMethod',
       'temporaryId',
       'deliveryUrgency',  
+      'shippingAddress',  
     ] as any,
     populate: {
       deliveryAddress: true,
@@ -577,30 +587,44 @@ const emailItems = await Promise.all(
   });
 
  
-    // --------- podrobné info len pre ADMIN email ---------
-    const addr = (freshOrder.deliveryAddress || {}) as any;
-    const customerPhoneLine =
-      customerPhone || (freshOrder as any).phone || '';
+  const addr = (freshOrder.deliveryAddress || {}) as any;
+  const customerPhoneLine =
+    customerPhone || (freshOrder as any).phone || '';
   
-   // adresa priamo z customer.shippingAddress (JSON alebo objekt)
-    let customerShipping: any = (freshOrder.customer as any)?.shippingAddress || {};
+  // 1) primárne z order.shippingAddress (JSON na objednávke)
+  let customerShipping: any = (freshOrder as any).shippingAddress;
+  
+  // 2) ak chýba, skús customer.shippingAddress (môže byť JSON/string)
+  if (!customerShipping) {
+    customerShipping = (freshOrder.customer as any)?.shippingAddress;
     if (typeof customerShipping === 'string') {
       try {
         customerShipping = JSON.parse(customerShipping);
       } catch {
-        customerShipping = {};
+        customerShipping = null;
       }
     }
-
-    const customerAddressLine =
-      [
-        customerShipping.street,
-        customerShipping.zip,
-        customerShipping.city,
-        customerShipping.country,
-      ]
-        .filter(Boolean)
-        .join(', ') || '-';
+  }
+  
+  // 3) ak stále nič, fallback na rozbité polia na customer
+  if (!customerShipping || typeof customerShipping !== 'object') {
+    customerShipping = {
+      street:  (freshOrder.customer as any)?.street,
+      zip:     (freshOrder.customer as any)?.zip,
+      city:    (freshOrder.customer as any)?.city,
+      country: (freshOrder.customer as any)?.country,
+    };
+  }
+  
+  const customerAddressLine =
+    [
+      customerShipping.street,
+      customerShipping.zip,
+      customerShipping.city,
+      customerShipping.country,
+    ]
+      .filter(Boolean)
+      .join(', ') || '-';
   
     const adminIntroLines = [
       `Zákazník: ${freshOrder.customerName || '-'}`,
