@@ -466,7 +466,7 @@ async function runPostPaidFlow(orderId: number) {
     },
   }) as unknown as OrderRecord;
 
-  
+
   
   const orderNotes = freshOrder?.notes ? String(freshOrder.notes) : null;
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
@@ -582,16 +582,17 @@ const emailItems = await Promise.all(
     const customerPhoneLine =
       customerPhone || (freshOrder as any).phone || '';
   
-    // adresa priamo z customer (street, city, zip, country)
-    const customerAddressLine =
-      [
-        freshOrder.customer?.street,
-        freshOrder.customer?.zip,
-        freshOrder.customer?.city,
-        freshOrder.customer?.country,
-      ]
-        .filter(Boolean)
-        .join(', ') || '-';
+    // adresa priamo z customer.shippingAddress
+  const customerShipping = (freshOrder.customer as any)?.shippingAddress || {};
+  const customerAddressLine =
+    [
+      customerShipping.street,
+      customerShipping.zip,
+      customerShipping.city,
+      customerShipping.country,
+    ]
+      .filter(Boolean)
+      .join(', ') || '-';
   
     const adminIntroLines = [
       `Zákazník: ${freshOrder.customerName || '-'}`,
