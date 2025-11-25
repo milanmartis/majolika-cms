@@ -74,6 +74,10 @@ type OrderRecord = {
     name?: string | null;
     email?: string | null;
     phone?: string | null;
+    street?: string | null;
+    city?: string | null;
+    zip?: string | null;
+    country?: string | null;
   } | null;
 };
 
@@ -458,8 +462,8 @@ async function runPostPaidFlow(orderId: number) {
       deliveryAddress: true,
       deliveryDetails: true,
       items: true,
-      customer: { fields: ['phone', 'email', 'name'] },
-    },
+      customer: { fields: ['phone', 'email', 'name', 'street', 'city', 'zip', 'country'] },
+    } as any, 
   }) as unknown as OrderRecord;
 
   
@@ -571,16 +575,29 @@ const emailItems = await Promise.all(
     orderNotes
   });
 
+ 
     // --------- podrobné info len pre ADMIN email ---------
-    const addr = freshOrder.deliveryAddress || {};
+    const addr = (freshOrder.deliveryAddress || {}) as any;
     const customerPhoneLine =
-    customerPhone || (freshOrder as any).phone || '';
-
-  const adminIntroLines = [
-    `Zákazník: ${freshOrder.customerName || '-'}`,
-    `E-mail: ${freshOrder.customerEmail || '-'}`,
-    `Telefón: ${customerPhoneLine || '-'}`, 
-      `Adresa: ${
+      customerPhone || (freshOrder as any).phone || '';
+  
+    // adresa priamo z customer (street, city, zip, country)
+    const customerAddressLine =
+      [
+        freshOrder.customer?.street,
+        freshOrder.customer?.zip,
+        freshOrder.customer?.city,
+        freshOrder.customer?.country,
+      ]
+        .filter(Boolean)
+        .join(', ') || '-';
+  
+    const adminIntroLines = [
+      `Zákazník: ${freshOrder.customerName || '-'}`,
+      `E-mail: ${freshOrder.customerEmail || '-'}`,
+      `Telefón: ${customerPhoneLine || '-'}`,
+      `Adresa zákazníka: ${customerAddressLine}`,
+      `Doručovacia adresa: ${
         [addr.street, addr.zip, addr.city, addr.country]
           .filter(Boolean)
           .join(', ') || '-'
@@ -598,6 +615,7 @@ const emailItems = await Promise.all(
         return `• ${it.productName || `Produkt #${it.productId}`} - EAN: ${ean}, množstvo: ${it.quantity}`;
       }),
     ];
+
   
     const adminEmailHtml = renderOrderEmail({
       title: `Nová objednávka #${freshOrder.id} - zaplatené`,
