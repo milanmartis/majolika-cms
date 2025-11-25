@@ -783,16 +783,21 @@ async previewEmail(ctx: any) {
   try {
     const q = ctx.query || {};
     const idQ = Number(q.order || q.orderId || 0) || null;
-    const type = String(q.type || 'paid').toLowerCase(); // 'paid' | 'noncard'
+    const type = String(q.type || 'paid').toLowerCase(); // 'paid' | 'noncard' (len na text headingu)
     const notesOverride = typeof q.notes === 'string' ? q.notes : undefined;
     const doCheck = String(q.check || '0') === '1';
     const source = String(q.source || 'order'); // 'order' | 'product'
 
     if (!idQ) return ctx.badRequest('Provide ?order=<orderId>');
 
-    // 1) načítaj objednávku
+    // 1) načítaj objednávku vrátane customer
     const order = await strapi.entityService.findOne('api::order.order', idQ, {
-      populate: { deliveryAddress: true, deliveryDetails: true, items: true },
+      populate: {
+        deliveryAddress: true,
+        deliveryDetails: true,
+        items: true,
+        customer: true,
+      },
     }) as any;
     if (!order) return ctx.notFound('Order not found');
 
@@ -855,7 +860,7 @@ async previewEmail(ctx: any) {
 
         return {
           productName: it.productName || `Produkt #${it.productId}`,
-          slug: it.slug || '', 
+          slug: it.slug || '',
           unitPrice: Number(it.unitPrice || 0),
           quantity: Number(it.quantity || 1),
           image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
@@ -876,51 +881,78 @@ async previewEmail(ctx: any) {
       ? notesOverride
       : (order.notes ? String(order.notes) : null);
 
-    // 4) texty podľa typu
-    let title = '';
-    let heading = '';
-    let introLines: string[] = [];
-    let cta: { label: string; href: string } | undefined;
+    // --------- ADMIN TEXTY (rovnaká logika ako v runPostPaidFlow) ---------
+    const addr = (order.deliveryAddress || {}) as any;
 
-    if (type === 'paid') {
-      title = `Potvrdenie objednávky ${order.id}`;
-      heading = 'Ďakujeme, platba prijatá';
-      introLines = [
-        `Dobrý deň${order.customerName ? `, ${order.customerName}` : ''}.`,
-        `Platba za vašu objednávku #${order.id} prebehla úspešne.`,
-      ];
-      if (FRONTEND_URL) {
-        cta = { label: 'Zobraziť objednávku', href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${order.id}` };
-      }
-    } else {
-      title = `Potvrdenie objednávky ${order.id}`;
-      heading = `Potvrdenie objednávky č. ${order.id}`;
-      const pm = String(order.paymentMethod || '').toLowerCase();
-      const pmHuman =
-        pm === 'bank' ? 'bankový prevod'
-        : pm === 'cod' ? 'dobierka'
-        : pm === 'onsite' ? 'platba na mieste'
-        : pm === 'post' ? 'platba na pošte'
-        : 'nekartová platba';
-      introLines = [
-        `Dobrý deň${order.customerName ? `, ${order.customerName}` : ''}.`,
-        `ďakujeme za Vašu objednávku.`,
-        `Spôsob platby: ${pmHuman}.`,
-      ];
-      if (FRONTEND_URL) {
-        cta = { label: 'Zobraziť objednávku', href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${order.id}` };
-      }
-    }
+    const customerPhoneLine =
+      order.customerPhone ||
+      order.customer?.phone ||
+      '';
 
-    // 5) HTML email (produkčná šablóna)
+    const customerShipping = (order.customer as any)?.shippingAddress || {};
+    const customerAddressLine =
+      [
+        customerShipping.street,
+        customerShipping.zip,
+        customerShipping.city,
+        customerShipping.country,
+      ]
+        .filter(Boolean)
+        .join(', ') || '-';
+
+    const adminIntroLines = [
+      `Zákazník: ${order.customerName || '-'}`,
+      `E-mail: ${order.customerEmail || '-'}`,
+      `Telefón: ${customerPhoneLine || '-'}`,
+      `Adresa zákazníka: ${customerAddressLine}`,
+      `Doručovacia adresa: ${
+        [addr.street, addr.zip, addr.city, addr.country]
+          .filter(Boolean)
+          .join(', ') || '-'
+      }`,
+      `Doručenie: ${deliverySummary}`,
+      '',
+      'Produkty (s EAN):',
+      ...items.map((it: any) => {
+        const ean =
+          it.ean ||
+          it.eanCode ||
+          it.ean_code ||
+          it.ean_kod ||
+          '-';
+        return `• ${it.productName || `Produkt #${it.productId}`} - EAN: ${ean}, množstvo: ${it.quantity}`;
+      }),
+    ];
+
+    // 4) title + heading pre ADMIN email
+    const title = `PREVIEW – admin email objednávky #${order.id}`;
+    const heading =
+      type === 'paid'
+        ? `Nová objednávka #${order.id} - platba prijatá`
+        : `Nová objednávka #${order.id} - nekartová platba`;
+
+    const cta = FRONTEND_URL
+      ? {
+          label: 'Zobraziť objednávku (FE)',
+          href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${order.id}`,
+        }
+      : undefined;
+
+    // 5) HTML email – ADMIN verzia
     let html = renderOrderEmail({
-      title, heading, introLines, cta,
+      title,
+      heading,
+      introLines: adminIntroLines,
+      cta: cta ?? null,
       items: emailItems,
-      shippingFee, paymentFee, totalWithShipping,
-      deliverySummary, orderNotes,
+      shippingFee,
+      paymentFee,
+      totalWithShipping,
+      deliverySummary,
+      orderNotes,
     });
 
-    // 6) Ak je diagnostika zapnutá, pridaj report pod email
+    // 6) Diagnostika obrázkov (ak zapnutá)
     if (doCheck) {
       const rows = diagnostics.map(d => `
         <tr>
@@ -959,7 +991,6 @@ async previewEmail(ctx: any) {
           </table>
         </div>
       `;
-      // vlož diagnostiku pod closing </html> – aby si vizuálne videl aj email aj report
       html = html.replace(/<\/html>\s*$/i, `${diagBlock}\n</html>`);
     }
 
@@ -970,7 +1001,6 @@ async previewEmail(ctx: any) {
     ctx.throw(500, 'Preview failed');
   }
 },
-
 
 
 
