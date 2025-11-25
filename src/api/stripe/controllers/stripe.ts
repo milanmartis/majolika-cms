@@ -467,6 +467,7 @@ async function runPostPaidFlow(orderId: number) {
   }) as unknown as OrderRecord;
 
   
+  
   const orderNotes = freshOrder?.notes ? String(freshOrder.notes) : null;
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
 
