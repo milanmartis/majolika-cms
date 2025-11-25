@@ -778,20 +778,33 @@ async create(ctx: any) {
 
 
 
-// GET /api/payments/preview-email?order=123&type=paid|noncard&notes=override
+// GET /api/payments/preview-email?order=123&check=1
 async previewEmail(ctx: any) {
   try {
     const q = ctx.query || {};
     const idQ = Number(q.order || q.orderId || 0) || null;
-    const type = String(q.type || 'paid').toLowerCase(); // 'paid' | 'noncard' (len na text headingu)
     const notesOverride = typeof q.notes === 'string' ? q.notes : undefined;
     const doCheck = String(q.check || '0') === '1';
     const source = String(q.source || 'order'); // 'order' | 'product'
 
     if (!idQ) return ctx.badRequest('Provide ?order=<orderId>');
 
-    // 1) načítaj objednávku vrátane customer
+    // 1) načítaj objednávku vrátane customer – ROVNAKO ako v runPostPaidFlow
     const order = await strapi.entityService.findOne('api::order.order', idQ, {
+      fields: [
+        'id',
+        'notes',
+        'shippingFee',
+        'paymentFee',
+        'total',
+        'totalWithShipping',
+        'customerEmail',
+        'customerName',
+        'customerPhone',
+        'deliveryMethod',
+        'temporaryId',
+        'deliveryUrgency',
+      ] as any,
       populate: {
         deliveryAddress: true,
         deliveryDetails: true,
@@ -801,7 +814,11 @@ async previewEmail(ctx: any) {
     }) as any;
     if (!order) return ctx.notFound('Order not found');
 
-    // 2) priprav položky (preferuj uložené imageUrl; alebo vynúť produkt)
+    const orderNotes = typeof notesOverride === 'string'
+      ? notesOverride
+      : (order.notes ? String(order.notes) : null);
+
+    // 2) položky – rovnaká logika ako v runPostPaidFlow (imageUrl -> produkt)
     const items = Array.isArray(order.items) ? order.items : [];
     const diagnostics: Array<{
       name: string; rawFrom: 'order.imageUrl' | 'product.media';
@@ -811,33 +828,33 @@ async previewEmail(ctx: any) {
 
     const emailItems = await Promise.all(
       items.map(async (it: any) => {
-        let image = '';
+        let image = (it.imageUrl ? String(it.imageUrl) : '');
         let rawFrom: 'order.imageUrl' | 'product.media' = 'order.imageUrl';
-        let rawUrl: string | undefined;
+        let rawUrl: string | undefined = image;
 
-        if (source === 'order') {
-          rawUrl = it.imageUrl ? String(it.imageUrl) : '';
-          image = absUrl(rawUrl);
-        }
+        image = absUrl(image);
 
-        if (!image) {
-          // fallback / alebo ak source=product
+        // fallback – produkt
+        if (!image && it.productId) {
           try {
-            const product = await strapi.entityService.findOne('api::product.product', Number(it.productId), {
-              populate: {
-                picture_new: { fields: ['url', 'formats'] },
-                pictures_new: { fields: ['url', 'formats'] },
-              },
-            });
-            rawFrom = 'product.media';
-            rawUrl = pickProductImage(product); // už vracia absolútnu
-            image = rawUrl;
+            const pid = Number(it.productId);
+            if (Number.isFinite(pid)) {
+              const product = await strapi.entityService.findOne('api::product.product', pid, {
+                populate: {
+                  picture_new: { fields: ['url', 'formats'] },
+                  pictures_new: { fields: ['url', 'formats'] },
+                },
+              });
+              rawFrom = 'product.media';
+              rawUrl = pickProductImage(product);
+              image = rawUrl;
+            }
           } catch (e) {
             strapi.log.warn(`[PREVIEW][ITEM IMG] product ${it.productId} load failed: ${String(e)}`);
           }
         }
 
-        // voliteľná diagnostika – HEAD na obrázok
+        // voliteľná diagnostika – HEAD
         let headOk: boolean | undefined;
         let headStatus: number | undefined;
         let note: string | undefined;
@@ -869,19 +886,14 @@ async previewEmail(ctx: any) {
       })
     );
 
-    // 3) výpočty + sumarizácia
+    // 3) výpočty
     const shippingFee = Number(order.shippingFee || 0);
     const paymentFee  = Number(order.paymentFee || 0);
     const totalWithShipping = Number(order.totalWithShipping || order.total || 0);
     const deliverySummary = summarizeDeliveryFromOrder(order);
     const FRONTEND_URL = process.env.FRONTEND_URL || '';
 
-    // poznámka (override má prednosť)
-    const orderNotes = typeof notesOverride === 'string'
-      ? notesOverride
-      : (order.notes ? String(order.notes) : null);
-
-    // --------- ADMIN TEXTY (rovnaká logika ako v runPostPaidFlow) ---------
+    // 4) ADMIN TEXTY – KÓPIA logiky z runPostPaidFlow
     const addr = (order.deliveryAddress || {}) as any;
 
     const customerPhoneLine =
@@ -924,12 +936,9 @@ async previewEmail(ctx: any) {
       }),
     ];
 
-    // 4) title + heading pre ADMIN email
-    const title = `PREVIEW – admin email objednávky #${order.id}`;
-    const heading =
-      type === 'paid'
-        ? `Nová objednávka #${order.id} - platba prijatá`
-        : `Nová objednávka #${order.id} - nekartová platba`;
+    // 5) TITLE + HEADING – rovnaké ako v adminEmailHtml
+    const title = `Nová objednávka #${order.id} - zaplatené (PREVIEW)`;
+    const heading = `Nová objednávka #${order.id} - platba prijatá`;
 
     const cta = FRONTEND_URL
       ? {
@@ -938,7 +947,6 @@ async previewEmail(ctx: any) {
         }
       : undefined;
 
-    // 5) HTML email – ADMIN verzia
     let html = renderOrderEmail({
       title,
       heading,
@@ -952,7 +960,7 @@ async previewEmail(ctx: any) {
       orderNotes,
     });
 
-    // 6) Diagnostika obrázkov (ak zapnutá)
+    // 6) Diagnostika obrázkov
     if (doCheck) {
       const rows = diagnostics.map(d => `
         <tr>
@@ -1001,6 +1009,7 @@ async previewEmail(ctx: any) {
     ctx.throw(500, 'Preview failed');
   }
 },
+
 
 
 
