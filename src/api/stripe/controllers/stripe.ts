@@ -582,17 +582,25 @@ const emailItems = await Promise.all(
     const customerPhoneLine =
       customerPhone || (freshOrder as any).phone || '';
   
-    // adresa priamo z customer.shippingAddress
-  const customerShipping = (freshOrder.customer as any)?.shippingAddress || {};
-  const customerAddressLine =
-    [
-      customerShipping.street,
-      customerShipping.zip,
-      customerShipping.city,
-      customerShipping.country,
-    ]
-      .filter(Boolean)
-      .join(', ') || '-';
+   // adresa priamo z customer.shippingAddress (JSON alebo objekt)
+    let customerShipping: any = (freshOrder.customer as any)?.shippingAddress || {};
+    if (typeof customerShipping === 'string') {
+      try {
+        customerShipping = JSON.parse(customerShipping);
+      } catch {
+        customerShipping = {};
+      }
+    }
+
+    const customerAddressLine =
+      [
+        customerShipping.street,
+        customerShipping.zip,
+        customerShipping.city,
+        customerShipping.country,
+      ]
+        .filter(Boolean)
+        .join(', ') || '-';
   
     const adminIntroLines = [
       `Zákazník: ${freshOrder.customerName || '-'}`,
