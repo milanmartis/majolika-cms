@@ -282,7 +282,7 @@ function renderBankTransferBlock(orderId: string | number, total: number) {
 /* ========================= Typy ========================= */
 type DeliveryUrgency = 'standard' | 'rush';
 type PaymentMethod = 'card' | 'cod' | 'bank' | 'onsite' | 'post';
-type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
 
 interface Address {
   street: string;
@@ -340,9 +340,10 @@ interface CheckoutPayload {
 
 const SHIPPING_PRICING: Record<DeliveryMethod, number> = {
   pickup: 0,
-  post_office: 3.9,
-  packeta_box: 2.9,
-  post_courier: 4.9,
+  post_office: 5.0,
+  packeta_box: 5.0,
+  post_courier: 7.0,
+  digital_product: 0,
 };
 
 const FREE_SHIPPING_THRESHOLD = 100;
@@ -355,11 +356,17 @@ function validateDelivery(delivery: Delivery) {
   switch (delivery.method) {
     case 'pickup':
       return;
+
+    case 'digital_product':
+      // Digitálny produkt – nič neposielame, žiadne ďalšie validácie netreba
+      return;
+
     case 'post_office': {
       const id = delivery.details?.postOfficeId;
       if (!id) throw new Error('delivery.details.postOfficeId is required for post_office');
       return;
     }
+
     case 'packeta_box': {
       const boxId = delivery.details?.packetaBoxId;
       if (!boxId) throw new Error('delivery.details.packetaBoxId is required for packeta_box');
@@ -369,6 +376,7 @@ function validateDelivery(delivery: Delivery) {
       }
       return;
     }
+
     case 'post_courier': {
       const a = delivery.address || ({} as Address);
       if (!a.street || !a.city || !a.zip || !a.country) {
@@ -376,36 +384,55 @@ function validateDelivery(delivery: Delivery) {
       }
       return;
     }
+
     default:
       throw new Error(`Unsupported delivery.method: ${String(delivery.method)}`);
   }
 }
 
+
 function summarizeDelivery(delivery: Delivery): string {
   switch (delivery?.method) {
-    case 'pickup': return 'Osobné vyzdvihnutie na mieste';
-    case 'post_office': return `Na poštu (ID: ${delivery?.details?.postOfficeId})`;
-    case 'packeta_box': return delivery?.details?.notes
-      ? `Packeta/Carrier box: ${delivery.details.notes}`
-      : `Packeta Box (ID: ${delivery?.details?.packetaBoxId})`;
+    case 'pickup':
+      return 'Osobné vyzdvihnutie na mieste';
+
+    case 'post_office':
+      return `Na poštu (ID: ${delivery?.details?.postOfficeId})`;
+
+    case 'packeta_box':
+      return delivery?.details?.notes
+        ? `Packeta/Carrier box: ${delivery.details.notes}`
+        : `Packeta Box (ID: ${delivery?.details?.packetaBoxId})`;
+
     case 'post_courier': {
       const a = delivery?.address || ({} as Address);
       return `Kuriér na adresu: ${a.street}, ${a.city} ${a.zip}, ${a.country}`;
     }
-    default: return String(delivery?.method || '');
+
+    case 'digital_product':
+      return 'Digitálny produkt (bez fyzického doručenia)';
+
+    default:
+      return String(delivery?.method || '');
   }
 }
 
 function humanDelivery(deliveryMethod: DeliveryMethod): string {
   switch (deliveryMethod) {
-    case 'pickup': return 'osobný odber';
-    case 'post_office': return 'pošta';
-    case 'packeta_box': return 'Packeta';
-    case 'post_courier': return 'kuriér';
-    default: return String(deliveryMethod);
+    case 'pickup':
+      return 'osobný odber';
+    case 'post_office':
+      return 'pošta';
+    case 'packeta_box':
+      return 'Packeta';
+    case 'post_courier':
+      return 'kuriér';
+    case 'digital_product':
+      return 'digitálny produkt';
+    default:
+      return String(deliveryMethod);
   }
 }
-
 /* ========================= Service ========================= */
 
 export default () => ({
@@ -551,7 +578,7 @@ export default () => ({
           country: customer.country,
         },
 
-        deliveryMethod,
+        deliveryMethod: deliveryMethod as any,
         deliveryAddress: delivery.address || null,
         deliveryDetails: delivery.details || null,
         deliveryUrgency,

@@ -37,7 +37,7 @@ type OrderItem = {
   isGiftVoucher?: boolean;   
 };
 
-type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
 
 type OrderRecord = {
   id: number;
@@ -280,7 +280,8 @@ function renderOrderEmail(opts: {
   heading: string;
   introLines: string[];
   cta?: { label: string; href: string } | null;
-  items: Array<{ productName: string; slug: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null }>;
+  items: Array<{ productName: string; slug: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null; isDigitalProduct?: boolean;
+    isGiftVoucher?: boolean; }>;
   shippingFee: number;
   paymentFee: number; 
   totalWithShipping: number;
@@ -383,6 +384,9 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
       base = `Kuriér na adresu: ${esc(a.street)}; ${esc(a.city)} ${esc(a.zip)}, ${esc(a.country)}`;
       break;
     }
+    case 'digital_product':
+      base = 'Digitálny produkt (bez fyzického doručenia)';
+      break;
     default:
       base = esc(String(order?.deliveryMethod || ''));
       break;
@@ -398,6 +402,7 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
 
   return base + suffix;
 }
+
 
 
 // ========================= DB & Comgate helpery =========================
