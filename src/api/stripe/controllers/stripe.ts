@@ -68,6 +68,19 @@ type OrderRecord = {
     packetaBoxId?: string;
     notes?: string;
   } | null;
+
+  billingIsCompany?: boolean | null;
+  billingCompanyName?: string | null;
+  billingIco?: string | null;
+  billingDic?: string | null;
+  billingIcDph?: string | null;
+  billingAddress?: {
+    street?: string | null;
+    city?: string | null;
+    zip?: string | null;
+    country?: string | null;
+  } | null;
+
   temporaryId?: string | null;
   items?: OrderItem[];
 
@@ -254,6 +267,7 @@ function renderOrderEmail(opts: {
   totalWithShipping: number;
   deliverySummary: string;
   orderNotes?: string | null;
+  billingHtml?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
   const notesHtml = opts.orderNotes
@@ -295,7 +309,11 @@ function renderOrderEmail(opts: {
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${esc(opts.deliverySummary)}</p>
+       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
+      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${esc(opts.deliverySummary)}</p>
+      ${opts.billingHtml || ''}
       ${notesHtml}
+
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
         <thead><tr><th>Položka</th><th style="text-align:right;">Spolu</th></tr></thead>
         <tbody>
@@ -565,6 +583,38 @@ const emailItems = await Promise.all(
   const paymentFee   = Number((freshOrder as any).paymentFee || 0);
   const totalWithShipping = Number(freshOrder.totalWithShipping || freshOrder.total || 0);
 
+  const billingFromOrder = {
+    isCompany: !!freshOrder.billingIsCompany,
+    companyName: freshOrder.billingCompanyName || '',
+    ico: freshOrder.billingIco || '',
+    dic: freshOrder.billingDic || '',
+    icDph: freshOrder.billingIcDph || '',
+    address: freshOrder.billingAddress || null,
+  };
+
+  const billingHtml =
+    billingFromOrder.isCompany
+      ? `
+        <div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
+          <div style="font-weight:600;color:#333;margin-bottom:6px;">Fakturačné údaje</div>
+          <div style="font-size:14px;color:#444;line-height:1.5;">
+            ${esc(billingFromOrder.companyName)}<br/>
+            IČO: ${esc(billingFromOrder.ico)}<br/>
+            ${billingFromOrder.dic ? `DIČ: ${esc(billingFromOrder.dic)}<br/>` : ''}
+            ${billingFromOrder.icDph ? `IČ DPH: ${esc(billingFromOrder.icDph)}<br/>` : ''}
+            ${
+              billingFromOrder.address
+                ? `${esc(billingFromOrder.address.street || '')}, ${esc(
+                    billingFromOrder.address.zip || '',
+                  )} ${esc(billingFromOrder.address.city || '')}, ${esc(
+                    billingFromOrder.address.country || '',
+                  )}`
+                : ''
+            }
+          </div>
+        </div>`
+      : '';
+
   const customerEmailHtml = renderOrderEmail({
     title: `Potvrdenie objednávky ${freshOrder.id}`,
     heading: 'Ďakujeme, platba prijatá',
@@ -583,7 +633,8 @@ const emailItems = await Promise.all(
     paymentFee,
     totalWithShipping,
     deliverySummary,
-    orderNotes
+    orderNotes,
+    billingHtml
   });
 
  
@@ -662,6 +713,7 @@ const emailItems = await Promise.all(
       totalWithShipping,
       deliverySummary,
       orderNotes,
+      billingHtml
     });
 
   try {
@@ -832,6 +884,38 @@ async previewEmail(ctx: any) {
       },
     }) as any;
     if (!order) return ctx.notFound('Order not found');
+
+    const billingFromOrder = {
+      isCompany: !!order.billingIsCompany,
+      companyName: order.billingCompanyName || '',
+      ico: order.billingIco || '',
+      dic: order.billingDic || '',
+      icDph: order.billingIcDph || '',
+      address: order.billingAddress || null,
+    };
+
+    const billingHtml =
+      billingFromOrder.isCompany
+        ? `
+          <div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
+            <div style="font-weight:600;color:#333;margin-bottom:6px;">Fakturačné údaje</div>
+            <div style="font-size:14px;color:#444;line-height:1.5;">
+              ${esc(billingFromOrder.companyName)}<br/>
+              IČO: ${esc(billingFromOrder.ico)}<br/>
+              ${billingFromOrder.dic ? `DIČ: ${esc(billingFromOrder.dic)}<br/>` : ''}
+              ${billingFromOrder.icDph ? `IČ DPH: ${esc(billingFromOrder.icDph)}<br/>` : ''}
+              ${
+                billingFromOrder.address
+                  ? `${esc(billingFromOrder.address.street || '')}, ${esc(
+                      billingFromOrder.address.zip || '',
+                    )} ${esc(billingFromOrder.address.city || '')}, ${esc(
+                      billingFromOrder.address.country || '',
+                    )}`
+                  : ''
+              }
+            </div>
+          </div>`
+        : '';
 
     // 2) priprav položky (preferuj uložené imageUrl; alebo vynúť produkt)
     const items = Array.isArray(order.items) ? order.items : [];
@@ -1012,6 +1096,7 @@ async previewEmail(ctx: any) {
       totalWithShipping,
       deliverySummary,
       orderNotes,
+      billingHtml
     });
 
     // 6) Diagnostika obrázkov (ak zapnutá)

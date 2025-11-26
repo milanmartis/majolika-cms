@@ -152,6 +152,7 @@ function renderEmail(opts: {
   deliverySummary: string;
   cta?: { label: string; href: string } | null;
   orderNotes?: string | null;
+  billingHtml?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
   // v renderEmail v checkout.ts nahraď časť s "Poznámka:" za tento blok:
@@ -197,6 +198,9 @@ const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
+      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
+
+      ${opts.billingHtml || ''}
 
       ${notesHtml}
 
@@ -279,6 +283,17 @@ interface Address {
   country: string;
 }
 
+
+interface BillingInfo {
+  isCompany: boolean;
+  companyName?: string;
+  ico?: string;
+  dic?: string;
+  icDph?: string;
+  address?: Address | null;
+}
+
+
 interface DeliveryDetails {
   provider?: string;      // 'packeta' alebo 'carrier:<id>'
   postOfficeId?: string;  // Slovenská pošta
@@ -312,6 +327,7 @@ interface CheckoutPayload {
   locale?: string;
   notes?: string;        
   deliveryUrgency?: DeliveryUrgency;
+  billing?: BillingInfo;
 }
 
 /* ========================= Konštanty ========================= */
@@ -398,6 +414,7 @@ export default () => ({
       paymentMethod,
       delivery,
       deliveryUrgency = 'standard',
+      billing,
     } = payload;
 
     const orderNotes = (payload.notes || '').trim();
@@ -481,6 +498,26 @@ export default () => ({
       return v.length <= 16 ? v : v.slice(0, 16);
     }
 
+    // 🔹 Billing data pre DB
+    const billingDbData = billing && billing.isCompany
+    ? {
+        billingIsCompany: true,
+        billingCompanyName: billing.companyName || null,
+        billingIco: billing.ico || null,
+        billingDic: billing.dic || null,
+        billingIcDph: billing.icDph || null,
+        billingAddress: billing.address || null,
+      }
+    : {
+        billingIsCompany: false,
+        billingCompanyName: null,
+        billingIco: null,
+        billingDic: null,
+        billingIcDph: null,
+        billingAddress: null,
+      };
+
+
     // 3) vytvor ORDER
     const order = await strapi.entityService.create('api::order.order', {
       data: {
@@ -520,6 +557,7 @@ export default () => ({
         paymentStatus,
         paymentSessionId: '',
         temporaryId: temporaryId || null,
+        ...billingDbData,
       },
     });
 
@@ -565,6 +603,29 @@ export default () => ({
         image: i._image,
         event: i.event,
       }));
+
+      const billingHtml =
+        billing && billing.isCompany
+          ? `
+            <div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
+              <div style="font-weight:600;color:#333;margin-bottom:6px;">Fakturačné údaje</div>
+              <div style="font-size:14px;color:#444;line-height:1.5;">
+                ${escapeHtml(billing.companyName || '')}<br/>
+                IČO: ${escapeHtml(billing.ico || '')}<br/>
+                ${billing.dic ? `DIČ: ${escapeHtml(billing.dic)}<br/>` : ''}
+                ${billing.icDph ? `IČ DPH: ${escapeHtml(billing.icDph)}<br/>` : ''}
+                ${
+                  billing.address
+                    ? `${escapeHtml(billing.address.street || '')}, ${escapeHtml(
+                        billing.address.zip || '',
+                      )} ${escapeHtml(billing.address.city || '')}, ${escapeHtml(
+                        billing.address.country || '',
+                      )}`
+                    : ''
+                }
+              </div>
+            </div>`
+          : '';
 
       const orderNo = order.id;
       const orderDate = formatNowSk();
@@ -619,6 +680,7 @@ export default () => ({
         totalWithShipping,
         deliverySummary,
         orderNotes,
+        billingHtml,
       });
 
       const addrLine = [
@@ -666,6 +728,7 @@ export default () => ({
         totalWithShipping,
         deliverySummary,
         orderNotes,
+        billingHtml,
       });
 
 

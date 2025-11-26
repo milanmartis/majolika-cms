@@ -14,6 +14,18 @@
       "type": "string"
     },
     "shippingAddress": { "type": "json", "required": true },
+
+    "billingIsCompany": { "type": "boolean", "default": false },
+    "billingCompanyName": { "type": "string" },
+    "billingIco": { "type": "string" },
+    "billingDic": { "type": "string" },
+    "billingIcDph": { "type": "string" },
+    "billingAddress": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.address"
+    },
+
     "deliveryUrgency": {
         "type": "enumeration",
         "enum": ["standard", "rush"],
@@ -78,7 +90,7 @@
 
     "deliveryMethod": {
       "type": "enumeration",
-      "enum": ["pickup", "post_office", "packeta_box", "post_courier"],
+      "enum": ["pickup", "post_office", "packeta_box", "post_courier", "digital_product"],
       "required": true,
       "default": "pickup"
     },
