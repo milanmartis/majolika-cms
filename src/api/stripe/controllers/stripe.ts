@@ -32,7 +32,9 @@ type OrderItem = {
   quantity: number;
   unitPrice: number;
   event?: EventInfo | null;
-  imageUrl?: string;   
+  imageUrl?: string;
+  isDigitalProduct?: boolean;
+  isGiftVoucher?: boolean;   
 };
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
@@ -221,12 +223,29 @@ function formatEventSk(event?: EventInfo): string {
   return `Termín: ${d}, ${t}${ppl}`;
 }
 
-function renderItemsRows(items: Array<{ productName: string; slug: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null; }>) {
+function renderItemsRows(items: Array<{
+  productName: string;
+  slug: string;
+  unitPrice: number;
+  quantity: number;
+  image?: string;
+  event?: EventInfo | null;
+
+  // 👇 pridáme, aj keď môžu byť undefined
+  isDigitalProduct?: boolean;
+  isGiftVoucher?: boolean;
+}>) {
   return items.map((it) => {
     const subtotal = it.unitPrice * it.quantity;
     const eventLine = it?.event?.startDateTime
       ? `<div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">${esc(formatEventSk(it.event!))}</div>`
       : '';
+
+    const digitalBadge =
+      it.isDigitalProduct || it.isGiftVoucher
+        ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">Digitálny produkt / darčekový poukaz</div>`
+        : '';
+
     return `
       <tr>
         <td style="padding:8px 12px;border-bottom:1px solid #eee;">
@@ -235,14 +254,14 @@ function renderItemsRows(items: Array<{ productName: string; slug: string; unitP
               ? `<img src="${aesc(it.image)}" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />`
               : '<img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="" width="64" height="64" style="object-fit:cover;border-radius:0px;" />'}
             <div>
-                <div style="font-weight:600;color:#333;padding:4px;">
-                  <a href="https://www.majolika.sk/produkt/${it.slug}"
-                    style="color:#0e29a0;text-decoration:none;"
-                    target="_blank">
-                    ${esc(it.productName)}
-                  </a>
-                </div>
-
+              <div style="font-weight:600;color:#333;padding:4px;">
+                <a href="https://www.majolika.sk/produkt/${it.slug}"
+                  style="color:#0e29a0;text-decoration:none;"
+                  target="_blank">
+                  ${esc(it.productName)}
+                </a>
+              </div>
+              ${digitalBadge}
               ${eventLine}
               <div style="font-size:13px;color:#777;">${money(it.unitPrice)} × ${it.quantity}</div>
             </div>
@@ -567,11 +586,15 @@ async function runPostPaidFlow(orderId: number) {
 
       return {
         productName: it.productName || `Produkt #${it.productId}`,
-        slug: it.slug || '', 
+        slug: it.slug || '',
         unitPrice: Number(it.unitPrice),
         quantity: Number(it.quantity),
         image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
         event: (it as any).event || null,
+  
+        // 👇 prenesieme flagy z order.items
+        isDigitalProduct: !!(it as any).isDigitalProduct || !!(it as any).isGiftVoucher,
+        isGiftVoucher: !!(it as any).isGiftVoucher,
       };
     })
   );
@@ -958,6 +981,10 @@ export default {
             quantity: Number(it.quantity || 1),
             image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
             event: it.event || null,
+      
+            // 👇 aj v preview chceme vidieť badge
+            isDigitalProduct: !!it.isDigitalProduct || !!it.isGiftVoucher,
+            isGiftVoucher: !!it.isGiftVoucher,
           };
         })
       );

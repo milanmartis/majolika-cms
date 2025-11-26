@@ -74,6 +74,10 @@
 
     "paymentFee": { "type": "decimal", "default": 0 },
 
+    "is_digital_product": {
+      "type": "boolean",
+      "default": false
+    },
 
     "fulfillmentStatus": {
       "type": "enumeration",

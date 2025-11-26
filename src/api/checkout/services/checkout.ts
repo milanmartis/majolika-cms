@@ -26,6 +26,8 @@ interface CheckoutItem {
   quantity: number;
   unitPrice: number;
   event?: EventInfo;
+  isDigitalProduct?: boolean;
+  isGiftVoucher?: boolean;
 }
 
 function formatEvent(event?: EventInfo): string {
@@ -102,6 +104,10 @@ function renderItemsRows(items: Array<{
   quantity: number;
   image?: string;
   event?: EventInfo;
+
+  // 👇 pridáme
+  isDigitalProduct?: boolean;
+  isGiftVoucher?: boolean;
 }>) {
   return items
     .map((it) => {
@@ -109,6 +115,12 @@ function renderItemsRows(items: Array<{
       const eventLine = it.event?.startDateTime
         ? `<div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">${formatEvent(it.event)}</div>`
         : '';
+
+      const digitalBadge =
+        it.isDigitalProduct || it.isGiftVoucher
+          ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">Digitálny produkt / darčekový poukaz</div>`
+          : '';
+
       return `
         <tr>
           <td style="padding:8px 12px;border-bottom:1px solid #eee;">
@@ -124,6 +136,7 @@ function renderItemsRows(items: Array<{
                     ${escapeHtml(it.productName)}
                   </a>
                 </div>
+                ${digitalBadge}
                 ${eventLine}
                 <div style="font-size:13px;color:#777;padding:4px;">${money(it.unitPrice)} × ${it.quantity}</div>
               </div>
@@ -436,39 +449,51 @@ export default () => ({
           },
         })).id;
 
-    // 2) položky objednávky – over produkty + doplň obrázok pre email
-    const orderItems = await Promise.all(
-      items.map(async (item) => {
-        const product = await strapi.entityService.findOne('api::product.product', item.productId, {
-          populate: {
-            picture_new: { fields: ['url', 'formats'] },
-            pictures_new: { fields: ['url', 'formats'] },
-          },
-        });
-
-        if (!product || (typeof product.price !== 'number' && typeof product.price !== 'string')) {
-          throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
-        }
-
-        const ean =
-          (product as any).ean ||
-          (product as any).eanCode ||
-          (product as any).ean_code ||
-          (product as any).ean_kod ||
-          null;
-
-        return {
-          productId: item.productId,
-          productName: item.productName ?? product.name,
-          slug: product.slug, 
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          event: item.event ?? undefined,
-          _image: pickProductImage(product),
-          ean,
-        };
-      })
-    );
+        const orderItems = await Promise.all(
+          items.map(async (item: CheckoutItem) => {
+            const product = await strapi.entityService.findOne('api::product.product', item.productId, {
+              populate: {
+                picture_new: { fields: ['url', 'formats'] },
+                pictures_new: { fields: ['url', 'formats'] },
+              },
+            });
+        
+            if (!product || (typeof product.price !== 'number' && typeof product.price !== 'string')) {
+              throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
+            }
+        
+            const ean =
+              (product as any).ean ||
+              (product as any).eanCode ||
+              (product as any).ean_code ||
+              (product as any).ean_kod ||
+              null;
+        
+            // 👇 flag z frontendu, fallback z produktu ak chceš:
+            const isDigitalProduct =
+              item.isDigitalProduct ??
+              (product as any).isDigitalProduct ??
+              false;
+        
+            const isGiftVoucher =
+              item.isGiftVoucher ??
+              (product as any).isGiftVoucher ??
+              false;
+        
+            return {
+              productId: item.productId,
+              productName: item.productName ?? product.name,
+              slug: product.slug,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              event: item.event ?? undefined,
+              _image: pickProductImage(product),
+              ean,
+              isDigitalProduct,   // 👈 teraz je to v orderItems
+              isGiftVoucher,
+            };
+          })
+        );
 
     const itemsTotal = orderItems.reduce((sum: number, i: any) => sum + i.quantity * i.unitPrice, 0);
     const deliveryMethod: DeliveryMethod = delivery.method;
@@ -588,11 +613,15 @@ export default () => ({
 
       const emailItems = orderItems.map((i: any) => ({
         productName: i.productName,
-        slug: i.slug, 
+        slug: i.slug,
         unitPrice: i.unitPrice,
         quantity: i.quantity,
         image: i._image,
         event: i.event,
+      
+        // 👇 prenesieme do šablóny
+        isDigitalProduct: !!i.isDigitalProduct || !!i.isGiftVoucher,
+        isGiftVoucher: !!i.isGiftVoucher,
       }));
 
       const billingHtml =
