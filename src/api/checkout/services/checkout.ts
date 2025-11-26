@@ -12,9 +12,6 @@ function escapeHtml(s: string = ''): string {
     .replace(/'/g, '&#39;');
 }
 
-
-
-
 interface EventInfo {
   sessionId?: number;
   type?: 'workshop' | 'tour' | string;
@@ -155,13 +152,13 @@ function renderEmail(opts: {
   billingHtml?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
-  // v renderEmail v checkout.ts nahraď časť s "Poznámka:" za tento blok:
-const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
-? `<div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
-     <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
-     <div style="font-size:14px;color:#444;line-height:1.5;">${escapeHtml(String(opts.orderNotes)).replace(/\n/g,'<br>')}</div>
-   </div>`
-: '';
+
+  const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
+    ? `<div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
+         <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
+         <div style="font-size:14px;color:#444;line-height:1.5;">${escapeHtml(String(opts.orderNotes)).replace(/\n/g,'<br>')}</div>
+       </div>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="sk">
@@ -198,12 +195,10 @@ const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
-      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
 
       ${opts.billingHtml || ''}
 
       ${notesHtml}
-
 
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
         <thead>
@@ -219,7 +214,7 @@ const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
             <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td>
           </tr>
           <tr>
-            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatk za dobierku</td>
+            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za dobierku</td>
             <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td>
           </tr>
           <tr>
@@ -283,7 +278,6 @@ interface Address {
   country: string;
 }
 
-
 interface BillingInfo {
   isCompany: boolean;
   companyName?: string;
@@ -292,7 +286,6 @@ interface BillingInfo {
   icDph?: string;
   address?: Address | null;
 }
-
 
 interface DeliveryDetails {
   provider?: string;      // 'packeta' alebo 'carrier:<id>'
@@ -498,25 +491,24 @@ export default () => ({
       return v.length <= 16 ? v : v.slice(0, 16);
     }
 
-    // 🔹 Billing data pre DB
+    // Billing data pre DB
     const billingDbData = billing && billing.isCompany
-    ? {
-        billingIsCompany: true,
-        billingCompanyName: billing.companyName || null,
-        billingIco: billing.ico || null,
-        billingDic: billing.dic || null,
-        billingIcDph: billing.icDph || null,
-        billingAddress: billing.address || null,
-      }
-    : {
-        billingIsCompany: false,
-        billingCompanyName: null,
-        billingIco: null,
-        billingDic: null,
-        billingIcDph: null,
-        billingAddress: null,
-      };
-
+      ? {
+          billingIsCompany: true,
+          billingCompanyName: billing.companyName || null,
+          billingIco: billing.ico || null,
+          billingDic: billing.dic || null,
+          billingIcDph: billing.icDph || null,
+          billingAddress: billing.address || null,
+        }
+      : {
+          billingIsCompany: false,
+          billingCompanyName: null,
+          billingIco: null,
+          billingDic: null,
+          billingIcDph: null,
+          billingAddress: null,
+        };
 
     // 3) vytvor ORDER
     const order = await strapi.entityService.create('api::order.order', {
@@ -547,7 +539,6 @@ export default () => ({
         items: orderItems.map(({ _image, ...rest }) => ({
           ...rest,
           imageUrl: absUrl(_image),
-
         })),
         status: 'pending',
         orderStatus: 'pending',
@@ -588,13 +579,13 @@ export default () => ({
         strapi.log.error('[GCAL][NON-CARD] recalc failed:', e);
       }
 
-      // const deliverySummary = summarizeDelivery(delivery);
       const baseDeliverySummary = summarizeDelivery(delivery);
       const urgencySuffix =
         deliveryUrgency === 'rush'
           ? ' – objednávka ponáhľa'
           : ' – štandardná doba dodania (cca 2 týždne)';
       const deliverySummary = `${baseDeliverySummary}${urgencySuffix}`;
+
       const emailItems = orderItems.map((i: any) => ({
         productName: i.productName,
         slug: i.slug, 
@@ -710,7 +701,6 @@ export default () => ({
           E-mail: ${escapeHtml(customer.email)}<br/>
           Telefón: ${escapeHtml(customer.phone || '')}<br/>
           Adresa: ${escapeHtml(addrLine || '-')}</p>
-        <p><b>Doručenie:</b> ${escapeHtml(deliverySummary)}</p>
         <p>${escapeHtml(bodyAdminIntro)}</p>
         <p><b>Položky (s EAN):</b><br/>
           ${productsWithEanHtml}
@@ -731,27 +721,16 @@ export default () => ({
         billingHtml,
       });
 
-
       const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
 
       try {
         await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
         await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
-        // await sendEmail({ to: adminEmails, subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
         await sendEmail({
           to: adminEmails.join(','),
           subject: `Nová objednávka #${order.id}`,
           html: adminEmailHtml,
         });
-        // await Promise.all(
-        //   adminEmails.map((email) =>
-        //     sendEmail({
-        //       to: email,
-        //       subject: `Nová objednávka #${order.id}`,
-        //       html: adminEmailHtml,
-        //     })
-        //   )
-        // );
       } catch (e) {
         strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
       }
