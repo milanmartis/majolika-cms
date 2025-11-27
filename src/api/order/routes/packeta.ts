@@ -15,7 +15,7 @@ export default {
       handler: 'order.shipPacketa',
       config: {
         auth: false,                         // 🔹 vypne users-permissions
-        policies: ['admin::isAuthenticatedAdmin'], // 🔹 admin guard
+        // policies: ['admin::isAuthenticatedAdmin'], // 🔹 admin guard
       },
     },
   ],
