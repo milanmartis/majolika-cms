@@ -396,8 +396,19 @@ function summarizeDelivery(delivery: Delivery): string {
     case 'pickup':
       return 'Osobné vyzdvihnutie na mieste';
 
-    case 'post_office':
-      return `Na poštu (ID: ${delivery?.details?.postOfficeId})`;
+    case 'post_office': {
+      const a = (delivery?.address || {}) as Address;
+      const addrStr = [a.street, a.city, a.zip].filter(Boolean).join(', ');
+      const id = delivery?.details?.postOfficeId;
+
+      if (addrStr && id) {
+        return `Na poštu: ${addrStr} (ID: ${id})`;
+      }
+      if (addrStr) {
+        return `Na poštu: ${addrStr}`;
+      }
+      return `Na poštu (ID: ${id || '-'})`;
+    }
 
     case 'packeta_box':
       return delivery?.details?.notes

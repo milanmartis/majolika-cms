@@ -371,22 +371,43 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
     case 'pickup':
       base = 'Osobné vyzdvihnutie na mieste';
       break;
-    case 'post_office':
-      base = `Na poštu (ID: ${esc(order?.deliveryDetails?.postOfficeId || '-')})`;
+
+    case 'post_office': {
+      const a = (order?.deliveryAddress || {}) as {
+        street?: string;
+        city?: string;
+        zip?: string;
+        country?: string;
+      };
+      const addrStr = [a.street, a.city, a.zip].filter(Boolean).join(', ');
+      const id = order?.deliveryDetails?.postOfficeId || '';
+
+      if (addrStr && id) {
+        base = `Na poštu: ${esc(addrStr)} (ID: ${esc(id)})`;
+      } else if (addrStr) {
+        base = `Na poštu: ${esc(addrStr)}`;
+      } else {
+        base = `Na poštu (ID: ${esc(id || '-')})`;
+      }
       break;
+    }
+
     case 'packeta_box':
       base = order?.deliveryDetails?.notes
         ? `Packeta/Carrier box: ${esc(order.deliveryDetails.notes)}`
         : `Packeta Box (ID: ${esc(order?.deliveryDetails?.packetaBoxId || '-')})`;
       break;
+
     case 'post_courier': {
       const a = order?.deliveryAddress || {};
       base = `Kuriér na adresu: ${esc(a.street)}; ${esc(a.city)} ${esc(a.zip)}, ${esc(a.country)}`;
       break;
     }
+
     case 'digital_product':
       base = 'Digitálny produkt (bez fyzického doručenia)';
       break;
+
     default:
       base = esc(String(order?.deliveryMethod || ''));
       break;
