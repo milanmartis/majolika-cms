@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Flex, Button, Typography, NumberInput } from '@strapi/design-system';
-import { useNotification } from '@strapi/strapi/admin';
+import { useNotification, getFetchClient } from '@strapi/strapi/admin';
 
 type Props = {
   orderId: number;
@@ -20,33 +20,28 @@ const PacketaShipModal: React.FC<Props> = ({ orderId, defaultWeightKg = 1.0, onS
       toggleNotification({ type: 'warning', message: 'Neplatná hmotnosť.' });
       return;
     }
-
+  
+    const { post } = getFetchClient();
+  
     try {
       setLoading(true);
-      const res = await fetch(`/api/orders/${orderId}/packeta/ship`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weightKg }),
+  
+      const res = await post('/api/orders/' + orderId + '/packeta/ship', {
+        weightKg,
       });
-
-      if (!res.ok) {
-        let msg = 'Packeta ship failed';
-        try {
-          const err = await res.json();
-          msg = err?.error?.message || msg;
-        } catch {}
-        throw new Error(msg);
-      }
-
-      const data = await res.json();
+  
+      // getFetchClient už parsuje JSON => data je rovno objekt
+      const data = res?.data || res;
+  
       toggleNotification({
         type: 'success',
         message: `Zásielka vytvorená. Tracking: ${data?.trackingNumber || '—'}`,
       });
-
+  
       onSuccess?.();
       onClose();
     } catch (e: any) {
+      console.error(e);
       toggleNotification({
         type: 'danger',
         message: e?.message || 'Chyba pri vytvorení zásielky.',
@@ -55,6 +50,7 @@ const PacketaShipModal: React.FC<Props> = ({ orderId, defaultWeightKg = 1.0, onS
       setLoading(false);
     }
   };
+  
 
   return (
     <Box padding={4}>

@@ -140,14 +140,24 @@ export default {
           dialog: {
             type: 'modal',
             title: 'Packeta shipment',
-            content: ({ onClose }: { onClose: () => void }) => (
-              <PacketaShipModal
-                orderId={Number(documentId)}
-                defaultWeightKg={1.0}
-                onSuccess={onClose}
-                onClose={onClose}
-              />
-            ),
+            content: ({ onClose }: { onClose: () => void }) => {
+              const attrs =
+                (document as any).data?.attributes ??
+                (document as any).data ??
+                (document as any);
+            
+              // v Strapi v5 máš v attrs.id / document.id klasické numeric ID
+              const orderId = attrs?.id ?? (document as any)?.id;
+            
+              return (
+                <PacketaShipModal
+                  orderId={orderId}
+                  defaultWeightKg={1.0}
+                  onSuccess={onClose}
+                  onClose={onClose}
+                />
+              );
+            },
           },
           variant: 'default' as const,
         };
