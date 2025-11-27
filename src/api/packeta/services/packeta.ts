@@ -1,3 +1,4 @@
+import fetch from 'node-fetch';
 'use strict';
 
 type OrderEntity = {
@@ -5,7 +6,7 @@ type OrderEntity = {
   customerName: string;
   customerEmail: string;
   // doplň podľa potreby...
-  deliveryMethod: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+  deliveryMethod: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
   deliveryDetails?: {
     provider?: string;
     packetaBoxId?: string;
@@ -30,8 +31,9 @@ interface PacketaCreateResponse {
     labelUrl?: string;
   }
 
-export default () => ({
-  async createShipmentFromOrder(order: OrderEntity) {
+  export default () => ({
+    async createShipmentFromOrder(order: OrderEntity, opts?: { weightKg?: number }) {
+    const weightKg = Number(opts?.weightKg ?? 0);
     const BASE = process.env.PACKETA_API_BASE || 'https://api.packeta.example/v1';
     const API_KEY = process.env.PACKETA_API_PASSWORD; // podľa tvojho účtu to môže byť X-Api-Key / Authorization
     const SENDER_ID = process.env.PACKETA_SENDER_ID || '';
@@ -60,6 +62,8 @@ export default () => ({
       pickupPoint: isCarrier
         ? { carrierId, carrierPickupPointId: details.packetaBoxId }
         : { packetaPointId: details.packetaBoxId },
+
+      weight: weightKg > 0 ? weightKg : undefined,
       // weight: ..., insurance: ..., etc.
     };
 
