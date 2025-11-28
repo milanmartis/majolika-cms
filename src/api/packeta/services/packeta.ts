@@ -66,22 +66,22 @@ export default () => ({
     const totalValue = order.totalWithShipping ?? 0;
 
     const xmlBody = `
-      <createPacket>
-        <apiPassword>${escapeXml(PASSWORD)}</apiPassword>
-        <packetAttributes>
-          <number>ORD-${escapeXml(order.id)}</number>
-          <name>${escapeXml(firstName || 'Customer')}</name>
-          <surname>${escapeXml(surname || 'Unknown')}</surname>
-          <email>${escapeXml(order.customerEmail)}</email>
-          <phone>${escapeXml(details.phone || '')}</phone>
-          <addressId>${escapeXml(details.packetaBoxId || '')}</addressId>
-          <value>${totalValue.toFixed(2)}</value>
-          <eshop>${escapeXml(ESHOP)}</eshop>
-          <weight>${Math.round(weightKg * 1000)}</weight>
-          <note>${escapeXml(details.notes || '')}</note>
-        </packetAttributes>
-      </createPacket>
-    `.trim();
+  <createPacket>
+    <apiPassword>${escapeXml(PASSWORD)}</apiPassword>
+    <packetAttributes>
+      <number>ORD-${escapeXml(order.id)}</number>
+      <name>${escapeXml(firstName || 'Customer')}</name>
+      <surname>${escapeXml(surname || 'Unknown')}</surname>
+      <email>${escapeXml(order.customerEmail)}</email>
+      <phone>${escapeXml(details.phone || '')}</phone>
+      <addressId>${escapeXml(details.packetaBoxId || '')}</addressId>
+      <value>${totalValue.toFixed(2)}</value>
+      <eshop>${escapeXml(ESHOP)}</eshop>
+      <weight>${weightKg.toFixed(2)}</weight> 
+      <note>${escapeXml(details.notes || '')}</note>
+    </packetAttributes>
+  </createPacket>
+`.trim();
 
     // DEBUG: request
     strapi.log.debug('[PACKETA][CREATE] XML request:', xmlBody);
