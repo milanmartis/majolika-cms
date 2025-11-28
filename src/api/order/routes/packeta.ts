@@ -14,7 +14,7 @@ export default {
       handler: 'order.shipPacketa',
       config: {
         auth: false,                         // vypne users-permissions
-        policies: ['admin::isAuthenticatedAdmin'], // pustí len admina
+        // policies: ['admin::isAuthenticatedAdmin'], // pustí len admina
       },
     },
   ],
