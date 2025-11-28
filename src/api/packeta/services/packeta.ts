@@ -98,7 +98,9 @@ export default () => ({
     const text = await res.text();
 
     // DEBUG: raw response
-    strapi.log.error('[PACKETA][CREATE] RAW RESPONSE HTTP', res.status, 'BODY:', text);
+    strapi.log.error(
+      `[PACKETA][CREATE] RAW RESPONSE HTTP ${res.status} BODY: ${text}`
+    );
 
     if (!res.ok) {
       // tu uvidíš reálnu odpoveď Packety (aj pri 502 / 4xx)
@@ -115,7 +117,9 @@ export default () => ({
     const errorMsg = extractTag(text, 'errorMessage') || extractTag(text, 'message');
 
     if (result && result.toLowerCase() !== 'ok') {
-      strapi.log.error('[PACKETA][CREATE] LOGIC ERROR result!=ok:', result, 'errorMsg:', errorMsg, 'xml:', text);
+      strapi.log.error(
+        `[PACKETA][CREATE] LOGIC ERROR result!=ok: ${result || '-'} errorMsg: ${errorMsg || '-'} xml: ${text}`
+      );
       throw new Error(errorMsg || `Packeta API error: ${result}`);
     }
 
