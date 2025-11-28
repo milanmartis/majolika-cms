@@ -1,11 +1,12 @@
-import fetch from 'node-fetch';
+// src/api/packeta/services/packeta.ts
 'use strict';
+
+import { parseStringPromise } from 'xml2js'; // pridaj do package.json
 
 type OrderEntity = {
   id: number;
   customerName: string;
   customerEmail: string;
-  // doplň podľa potreby...
   deliveryMethod: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
   deliveryDetails?: {
     provider?: string;
@@ -13,86 +14,78 @@ type OrderEntity = {
     postOfficeId?: string;
     notes?: string;
   } | null;
-  deliveryAddress?: {
-    street?: string;
-    city?: string;
-    zip?: string;
-    country?: string;
-  } | null;
   totalWithShipping?: number;
 };
 
-
 interface PacketaCreateResponse {
-    id?: string;
-    shipmentId?: string;
-    trackingNumber?: string;
-    barcode?: string;
-    labelUrl?: string;
-  }
+  shipmentId?: string;
+  trackingNumber?: string;
+  barcode?: string;
+}
 
-  export default () => ({
-    async createShipmentFromOrder(order: OrderEntity, opts?: { weightKg?: number }) {
-    const weightKg = Number(opts?.weightKg ?? 0);
-    const BASE = process.env.PACKETA_API_BASE || 'https://api.packeta.example/v1';
-    const API_KEY = process.env.PACKETA_API_PASSWORD; // podľa tvojho účtu to môže byť X-Api-Key / Authorization
-    const SENDER_ID = process.env.PACKETA_SENDER_ID || '';
-    if (!API_KEY) throw new Error('Missing PACKETA_API_PASSWORD');
+export default () => ({
+  async createShipmentFromOrder(order: OrderEntity, opts?: { weightKg?: number }) {
+    const API_URL  = process.env.PACKETA_API_BASE || 'https://www.zasilkovna.cz/api/rest';
+    const PASSWORD = process.env.PACKETA_API_PASSWORD;
+    if (!PASSWORD) throw new Error('Missing PACKETA_API_PASSWORD');
 
     if (order.deliveryMethod !== 'packeta_box') {
       throw new Error('createShipmentFromOrder called for non-packeta delivery');
     }
 
     const details = order.deliveryDetails || {};
-    const provider = details.provider || 'packeta';
-    const isCarrier = provider.startsWith('carrier:');
-    const carrierId = isCarrier ? provider.split(':')[1] : null;
+    const weightKg = opts?.weightKg ?? 1;
 
-    // poskladaj payload – prispôsob presne podľa API (názvy polí sa v účtoch líšia)
-    const payload: any = {
-      senderId: SENDER_ID || undefined,
-      reference: `ORD-${order.id}`,
-      cashOnDelivery: 0,
-      note: details.notes || '',
-      recipient: {
-        name: order.customerName,
-        email: order.customerEmail,
-        // phone: ...
-      },
-      pickupPoint: isCarrier
-        ? { carrierId, carrierPickupPointId: details.packetaBoxId }
-        : { packetaPointId: details.packetaBoxId },
+    // 1) poskladáme XML podľa Packeta createPacket()
+    const xmlBody = `
+      <packet>
+        <apiPassword>${PASSWORD}</apiPassword>
+        <createPacket>
+          <packetAttributes>
+            <number>ORD-${order.id}</number>
+            <recipientName>${order.customerName}</recipientName>
+            <recipientEmail>${order.customerEmail}</recipientEmail>
+            <recipientPhone></recipientPhone>
+            <weight>${Math.round(weightKg * 1000)}</weight> <!-- v gramoch -->
+            <value>${Math.round((order.totalWithShipping || 0) * 100)}</value> <!-- v centoch -->
+            <pickupPoint>${details.packetaBoxId || ''}</pickupPoint>
+            <note>${details.notes || ''}</note>
+          </packetAttributes>
+        </createPacket>
+      </packet>
+    `.trim();
 
-      weight: weightKg > 0 ? weightKg : undefined,
-      // weight: ..., insurance: ..., etc.
-    };
-
-    // ak by to bol kuriér (tu nie), posielala by sa address
-    // payload.address = { ...order.deliveryAddress }
-
-    const res = await fetch(`${BASE}/shipments`, {
+    const res = await fetch(API_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        // Skontroluj v dokumentácii tvojho konta: niekde je 'X-Api-Key', inde 'Authorization: ApiKey ...'
-        'X-Api-Key': API_KEY,
+        'Content-Type': 'text/xml; charset=utf-8',
       },
-      body: JSON.stringify(payload),
+      body: xmlBody,
     });
 
+    const text = await res.text();
     if (!res.ok) {
-      const text = await res.text();
       strapi.log.error('[PACKETA][CREATE] HTTP', res.status, text);
       throw new Error(`Packeta create failed: ${res.status}`);
     }
 
-    const data = (await res.json()) as unknown as PacketaCreateResponse;
+    // 2) odpoveď je XML → preparse
+    const xml = await parseStringPromise(text, { explicitArray: false });
 
-    // prispôsob podľa odpovede API
+    // úspech: xml.response.result === 'ok', barcode v xml.response.packetId.barcode
+    const response = xml?.response || xml;
+    if (response?.result !== 'ok') {
+      const msg = response?.errorMessage || 'Packeta API error';
+      throw new Error(msg);
+    }
+
+    const packetId = response.packetId || {};
+    const barcode  = packetId.barcode;
+
     return {
-        shipmentId: data.id || data.shipmentId,
-        trackingNumber: data.trackingNumber || data.barcode,
-        labelUrl: data.labelUrl || null,
-      };
+      shipmentId: packetId.id || null,
+      trackingNumber: barcode || null,
+      labelUrl: null, // label sa rieši cez ďalšiu metódu packetsLabelsPdf()
+    } as PacketaCreateResponse;
   },
 });
