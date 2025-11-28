@@ -5,7 +5,6 @@ type OrderEntity = {
   id: number;
   customerName: string;    // "Meno Priezvisko"
   customerEmail: string;
-  customerPhone?: string | null;
   deliveryMethod: 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
   deliveryDetails?: {
     provider?: string;
@@ -34,123 +33,107 @@ function escapeXml(str: string | number | null | undefined): string {
     .replace(/'/g, '&apos;');
 }
 
-// veľmi jednoduchý XML helper: vytiahne obsah <tag>...</tag>
-function getXmlTagValue(xml: string, tag: string): string | null {
-  const re = new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i');
+/**
+ * Mega-jednoduchy parser:
+ * - NEpoužívame xml2js
+ * - Len regexmi vytiahneme <result> / <status> / <id> / <barcode> / <errorMessage>
+ */
+function extractTag(xml: string, tag: string): string | null {
+  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
   const m = xml.match(re);
-  return m && m[1] ? m[1] : null;
+  return m ? m[1].trim() : null;
 }
 
 export default () => ({
-  async createShipmentFromOrder(
-    order: OrderEntity,
-    opts?: { weightKg?: number }
-  ): Promise<PacketaCreateResponse> {
+  async createShipmentFromOrder(order: OrderEntity, opts?: { weightKg?: number }): Promise<PacketaCreateResponse> {
     const API_URL  = process.env.PACKETA_API_BASE || 'https://www.zasilkovna.cz/api/rest';
     const PASSWORD = process.env.PACKETA_API_PASSWORD;
     const ESHOP    = process.env.PACKETA_ESHOP_NAME || 'majolika.sk'; // nastav podľa seba
 
-    if (!PASSWORD) {
-      throw new Error('Missing PACKETA_API_PASSWORD');
-    }
+    if (!PASSWORD) throw new Error('Missing PACKETA_API_PASSWORD');
 
     if (order.deliveryMethod !== 'packeta_box') {
       throw new Error('createShipmentFromOrder called for non-packeta delivery');
     }
 
     const details  = order.deliveryDetails || {};
-    const weightKgRaw = opts?.weightKg ?? 1;
-    const weightKg = weightKgRaw > 0 ? weightKgRaw : 1;
-
-    const totalValueRaw = order.totalWithShipping ?? 0;
-    const totalValue = totalValueRaw > 0 ? totalValueRaw : 0;
+    const weightKg = opts?.weightKg ?? 1;
 
     // rozbitie mena na name + surname (iba jednoduché splitnutie)
     const [firstName, ...rest] = (order.customerName || '').trim().split(' ');
-    const fname = firstName || 'Customer';
-    const surname = rest.join(' ') || fname || 'Unknown';
+    const surname = rest.join(' ') || firstName || 'Customer';
 
-    // telefón – preferuj z objednávky, fallback z deliveryDetails
-    const phone =
-      (order.customerPhone ?? '').toString().trim() ||
-      (details.phone ?? '').toString().trim() ||
-      '';
+    const totalValue = order.totalWithShipping ?? 0;
 
-    if (!details.packetaBoxId) {
-      // BE ochrana – bez addressId nemá zmysel volať Packetu
-      throw new Error('Missing Packeta addressId (packetaBoxId) on order');
-    }
-
-    // XML podľa Packeta createPacket
     const xmlBody = `
       <createPacket>
         <apiPassword>${escapeXml(PASSWORD)}</apiPassword>
         <packetAttributes>
           <number>ORD-${escapeXml(order.id)}</number>
-          <name>${escapeXml(fname)}</name>
-          <surname>${escapeXml(surname)}</surname>
+          <name>${escapeXml(firstName || 'Customer')}</name>
+          <surname>${escapeXml(surname || 'Unknown')}</surname>
           <email>${escapeXml(order.customerEmail)}</email>
-          <phone>${escapeXml(phone)}</phone>
-          <addressId>${escapeXml(details.packetaBoxId)}</addressId>
-          <value>${escapeXml(totalValue.toFixed(2))}</value>
+          <phone>${escapeXml(details.phone || '')}</phone>
+          <addressId>${escapeXml(details.packetaBoxId || '')}</addressId>
+          <value>${totalValue.toFixed(2)}</value>
           <eshop>${escapeXml(ESHOP)}</eshop>
-          <weight>${escapeXml(Math.round(weightKg * 1000))}</weight>
+          <weight>${Math.round(weightKg * 1000)}</weight>
           <note>${escapeXml(details.notes || '')}</note>
         </packetAttributes>
       </createPacket>
     `.trim();
 
+    // DEBUG: request
     strapi.log.debug('[PACKETA][CREATE] XML request:', xmlBody);
 
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/xml; charset=utf-8',
-        Accept: 'text/xml,application/xml',
+        'Accept': 'text/xml,application/xml',
       },
       body: xmlBody,
     });
 
     const text = await res.text();
 
-    // HTTP chyba – zaloguj celé telo
+    // DEBUG: raw response
+    strapi.log.error('[PACKETA][CREATE] RAW RESPONSE HTTP', res.status, 'BODY:', text);
+
     if (!res.ok) {
-      strapi.log.error('[PACKETA][CREATE] HTTP', res.status, text);
+      // tu uvidíš reálnu odpoveď Packety (aj pri 502 / 4xx)
       throw new Error(`Packeta create failed: HTTP ${res.status}`);
     }
 
-    // Tu už máme 2xx – potrebujeme pozrieť <result> a prípadné errorMessage/id/barcode
-    const result = getXmlTagValue(text, 'result');
-    const errorMessage = getXmlTagValue(text, 'errorMessage') || getXmlTagValue(text, 'message');
-
-    if ((result && result.toLowerCase() !== 'ok') || (!result && errorMessage)) {
-      const msg = errorMessage || 'Packeta API error';
-      strapi.log.error('[PACKETA][CREATE] LOGIC ERROR', msg, text);
-      throw new Error(msg);
+    if (!text || !text.trim()) {
+      strapi.log.error('[PACKETA][CREATE] Empty response body');
+      throw new Error('Packeta empty response body');
     }
 
-    // Skús vytiahnuť id a barcode
-    const shipmentId =
-      getXmlTagValue(text, 'id') || // <id> v <packetId>
-      getXmlTagValue(text, 'packetId') ||
-      null;
+    // 🧠 tu nespoliehame na konkrétne tagy – skúsime viac variant:
+    const result   = extractTag(text, 'result') || extractTag(text, 'status');
+    const errorMsg = extractTag(text, 'errorMessage') || extractTag(text, 'message');
 
-    const barcode =
-      getXmlTagValue(text, 'barcode') ||
-      getXmlTagValue(text, 'trackingNumber') ||
-      null;
+    if (result && result.toLowerCase() !== 'ok') {
+      strapi.log.error('[PACKETA][CREATE] LOGIC ERROR result!=ok:', result, 'errorMsg:', errorMsg, 'xml:', text);
+      throw new Error(errorMsg || `Packeta API error: ${result}`);
+    }
 
-    if (!shipmentId && !barcode) {
-      // nič použiteľné – zaloguj raw XML
+    // id môže byť v packetId->id alebo priamo <id>...
+    const packetIdBlock = extractTag(text, 'packetId') || text;
+    const id      = extractTag(packetIdBlock, 'id') || extractTag(packetIdBlock, 'packetId');
+    const barcode = extractTag(packetIdBlock, 'barcode') || extractTag(text, 'barcode');
+
+    if (!id && !barcode) {
       strapi.log.error('[PACKETA][CREATE] Missing id/barcode in response:', text);
-      throw new Error('Packeta create failed: missing id/barcode in response');
+      throw new Error('Packeta API: missing id/barcode in response');
     }
 
     return {
-      shipmentId,
-      trackingNumber: barcode,
-      barcode,
-      labelUrl: null, // štítok riešiš cez packetsLabelsPdf()
+      shipmentId: id || null,
+      trackingNumber: barcode || null,
+      barcode: barcode || null,
+      labelUrl: null, // štítok vieš riešiť neskôr cez packetsLabelsPdf()
     };
   },
 });
