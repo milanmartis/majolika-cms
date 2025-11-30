@@ -3,46 +3,65 @@ import { factories } from '@strapi/strapi';
 export default factories.createCoreController(
   'api::category.category',
   ({ strapi }) => ({
-    // Override GET /api/categories
     async find(ctx) {
       ctx.query = {
         ...ctx.query,
         pagination: { pageSize: 1000 },
         populate: ctx.query.populate ?? {
-          parent: true,
-          children: { populate: ['children', 'products', 'parent'] },
-          products: true,
+          parent: {
+            fields: ['id', 'category_name', 'category_slug'],
+          },
+          children: {
+            fields: ['id', 'category_name', 'category_slug'],
+            // nepopuluj tu znova parent ani children!
+          },
+          products: {
+            fields: ['id', 'product_name', 'product_slug'],
+          },
         },
       };
-      return super.find(ctx);
+
+      return await super.find(ctx);
     },
 
-    // Override GET /api/categories/:id
     async findOne(ctx) {
       ctx.query = {
         ...ctx.query,
         populate: ctx.query.populate ?? {
-          parent: true,
-          children: { populate: ['children', 'products', 'parent'] },
-          products: true,
+          parent: {
+            fields: ['id', 'category_name', 'category_slug'],
+          },
+          children: {
+            fields: ['id', 'category_name', 'category_slug'],
+          },
+          products: {
+            fields: ['id', 'product_name', 'product_slug'],
+          },
         },
       };
-      return super.findOne(ctx);
+
+      return await super.findOne(ctx);
     },
 
-    // Custom: GET cc
     async findRoots(ctx) {
       ctx.query = {
         ...ctx.query,
         pagination: { pageSize: 1000 },
         filters: { parent: { id: { $null: true } } },
         populate: ctx.query.populate ?? {
-          parent: true,
-          children: { populate: ['children', 'products', 'parent'] },
-          products: true,
+          parent: {
+            fields: ['id', 'category_name', 'category_slug'],
+          },
+          children: {
+            fields: ['id', 'category_name', 'category_slug'],
+          },
+          products: {
+            fields: ['id', 'product_name', 'product_slug'],
+          },
         },
       };
-      return super.find(ctx);
+
+      return await super.find(ctx);
     },
   })
 );

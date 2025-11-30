@@ -325,7 +325,7 @@ function renderOrderEmail(opts: {
     <div class="content">
       <h2>${esc(opts.heading)}</h2>
       ${opts.introLines.map((t) => `<p>${esc(t)}</p>`).join('')}
-      ${opts.cta ? `<p style="text-align:center;"><a class="button" href="${aesc(opts.cta.href)}">${esc(opts.cta.label)}</a></p>` : ''}
+ 
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${esc(opts.deliverySummary)}</p>

@@ -204,7 +204,7 @@ function renderEmail(opts: {
     <div class="content">
       <h2>${opts.heading}</h2>
       ${opts.bodyHtml}
-      ${opts.cta ? `<p style="text-align:center;"><a class="button" href="${opts.cta.href}">${opts.cta.label}</a></p>` : ''}
+    
 
       <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
