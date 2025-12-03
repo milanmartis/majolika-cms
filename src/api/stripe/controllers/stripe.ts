@@ -587,6 +587,7 @@ async function runPostPaidFlow(orderId: number) {
 
   // Zloženie položiek pre email (s obrázkami)
   const orderItems = Array.isArray(freshOrder.items) ? freshOrder.items : [];
+  const hasEventSession = orderItems.some((it: any) => it?.event?.sessionId);
   const emailItems = await Promise.all(
     orderItems.map(async (it) => {
       // preferuj imageUrl uložené v order.items
@@ -772,6 +773,9 @@ async function runPostPaidFlow(orderId: number) {
     await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${freshOrder.id} - zaplatené`, html: adminEmailHtml });
 
     const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
+    if (hasEventSession) {
+      adminEmails.push('prehliadky@majolika.sk');
+    }
     await sendEmail({
       to: adminEmails.join(','),
       subject: `Nová objednávka #${freshOrder.id} - zaplatené`,

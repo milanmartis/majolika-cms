@@ -532,7 +532,7 @@ export default () => ({
             };
           })
         );
-
+    const hasEventSession = orderItems.some((it: any) => it?.event?.sessionId);
     const itemsTotal = orderItems.reduce((sum: number, i: any) => sum + i.quantity * i.unitPrice, 0);
     const deliveryMethod: DeliveryMethod = delivery.method;
 
@@ -789,10 +789,14 @@ export default () => ({
       });
 
       const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
+      if (hasEventSession) {
+        adminEmails.push('prehliadky@majolika.sk');
+      }
 
       try {
         await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
         await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
+
         await sendEmail({
           to: adminEmails.join(','),
           subject: `Nová objednávka #${order.id}`,
