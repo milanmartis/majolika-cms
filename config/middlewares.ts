@@ -104,14 +104,14 @@ export default [
     name: 'strapi::cors',
     config: {
       origin: [
-        'http://localhost:4200',
-        'https://staging.dxzvn9ta3v1he.amplifyapp.com',
-        'https://majolika-cms.appdesign.sk',
-        // prípadne produkčný FE:
+        'http://localhost:4200',                      // dev Angular
+        'https://staging.dxzvn9ta3v1he.amplifyapp.com', // staging FE
         'https://majolika.sk',
         'https://www.majolika.sk',
+        // CMS front (ak odtiaľ vôbec robíš XHR na API):
+        'https://majolika-cms.appdesign.sk',
       ],
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
       headers: [
         'Content-Type',
         'Authorization',
@@ -122,7 +122,7 @@ export default [
         'pragma',
       ],
       credentials: true,
-      keepHeadersOnError: true,
+      keepHeaderOnError: true,
     },
   },
 

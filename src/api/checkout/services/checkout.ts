@@ -251,7 +251,7 @@ function renderEmail(opts: {
         Otváracie hodiny: Po–Pia 8:00–16:00 | So–Ne 10:00–16:00
       </p>
       <div class="footer-logo">
-        <img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" alt="SLM logo" width="200" />
+        <a href="https://www.majolika.sk"><img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" border=0 alt="SLM logo" width="200" /></a>
       </div>
     </div>
   </div>
