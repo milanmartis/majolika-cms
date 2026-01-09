@@ -1,6 +1,7 @@
 'use strict';
 import { sendEmail } from '../../../utils/email';
 import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
+import { issueInvoiceForOrder } from "../../../utils/issue-invoice";
 
 /* ========================= Helpery ========================= */
 function escapeHtml(s: string = ''): string {
@@ -163,6 +164,7 @@ function renderEmail(opts: {
   cta?: { label: string; href: string } | null;
   orderNotes?: string | null;
   billingHtml?: string | null;
+  invoiceNumber: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
 
@@ -638,8 +640,16 @@ export default () => ({
       try {
         if (order.temporaryId) await recalcSessionsByTemporaryId(order.temporaryId);
         await recalcSessionsByOrderId(order.id);
+        
       } catch (e) {
         strapi.log.error('[GCAL][NON-CARD] recalc failed:', e);
+      }
+      let invoiceNumber: string | null = null;
+      try {
+        const inv = await issueInvoiceForOrder(order.id);
+        invoiceNumber = inv?.invoiceNumber || null;
+      } catch (e) {
+        strapi.log.error('[INVOICE][NON-CARD] issue failed:', e);
       }
 
       const baseDeliverySummary = summarizeDelivery(delivery);
@@ -688,7 +698,7 @@ export default () => ({
       const orderNo = order.id;
       const orderDate = formatNowSk();
       const deliveryHuman = humanDelivery(deliveryMethod);
-      const subject = `Potvrdenie objednávky č. ${orderNo}`;
+      const subject = `Potvrdenie objednávky č. ${invoiceNumber || orderNo}`;
 
       let bodyCustomerHtml = '';
       let bodyAdminIntro = '';
@@ -699,7 +709,7 @@ export default () => ({
           <p>Dobrý deň,</p>
           <p>ďakujeme za Vašu objednávku v našom e-shope.</p>
           <p><b>Podrobnosti objednávky:</b><br/>
-          • Číslo objednávky: ${orderNo}<br/>
+          • Číslo objednávky: ${invoiceNumber || String(order.id)}<br/>
           • Dátum: ${orderDate}<br/>
           • Spôsob platby: bankový prevod<br/>
           • Spôsob doručenia: ${deliveryHuman}</p>
@@ -718,7 +728,7 @@ export default () => ({
           <p>Dobrý deň,</p>
           <p>ďakujeme za Vašu objednávku na našom e-shope majolika.sk.</p>
           <p><b>Podrobnosti objednávky:</b><br/>
-          • Číslo objednávky: ${orderNo}<br/>
+          • Číslo objednávky: ${invoiceNumber || String(order.id)}<br/>
           • Dátum: ${orderDate}<br/>
           • Spôsob platby: ${pmHuman}<br/>
           • Spôsob doručenia: ${deliveryHuman}</p>
@@ -729,7 +739,7 @@ export default () => ({
 
       const customerEmailHtml = renderEmail({
         title: subject,
-        heading: `Potvrdenie objednávky č. ${orderNo}`,
+        heading: `Potvrdenie objednávky č. ${invoiceNumber}`,
         bodyHtml: bodyCustomerHtml,
         cta: { label: 'Zobraziť objednávku', href: `${FRONTEND_URL}/checkout/success?order=${order.id}` },
         items: emailItems,
@@ -739,6 +749,7 @@ export default () => ({
         deliverySummary,
         orderNotes,
         billingHtml,
+        invoiceNumber
       });
 
       const addrLine = [
@@ -762,7 +773,7 @@ export default () => ({
         .join('<br/>');
 
       const adminBodyHtml = `
-        <p><b>Objednávka č. ${orderNo}</b> (${orderDate})</p>
+        <p><b>Objednávka č. ${invoiceNumber}, ID: ${order.id} </b> (${orderDate})</p>
         <p><b>Zákazník:</b><br/>
           Meno a priezvisko: ${escapeHtml(customer.name)}<br/>
           E-mail: ${escapeHtml(customer.email)}<br/>
@@ -775,8 +786,8 @@ export default () => ({
       `;
 
       const adminEmailHtml = renderEmail({
-        title: `Nová objednávka #${order.id}`,
-        heading: `Nová objednávka #${order.id}`,
+        title: `Nová objednávka #${invoiceNumber}`,
+        heading: `Nová objednávka #${invoiceNumber}`,
         bodyHtml: adminBodyHtml,
         cta: null,
         items: emailItems,
@@ -786,6 +797,7 @@ export default () => ({
         deliverySummary,
         orderNotes,
         billingHtml,
+        invoiceNumber
       });
 
       const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
@@ -795,16 +807,19 @@ export default () => ({
 
       try {
         await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
-        await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${order.id}`, html: adminEmailHtml });
+        await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${invoiceNumber || String(order.id)}`, html: adminEmailHtml });
 
         await sendEmail({
           to: adminEmails.join(','),
-          subject: `Nová objednávka #${order.id}`,
+          subject: `Nová objednávka #${invoiceNumber || String(order.id)}`,
           html: adminEmailHtml,
         });
+
+
       } catch (e) {
         strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
       }
+
 
       return { checkoutUrl: `${FRONTEND_URL}/checkout/success?order=${order.id}`, sessionUrl: null };
     }

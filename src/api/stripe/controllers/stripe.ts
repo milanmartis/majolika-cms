@@ -3,6 +3,7 @@ import qs from 'qs';
 import fetch from 'node-fetch';
 import { sendEmail } from '../../../utils/email';
 import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
+import { issueInvoiceForOrder } from '../../../utils/issue-invoice';
 
 // ========================= Comgate ENV =========================
 const API = process.env.COMGATE_API || 'https://payments.comgate.cz/v1.0';
@@ -512,6 +513,7 @@ function mapComgateToOrder(s: string): PaymentStatus {
   return 'unpaid'; // CANCELLED, PENDING, TIMEOUT, ERROR, ...
 }
 
+
 async function runPostPaidFlow(orderId: number) {
   const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
     fields: [
@@ -543,6 +545,17 @@ async function runPostPaidFlow(orderId: number) {
     },
   }) as unknown as OrderRecord;
 
+  const guard = await strapi.db.query('api::order.order').findOne({
+    where: { id: orderId },
+    select: ['id', 'paymentStatus'],
+  }) as any;
+  
+  if (guard?.paymentStatus !== 'paid') {
+    strapi.log.warn(`[PAID_FLOW] order #${orderId} not marked paid yet, skipping email/invoice`);
+    return;
+  }
+
+
   const orderNotes = freshOrder?.notes ? String(freshOrder.notes) : null;
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
 
@@ -550,7 +563,17 @@ async function runPostPaidFlow(orderId: number) {
     (freshOrder as any).customerPhone ||
     freshOrder.customer?.phone ||
     '';
+    let invoiceNumber: string | null = null;
+    try {
+      const inv = await issueInvoiceForOrder(freshOrder.id);
+      invoiceNumber = inv?.invoiceNumber || null;
+    } catch (e) {
+      strapi.log.error('[INVOICE][PAID] issue failed:', e);
+    }
+    
 
+    
+    const docNo = invoiceNumber || String(freshOrder.id);
   // Previazanie bookingov
   if (freshOrder.temporaryId) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
@@ -666,11 +689,11 @@ async function runPostPaidFlow(orderId: number) {
       : '';
 
   const customerEmailHtml = renderOrderEmail({
-    title: `Potvrdenie objednávky ${freshOrder.id}`,
+    title: `Potvrdenie objednávky ${docNo}`,
     heading: 'Ďakujeme, platba prijatá',
     introLines: [
       `Dobrý deň${freshOrder.customerName ? `, ${esc(freshOrder.customerName)}` : ''}.`,
-      `Platba za vašu objednávku #${freshOrder.id} prebehla úspešne.`,
+      `Platba za vašu objednávku #${docNo} prebehla úspešne.`,
     ],
     cta: FRONTEND_URL
       ? {
@@ -750,8 +773,8 @@ async function runPostPaidFlow(orderId: number) {
   ];
 
   const adminEmailHtml = renderOrderEmail({
-    title: `Nová objednávka #${freshOrder.id} - zaplatené`,
-    heading: `Nová objednávka #${freshOrder.id} - platba prijatá`,
+    title: `Nová objednávka #${docNo} - zaplatené`,
+    heading: `Nová objednávka #${docNo} - platba prijatá`,
     introLines: adminIntroLines,
     cta: null,
     items: emailItems,
@@ -768,9 +791,9 @@ async function runPostPaidFlow(orderId: number) {
       await sendEmail({ to, subject: 'Potvrdenie objednávky - platba prijatá', html: customerEmailHtml });
       strapi.log.info(`[EMAIL] Sent to customer [redacted] for order #${freshOrder.id}`);
     } else {
-      strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${freshOrder.id}`);
+      strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${docNo}`);
     }
-    await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${freshOrder.id} - zaplatené`, html: adminEmailHtml });
+    await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${docNo} - zaplatené`, html: adminEmailHtml });
 
     const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
     if (hasEventSession) {
@@ -778,11 +801,11 @@ async function runPostPaidFlow(orderId: number) {
     }
     await sendEmail({
       to: adminEmails.join(','),
-      subject: `Nová objednávka #${freshOrder.id} - zaplatené`,
+      subject: `Nová objednávka #${docNo} - zaplatené`,
       html: adminEmailHtml,
     });
 
-    strapi.log.info(`[EMAIL] Sent to admin for order #${freshOrder.id}`);
+    strapi.log.info(`[EMAIL] Sent to admin for order #${docNo}`);
   } catch (e) {
     strapi.log.error('[COMGATE][EMAIL] send failed:', e);
   }

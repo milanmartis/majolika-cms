@@ -1,8 +1,10 @@
-export async function nextInvoiceNumber(year?: number) {
+// utils/invoice-number.ts
+export async function nextInvoiceNumber(year?: number, trx?: any) {
     const y = year ?? new Date().getFullYear();
   
-    // Postgres: INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING
-    const rows = await strapi.db.connection.raw(
+    const db = trx ?? strapi.db.connection; // knex
+  
+    const rows = await db.raw(
       `
       INSERT INTO invoice_counters (year, last_number, created_at, updated_at)
       VALUES (?, 1, NOW(), NOW())
@@ -13,7 +15,6 @@ export async function nextInvoiceNumber(year?: number) {
       [y]
     );
   
-    // knex raw pre PG vracia { rows: [...] }
     const last = rows?.rows?.[0]?.last_number;
     const seq = Number(last);
     const inv = `${y}${String(seq).padStart(4, "0")}`; // 20260001
