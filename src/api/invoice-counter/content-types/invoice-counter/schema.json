@@ -1,0 +1,25 @@
+{
+    "kind": "collectionType",
+    "collectionName": "invoice_counters",
+    "info": {
+      "singularName": "invoice-counter",
+      "pluralName": "invoice-counters",
+      "displayName": "Invoice Counter"
+    },
+    "options": {
+      "draftAndPublish": false
+    },
+    "attributes": {
+      "year": {
+        "type": "integer",
+        "required": true,
+        "unique": true
+      },
+      "lastNumber": {
+        "type": "integer",
+        "required": true,
+        "default": 0
+      }
+    }
+  }
+  
