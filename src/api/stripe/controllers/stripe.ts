@@ -795,7 +795,7 @@ async function runPostPaidFlow(orderId: number) {
     }
     await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${docNo} - zaplatené`, html: adminEmailHtml });
 
-    const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
+    const adminEmails = ['info@appdesign.sk', 'objednavky@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
     if (hasEventSession) {
       adminEmails.push('prehliadky@majolika.sk');
     }

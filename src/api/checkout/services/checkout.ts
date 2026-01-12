@@ -800,7 +800,7 @@ export default () => ({
         invoiceNumber
       });
 
-      const adminEmails = ['info@appdesign.sk', 'filip.funa@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
+      const adminEmails = ['info@appdesign.sk', 'objednavky@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
       if (hasEventSession) {
         adminEmails.push('prehliadky@majolika.sk');
       }
