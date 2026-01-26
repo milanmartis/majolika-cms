@@ -1,0 +1,22 @@
+{
+    "kind": "singleType",
+    "collectionName": "homepages",
+    "info": {
+      "singularName": "homepage",
+      "pluralName": "homepages",
+      "displayName": "Homepage"
+    },
+    "options": { "draftAndPublish": true },
+    "attributes": {
+      "content": {
+        "type": "dynamiczone",
+        "components": [
+          "homepage.hero-images",
+          "homepage.heading",
+          "homepage.paragraph"
+        ],
+        "required": true
+      }
+    }
+  }
+  

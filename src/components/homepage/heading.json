@@ -1,0 +1,13 @@
+{
+    "collectionName": "components_homepage_headings",
+    "info": { "displayName": "Heading" },
+    "attributes": {
+      "text": { "type": "string", "required": true },
+      "level": {
+        "type": "enumeration",
+        "enum": ["h1", "h2", "h3"],
+        "default": "h2"
+      }
+    }
+  }
+  

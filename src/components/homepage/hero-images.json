@@ -1,0 +1,13 @@
+{
+    "collectionName": "components_homepage_hero_images_blocks",
+    "info": { "displayName": "Hero images block" },
+    "attributes": {
+      "items": {
+        "type": "component",
+        "repeatable": true,
+        "component": "homepage.hero-image",
+        "required": true
+      }
+    }
+  }
+  

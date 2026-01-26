@@ -1,0 +1,11 @@
+{
+    "collectionName": "components_homepage_paragraphs",
+    "info": { "displayName": "Paragraph" },
+    "attributes": {
+      "text": {
+        "type": "richtext",
+        "required": true
+      }
+    }
+  }
+  
