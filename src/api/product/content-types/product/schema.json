@@ -43,7 +43,10 @@
 
     "public": { "type": "boolean", "default": false },
     "price": { "type": "decimal" },
+    "price_retail_net": { "type": "decimal" },
+
     "price_sale": { "type": "decimal", "description": "Zľavnená cena" },
+
     "vatPercentage": { "type": "integer", "default": 23, "required": true },
     "inSale": { "type": "boolean", "default": false },
     "isNew": { "type": "boolean", "default": false },
