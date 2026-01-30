@@ -601,11 +601,14 @@ export default () => ({
         total: itemsTotal,
         totalWithShipping,
 
-        items: orderItems.map(({ _image, ...rest }) => ({
+        items: orderItems.map(({ _image, event, ...rest }) => ({
           ...rest,
           imageUrl: absUrl(_image),
+        
+          // JSON pole v Strapi musí byť JSONValue
+          event: event ? JSON.parse(JSON.stringify(event)) : null,
         })),
-        status: 'pending',
+        // status: 'pending',
         orderStatus: 'pending',
         fulfillmentStatus,
         deliveryStatus,

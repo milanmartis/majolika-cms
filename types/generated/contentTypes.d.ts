@@ -500,9 +500,20 @@ export interface ApiAutorAutor extends Struct.CollectionTypeSchema {
     locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::autor.autor'>;
     meno: Schema.Attribute.String & Schema.Attribute.Required;
+    poradie: Schema.Attribute.Integer;
     pozicia: Schema.Attribute.String & Schema.Attribute.Required;
     produkty: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
+    rola: Schema.Attribute.Enumeration<
+      [
+        'administrat\u00EDva',
+        'maliar',
+        'd\u017Eb\u00E1nk\u00E1r',
+        'majster v\u00FDroby',
+      ]
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'administrat\u00EDva'>;
     telefon: Schema.Attribute.String & Schema.Attribute.Unique;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -522,14 +533,22 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
   };
   attributes: {
     category_image: Schema.Attribute.Media<'images'>;
+    category_image_banner: Schema.Attribute.Media<'images'>;
     category_name: Schema.Attribute.String & Schema.Attribute.Required;
+    category_poradie: Schema.Attribute.Integer;
     category_slug: Schema.Attribute.UID<'category_name'> &
       Schema.Attribute.Required &
       Schema.Attribute.Unique;
     category_text: Schema.Attribute.Text;
+    category_text_de: Schema.Attribute.Text;
+    category_text_en: Schema.Attribute.Text;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    extra_parents: Schema.Attribute.Relation<
+      'manyToMany',
+      'api::category.category'
+    >;
     children: Schema.Attribute.Relation<'oneToMany', 'api::category.category'>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
@@ -540,9 +559,7 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
     parent: Schema.Attribute.Relation<'manyToOne', 'api::category.category'>;
     products: Schema.Attribute.Relation<'manyToMany', 'api::product.product'>;
     publishedAt: Schema.Attribute.DateTime;
-    term_id: Schema.Attribute.Integer &
-      Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+    term_id: Schema.Attribute.Integer;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -638,6 +655,7 @@ export interface ApiEventBookingEventBooking
       Schema.Attribute.Private;
     customerEmail: Schema.Attribute.Email;
     customerName: Schema.Attribute.String;
+    customerPhone: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -781,6 +799,7 @@ export interface ApiEventSessionEventSession
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     durationMinutes: Schema.Attribute.Integer & Schema.Attribute.Configurable;
+    googleEventId: Schema.Attribute.String;
     isDetachedFromSeries: Schema.Attribute.Boolean &
       Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
@@ -888,6 +907,71 @@ export interface ApiFavoriteFavorite extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiHomepageHomepage extends Struct.SingleTypeSchema {
+  collectionName: 'homepages';
+  info: {
+    displayName: 'Homepage';
+    pluralName: 'homepages';
+    singularName: 'homepage';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    content: Schema.Attribute.DynamicZone<
+      ['homepage.hero-images', 'homepage.heading', 'homepage.paragraph']
+    > &
+      Schema.Attribute.Required;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::homepage.homepage'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiInvoiceCounterInvoiceCounter
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'invoice_counters';
+  info: {
+    displayName: 'Invoice Counter';
+    pluralName: 'invoice-counters';
+    singularName: 'invoice-counter';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    lastNumber: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<0>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::invoice-counter.invoice-counter'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    year: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+  };
+}
+
 export interface ApiKategoriaKategoria extends Struct.CollectionTypeSchema {
   collectionName: 'kategorie';
   info: {
@@ -925,6 +1009,56 @@ export interface ApiKategoriaKategoria extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiNewsletterSubscriberNewsletterSubscriber
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'newsletter_subscribers';
+  info: {
+    displayName: 'Newsletter Subscriber';
+    pluralName: 'newsletter-subscribers';
+    singularName: 'newsletter-subscriber';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  pluginOptions: {
+    i18n: {
+      localized: false;
+    };
+  };
+  attributes: {
+    consent: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    consent_text_version: Schema.Attribute.String;
+    consented_at: Schema.Attribute.DateTime;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    doi_expires_at: Schema.Attribute.DateTime & Schema.Attribute.Private;
+    doi_token: Schema.Attribute.String & Schema.Attribute.Private;
+    double_opt_in: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    email: Schema.Attribute.Email &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    ip_address: Schema.Attribute.String;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::newsletter-subscriber.newsletter-subscriber'
+    > &
+      Schema.Attribute.Private;
+    notes: Schema.Attribute.Text;
+    publishedAt: Schema.Attribute.DateTime;
+    source: Schema.Attribute.Enumeration<
+      ['checkout', 'footer', 'landing', 'manual', 'api']
+    > &
+      Schema.Attribute.DefaultTo<'api'>;
+    unsubscribed_at: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user_agent: Schema.Attribute.Text;
+  };
+}
+
 export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
   collectionName: 'orders';
   info: {
@@ -937,6 +1071,14 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
     timestamps: true;
   };
   attributes: {
+    billingAddress: Schema.Attribute.Component<'shared.address', false>;
+    billingCompanyName: Schema.Attribute.String;
+    billingDic: Schema.Attribute.String;
+    billingIcDph: Schema.Attribute.String;
+    billingIco: Schema.Attribute.String;
+    billingIsCompany: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
+    comgateTransId: Schema.Attribute.String;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -944,31 +1086,71 @@ export interface ApiOrderOrder extends Struct.CollectionTypeSchema {
       Schema.Attribute.Required;
     customerEmail: Schema.Attribute.Email & Schema.Attribute.Required;
     customerName: Schema.Attribute.String & Schema.Attribute.Required;
+    customerPhone: Schema.Attribute.String;
     deliveryAddress: Schema.Attribute.Component<'shared.address', false>;
     deliveryDetails: Schema.Attribute.Component<
       'checkout.delivery-details',
       false
     >;
     deliveryMethod: Schema.Attribute.Enumeration<
-      ['pickup', 'post_office', 'packeta_box', 'post_courier']
+      [
+        'pickup',
+        'post_office',
+        'packeta_box',
+        'post_courier',
+        'digital_product',
+      ]
     > &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'pickup'>;
+    deliveryStatus: Schema.Attribute.Enumeration<
+      ['label_created', 'in_transit', 'at_pickup', 'delivered', 'returned']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'label_created'>;
+    deliveryUrgency: Schema.Attribute.Enumeration<['standard', 'rush']> &
+      Schema.Attribute.DefaultTo<'standard'>;
+    fulfillmentStatus: Schema.Attribute.Enumeration<
+      ['new', 'processing', 'shipped', 'delivered', 'cancelled']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'new'>;
+    invoiceIssuedAt: Schema.Attribute.DateTime;
+    invoiceNumber: Schema.Attribute.String & Schema.Attribute.Unique;
+    is_digital_product: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<false>;
     items: Schema.Attribute.Component<'order.item', true>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::order.order'> &
       Schema.Attribute.Private;
+    notes: Schema.Attribute.Text;
+    orderStatus: Schema.Attribute.Enumeration<
+      ['pending', 'confirmed', 'cancelled']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'pending'>;
+    packetaLabelUrl: Schema.Attribute.Text;
+    packetaShipmentId: Schema.Attribute.String;
+    packetaStatus: Schema.Attribute.Enumeration<
+      ['created', 'label_downloaded', 'shipped', 'delivered', 'cancelled']
+    >;
+    packetaTrackingNumber: Schema.Attribute.String;
+    parcelWeightKg: Schema.Attribute.Decimal;
+    paymentFee: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<0>;
     paymentMethod: Schema.Attribute.Enumeration<
       ['card', 'cod', 'bank', 'onsite', 'post']
     > &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<'card'>;
     paymentSessionId: Schema.Attribute.String;
-    paymentStatus: Schema.Attribute.String;
+    paymentStatus: Schema.Attribute.Enumeration<
+      ['unpaid', 'paid', 'refunded']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'unpaid'>;
     publishedAt: Schema.Attribute.DateTime;
     shippingAddress: Schema.Attribute.JSON & Schema.Attribute.Required;
     shippingFee: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<0>;
-    status: Schema.Attribute.String & Schema.Attribute.DefaultTo<'pending'>;
     temporaryId: Schema.Attribute.String;
     total: Schema.Attribute.Decimal & Schema.Attribute.Required;
     totalWithShipping: Schema.Attribute.Decimal & Schema.Attribute.DefaultTo<0>;
@@ -1029,6 +1211,9 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     'content-manager': {
       mainField: 'name';
     };
+    i18n: {
+      localized: true;
+    };
   };
   attributes: {
     author: Schema.Attribute.Relation<
@@ -1045,7 +1230,12 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     dekory: Schema.Attribute.Relation<'manyToMany', 'api::dekor.dekor'>;
-    describe: Schema.Attribute.RichText;
+    describe: Schema.Attribute.RichText &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     ean: Schema.Attribute.String;
     event_series: Schema.Attribute.Relation<
       'oneToMany',
@@ -1055,9 +1245,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       'oneToMany',
       'api::event-session.event-session'
     >;
-    externalId: Schema.Attribute.Integer &
-      Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+    externalId: Schema.Attribute.Integer;
     favorites: Schema.Attribute.Relation<'oneToMany', 'api::favorite.favorite'>;
     hlbka_cm: Schema.Attribute.Decimal;
     inSale: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
@@ -1065,19 +1253,25 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     isNew: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     isSoldOut: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     isUnavailable: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    locale: Schema.Attribute.String;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'api::product.product'
-    > &
-      Schema.Attribute.Private;
-    name: Schema.Attribute.String;
+    >;
+    name: Schema.Attribute.String &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     objem_ml: Schema.Attribute.Integer;
     parent: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
     picture: Schema.Attribute.String;
     picture_new: Schema.Attribute.Media<'images'>;
     pictures_new: Schema.Attribute.Media<'images', true>;
     price: Schema.Attribute.Decimal;
+    price_new_2026: Schema.Attribute.Decimal;
+    price_retail_net: Schema.Attribute.Decimal;
     price_sale: Schema.Attribute.Decimal;
     productEventType: Schema.Attribute.Enumeration<
       ['none', 'workshop', 'tour']
@@ -1086,12 +1280,27 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
       Schema.Attribute.DefaultTo<'none'>;
     public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     publishedAt: Schema.Attribute.DateTime;
-    seo: Schema.Attribute.Component<'shared.seo', false>;
-    short: Schema.Attribute.RichText;
+    seo: Schema.Attribute.Component<'shared.seo', false> &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
+    short: Schema.Attribute.RichText &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     sirka_cm: Schema.Attribute.Decimal;
     slug: Schema.Attribute.UID<'name'> &
       Schema.Attribute.Required &
-      Schema.Attribute.Unique;
+      Schema.Attribute.Unique &
+      Schema.Attribute.SetPluginOptions<{
+        i18n: {
+          localized: true;
+        };
+      }>;
     tag: Schema.Attribute.String;
     tvar: Schema.Attribute.Relation<'manyToOne', 'api::tvar.tvar'>;
     type: Schema.Attribute.Enumeration<['simple', 'variable', 'variation']> &
@@ -1104,7 +1313,7 @@ export interface ApiProductProduct extends Struct.CollectionTypeSchema {
     variations: Schema.Attribute.Relation<'oneToMany', 'api::product.product'>;
     vatPercentage: Schema.Attribute.Integer &
       Schema.Attribute.Required &
-      Schema.Attribute.DefaultTo<20>;
+      Schema.Attribute.DefaultTo<23>;
     vyska_cm: Schema.Attribute.Decimal;
   };
 }
@@ -1862,7 +2071,10 @@ declare module '@strapi/strapi' {
       'api::event-session.event-session': ApiEventSessionEventSession;
       'api::event.event': ApiEventEvent;
       'api::favorite.favorite': ApiFavoriteFavorite;
+      'api::homepage.homepage': ApiHomepageHomepage;
+      'api::invoice-counter.invoice-counter': ApiInvoiceCounterInvoiceCounter;
       'api::kategoria.kategoria': ApiKategoriaKategoria;
+      'api::newsletter-subscriber.newsletter-subscriber': ApiNewsletterSubscriberNewsletterSubscriber;
       'api::order.order': ApiOrderOrder;
       'api::pop-up-window.pop-up-window': ApiPopUpWindowPopUpWindow;
       'api::product.product': ApiProductProduct;

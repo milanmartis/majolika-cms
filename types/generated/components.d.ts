@@ -26,7 +26,7 @@ export interface BlocksImageBlock extends Struct.ComponentSchema {
     caption: Schema.Attribute.String;
     columns: Schema.Attribute.Enumeration<['one', 'two']> &
       Schema.Attribute.DefaultTo<'one'>;
-    media: Schema.Attribute.Media & Schema.Attribute.Required;
+    media: Schema.Attribute.Media<'images'> & Schema.Attribute.Required;
   };
 }
 
@@ -89,6 +89,52 @@ export interface CheckoutDeliveryDetails extends Struct.ComponentSchema {
   };
 }
 
+export interface HomepageHeading extends Struct.ComponentSchema {
+  collectionName: 'components_homepage_headings';
+  info: {
+    displayName: 'Heading';
+  };
+  attributes: {
+    level: Schema.Attribute.Enumeration<['h1', 'h2', 'h3']> &
+      Schema.Attribute.DefaultTo<'h2'>;
+    text: Schema.Attribute.String & Schema.Attribute.Required;
+  };
+}
+
+export interface HomepageHeroImage extends Struct.ComponentSchema {
+  collectionName: 'components_homepage_hero_images_items';
+  info: {
+    displayName: 'Hero image';
+  };
+  attributes: {
+    alt: Schema.Attribute.String & Schema.Attribute.Required;
+    image: Schema.Attribute.Media<'images'> & Schema.Attribute.Required;
+    link: Schema.Attribute.String;
+    openInNewTab: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+  };
+}
+
+export interface HomepageHeroImages extends Struct.ComponentSchema {
+  collectionName: 'components_homepage_hero_images_blocks';
+  info: {
+    displayName: 'Hero images block';
+  };
+  attributes: {
+    items: Schema.Attribute.Component<'homepage.hero-image', true> &
+      Schema.Attribute.Required;
+  };
+}
+
+export interface HomepageParagraph extends Struct.ComponentSchema {
+  collectionName: 'components_homepage_paragraphs';
+  info: {
+    displayName: 'Paragraph';
+  };
+  attributes: {
+    text: Schema.Attribute.RichText & Schema.Attribute.Required;
+  };
+}
+
 export interface OrderItem extends Struct.ComponentSchema {
   collectionName: 'components_order_items';
   info: {
@@ -96,9 +142,14 @@ export interface OrderItem extends Struct.ComponentSchema {
     name: 'item';
   };
   attributes: {
+    ean: Schema.Attribute.String;
+    event: Schema.Attribute.JSON;
+    imageUrl: Schema.Attribute.String;
     product: Schema.Attribute.Relation<'manyToOne', 'api::product.product'>;
+    productId: Schema.Attribute.Integer;
     productName: Schema.Attribute.String & Schema.Attribute.Required;
     quantity: Schema.Attribute.Integer & Schema.Attribute.Required;
+    slug: Schema.Attribute.String;
     unitPrice: Schema.Attribute.Decimal & Schema.Attribute.Required;
   };
 }
@@ -139,6 +190,10 @@ declare module '@strapi/strapi' {
       'blocks.text-block': BlocksTextBlock;
       'blocks.video-block': BlocksVideoBlock;
       'checkout.delivery-details': CheckoutDeliveryDetails;
+      'homepage.heading': HomepageHeading;
+      'homepage.hero-image': HomepageHeroImage;
+      'homepage.hero-images': HomepageHeroImages;
+      'homepage.paragraph': HomepageParagraph;
       'order.item': OrderItem;
       'shared.address': SharedAddress;
       'shared.seo': SharedSeo;
