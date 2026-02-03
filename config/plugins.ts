@@ -66,7 +66,8 @@ export default ({ env }) => {
             Bucket: env('AWS_S3_BUCKET'),
           },
           rootPath: 'products',
-          baseUrl: env('AWS_S3_BASE_URL'),
+          // baseUrl: env('AWS_S3_BASE_URL'),
+          baseUrl: env('CDN_URL'),
         },
         actionOptions: {
           upload:       { ACL: undefined },
