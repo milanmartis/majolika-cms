@@ -78,6 +78,7 @@ export default [
             'https://majolika-cms.appdesign.sk',
             'https://medusa-majolika-s3-us-east.s3.us-east-1.amazonaws.com',
             'https://i.ytimg.com',
+            'https://d1hbdvlfav95nt.cloudfront.net',
           ],
           /* Médiá (napr. S3) */
           'media-src': [
