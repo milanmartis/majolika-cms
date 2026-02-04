@@ -85,6 +85,7 @@ export default [
             'data:',
             'blob:',
             'https://medusa-majolika-s3-us-east.s3.us-east-1.amazonaws.com',
+            'https://d1hbdvlfav95nt.cloudfront.net',
           ],
           /* Iframe */
           'frame-src': [
