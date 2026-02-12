@@ -56,14 +56,18 @@ export default factories.createCoreController('api::product.product', ({ strapi 
     const sort       = (ctx.query as any)?.sort;
 
     // 1) Nájdeme kategóriu podľa slug (v správnom locale)
-    const [category] = await strapi.entityService.findMany('api::category.category', {
+    const categories = await strapi.entityService.findMany('api::category.category', {
       filters: { category_slug: slug },
       fields: ['id'],
       locale, // dôležité pre preklady kategórií
+      pagination: { page: 1, pageSize: 1 },
     });
 
+    const category = Array.isArray(categories) ? categories[0] : null;
+
     if (!category) {
-      return ctx.send({ data: [] });
+      return ctx.notFound(`Kategória so slug "${slug}" neexistuje.`);
+      // alebo: ctx.throw(404, `Kategória so slug "${slug}" neexistuje.`);
     }
 
     // 2) Base filter pre produkty v danej kategórii a iba public
