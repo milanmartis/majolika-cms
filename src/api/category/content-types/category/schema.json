@@ -10,6 +10,8 @@
   "attributes": {
     "term_id": { "type": "integer", "unique": false, "required": false },
     "category_name": { "type": "string", "required": true },
+    "category_name_en": { "type": "string", "required": true },
+    "category_name_de": { "type": "string", "required": true },
     "category_slug": { "type": "uid", "targetField": "category_name", "required": true, "unique": true },
     "category_text": { "type": "text"},
     "category_text_en": { "type": "text"},
