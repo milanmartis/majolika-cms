@@ -9,15 +9,13 @@ export default factories.createCoreController(
           ...ctx.query,
           pagination: { pageSize: 1000 },
           populate: ctx.query.populate ?? {
-            parent: {
-              fields: ['id', 'category_name', 'category_slug'],
-            },
-            children: {
-              fields: ['id', 'category_name', 'category_slug'],
-            },
-            products: {
-              fields: ['id'],
-            },
+            parent: { fields: ['id', 'category_name', 'category_slug'] },
+            children: { fields: ['id', 'category_name', 'category_slug'] },
+          
+            extra_parents: { fields: ['id', 'category_name', 'category_slug'] },
+            extra_children: { fields: ['id', 'category_name', 'category_slug'] },
+          
+            products: { fields: ['id'] },
           },
         };
 
