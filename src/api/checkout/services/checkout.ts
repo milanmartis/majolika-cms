@@ -29,8 +29,42 @@ interface CheckoutItem {
   event?: EventInfo;
   isDigitalProduct?: boolean;
   isGiftVoucher?: boolean;
+
+  // ✅ voliteľné – ak posiela FE pre giftwrap item
+  isGiftWrapProduct?: boolean;
 }
 
+/* ========================= 🎁 Gift wrap typy ========================= */
+type GiftWrapMode = 'each_item' | 'by_product' | 'all_together';
+
+interface GiftWrapPayloadLine {
+  key?: string | null;          // productId:sessionId alebo čokoľvek z FE
+  productId: number;
+  productName?: string | null;  // FE môže poslať, ak nie, doplníme z orderItems
+  cartQty?: number | null;
+  wrapQty: number;
+}
+
+interface GiftWrapPayload {
+  enabled?: boolean;            // FE môže/nechce posielať, tak to dopočítame
+  productId: number | null;
+  slug?: string | null;
+  unitPrice?: number | null;
+
+  selectedQty: number;          // celkový počet zabalených kusov
+  mode: GiftWrapMode;
+  note?: string | null;
+
+  // čo presne zabaliť
+  perProduct?: Array<{ productId: number; wrapQty: number }>; // FE shape (tvoje)
+  lines?: GiftWrapPayloadLine[];                              // alternatívne/nové
+
+  // debug/diagnostika
+  autoAddedQty?: number | null;
+  alreadyInCartQty?: number | null;
+}
+
+/* ========================= Format ========================= */
 function formatEvent(event?: EventInfo): string {
   if (!event?.startDateTime) return '';
   const dt = new Date(event.startDateTime);
@@ -109,6 +143,9 @@ function renderItemsRows(items: Array<{
   // 👇 pridáme
   isDigitalProduct?: boolean;
   isGiftVoucher?: boolean;
+
+  // ✅ voliteľné – aby si vedel vizuálne rozlíšiť giftwrap produkt v emaili
+  isGiftWrapProduct?: boolean;
 }>) {
   return items
     .map((it) => {
@@ -120,6 +157,11 @@ function renderItemsRows(items: Array<{
       const digitalBadge =
         it.isDigitalProduct || it.isGiftVoucher
           ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">Digitálny produkt / darčekový poukaz</div>`
+          : '';
+
+      const giftWrapBadge =
+        it.isGiftWrapProduct
+          ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">Darčekové balenie (služba)</div>`
           : '';
 
       return `
@@ -137,6 +179,7 @@ function renderItemsRows(items: Array<{
                     ${escapeHtml(it.productName)}
                   </a>
                 </div>
+                ${giftWrapBadge}
                 ${digitalBadge}
                 ${eventLine}
                 <div style="font-size:13px;color:#777;padding:4px;">${money(it.unitPrice)} × ${it.quantity}</div>
@@ -151,12 +194,87 @@ function renderItemsRows(items: Array<{
     .join('');
 }
 
+/* ========================= 🎁 Gift wrap blok do emailu ========================= */
+function renderGiftWrapHtml(gw?: GiftWrapPayload | null): string {
+  if (!gw) return '';
+
+  const selected = Number(gw.selectedQty || 0);
+  if (!Number.isFinite(selected) || selected <= 0) return '';
+
+  const modeHuman =
+    gw.mode === 'each_item' ? 'Každý kus zvlášť' :
+    gw.mode === 'by_product' ? 'Podľa produktov (jeden produkt = jeden balíček)' :
+    gw.mode === 'all_together' ? 'Všetko spolu (1 balíček)' :
+    String(gw.mode || '');
+
+  const note = typeof gw.note === 'string' ? gw.note.trim() : '';
+  const noteHtml = note
+    ? `<div style="margin-top:8px;font-size:14px;color:#444;line-height:1.5;">
+         <b>Poznámka k baleniu:</b><br/>
+         ${escapeHtml(note).replace(/\n/g, '<br/>')}
+       </div>`
+    : '';
+
+  // preferujeme lines (už obohatené o názvy), fallback: perProduct
+  const hasLines = Array.isArray(gw.lines) && gw.lines.length > 0;
+  const lines = (gw.lines || []).filter(l => Number(l.wrapQty || 0) > 0);
+
+  const linesHtml = hasLines && lines.length
+    ? `
+      <div style="margin-top:10px;">
+        <div style="font-weight:600;color:#333;margin-bottom:6px;">Čo zabaliť:</div>
+        <div style="font-size:14px;color:#444;line-height:1.6;">
+          ${lines.map(l => {
+            const nm = (l.productName || `Produkt #${l.productId}`) as string;
+            const cartQty = Number(l.cartQty || 0);
+            const wrapQty = Number(l.wrapQty || 0);
+            const tail = cartQty > 0 ? ` z ${cartQty} ks` : '';
+            return `• ${escapeHtml(nm)} — zabaliť: <b>${wrapQty}</b>${tail}`;
+          }).join('<br/>')}
+        </div>
+      </div>`
+    : (Array.isArray(gw.perProduct) && gw.perProduct.length
+      ? `
+        <div style="margin-top:10px;">
+          <div style="font-weight:600;color:#333;margin-bottom:6px;">Čo zabaliť:</div>
+          <div style="font-size:14px;color:#444;line-height:1.6;">
+            ${gw.perProduct
+              .filter(x => Number(x.wrapQty || 0) > 0)
+              .map(x => `• Produkt #${escapeHtml(String(x.productId))} — zabaliť: <b>${escapeHtml(String(x.wrapQty))}</b>`)
+              .join('<br/>')}
+          </div>
+        </div>`
+      : '');
+
+  return `
+    <div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
+      <div style="font-weight:700;color:#0e29a0;margin-bottom:6px;">Darčekové balenie</div>
+      <div style="font-size:14px;color:#444;line-height:1.5;">
+        <b>Počet balení:</b> ${escapeHtml(String(selected))}<br/>
+        <b>Ako zabaliť:</b> ${escapeHtml(modeHuman)}
+      </div>
+      ${linesHtml}
+      ${noteHtml}
+    </div>
+  `;
+}
+
 /** Jednotná HTML šablóna – fixná hlavička a päta, premenné: heading, bodyHtml, tabuľka so zhrnutím */
 function renderEmail(opts: {
   title: string;
   heading: string;
   bodyHtml: string; // ← iba toto sa mení podľa variantu
-  items: Array<{ productName: string;  slug: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo }>;
+  items: Array<{
+    productName: string;
+    slug: string;
+    unitPrice: number;
+    quantity: number;
+    image?: string;
+    event?: EventInfo;
+    isDigitalProduct?: boolean;
+    isGiftVoucher?: boolean;
+    isGiftWrapProduct?: boolean;
+  }>;
   shippingFee: number;
   paymentFee: number;
   totalWithShipping: number;
@@ -165,8 +283,13 @@ function renderEmail(opts: {
   orderNotes?: string | null;
   billingHtml?: string | null;
   invoiceNumber: string | null;
+
+  // ✅ nové
+  giftWrap?: GiftWrapPayload | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
+
+  const giftWrapHtml = renderGiftWrapHtml(opts.giftWrap);
 
   const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
     ? `<div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
@@ -212,6 +335,8 @@ function renderEmail(opts: {
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
 
       ${opts.billingHtml || ''}
+
+      ${giftWrapHtml}
 
       ${notesHtml}
 
@@ -333,9 +458,12 @@ interface CheckoutPayload {
   shippingFee?: number;
   paymentFee?: number;
   locale?: string;
-  notes?: string;        
+  notes?: string;
   deliveryUrgency?: DeliveryUrgency;
   billing?: BillingInfo;
+
+  // ✅ nové: darčekové balenie (inštrukcie pre balenie + poznámka)
+  giftWrap?: GiftWrapPayload | null;
 }
 
 /* ========================= Konštanty ========================= */
@@ -392,7 +520,6 @@ function validateDelivery(delivery: Delivery) {
   }
 }
 
-
 function summarizeDelivery(delivery: Delivery): string {
   switch (delivery?.method) {
     case 'pickup':
@@ -446,6 +573,7 @@ function humanDelivery(deliveryMethod: DeliveryMethod): string {
       return String(deliveryMethod);
   }
 }
+
 /* ========================= Service ========================= */
 
 export default () => ({
@@ -461,6 +589,7 @@ export default () => ({
       delivery,
       deliveryUrgency = 'standard',
       billing,
+      giftWrap: giftWrapRaw,
     } = payload;
 
     const orderNotes = (payload.notes || '').trim();
@@ -469,6 +598,92 @@ export default () => ({
     if (!paymentMethod) throw new Error('paymentMethod is required');
 
     validateDelivery(delivery);
+
+    // =========================
+    // 🎁 normalizácia giftWrap z FE (aby bol stabilný DB + email)
+    // =========================
+    const normalizeGiftWrap = (
+      gw: GiftWrapPayload | null | undefined,
+      orderItemsForNames?: Array<{ productId: number; productName: string; quantity: number }>
+    ): GiftWrapPayload | null => {
+      if (!gw) return null;
+
+      const selectedQty = Number((gw as any).selectedQty || 0);
+      if (!Number.isFinite(selectedQty) || selectedQty <= 0) return null;
+
+      const mode = (gw as any).mode as GiftWrapMode;
+      if (mode !== 'each_item' && mode !== 'by_product' && mode !== 'all_together') {
+        // fallback aby ti to nikdy nepoložilo checkout
+        (gw as any).mode = 'each_item';
+      }
+
+      const note = typeof (gw as any).note === 'string' ? (gw as any).note.trim() : '';
+      const enabled = (gw as any).enabled === true || selectedQty > 0;
+
+      // build map productId -> name + cartQty
+      const namesMap = new Map<number, { name: string; cartQty: number }>();
+      for (const it of (orderItemsForNames || [])) {
+        namesMap.set(Number(it.productId), {
+          name: String(it.productName || `Produkt #${it.productId}`),
+          cartQty: Number(it.quantity || 0),
+        });
+      }
+
+      // FE shape v tvojom Angular kóde: giftWrap.perProduct = [{productId, wrapQty}]
+      const perProduct = Array.isArray((gw as any).perProduct) ? (gw as any).perProduct : [];
+
+      // ak FE posiela lines, použijeme ich, inak ich vytvoríme z perProduct
+      let lines: GiftWrapPayloadLine[] = [];
+      if (Array.isArray((gw as any).lines)) {
+        lines = (gw as any).lines
+          .map((l: any) => ({
+            key: l?.key ?? null,
+            productId: Number(l?.productId),
+            productName: l?.productName ?? null,
+            cartQty: l?.cartQty ?? null,
+            wrapQty: Number(l?.wrapQty || 0),
+          }))
+          .filter((l: GiftWrapPayloadLine) => Number.isFinite(l.productId) && l.productId > 0 && l.wrapQty > 0);
+      } else {
+        lines = perProduct
+          .map((x: any) => ({
+            key: null,
+            productId: Number(x?.productId),
+            productName: null,
+            cartQty: null,
+            wrapQty: Number(x?.wrapQty || 0),
+          }))
+          .filter((l: GiftWrapPayloadLine) => Number.isFinite(l.productId) && l.productId > 0 && l.wrapQty > 0);
+      }
+
+      // obohať názvy + cartQty z orderItems (aby email/admin nemusel hádať)
+      lines = lines.map((l) => {
+        const meta = namesMap.get(Number(l.productId));
+        return {
+          ...l,
+          productName: (l.productName && String(l.productName).trim()) ? String(l.productName).trim() : (meta?.name ?? `Produkt #${l.productId}`),
+          cartQty: (l.cartQty != null && Number(l.cartQty) > 0) ? Number(l.cartQty) : (meta?.cartQty ?? null),
+        };
+      });
+
+      const normalized: GiftWrapPayload = {
+        enabled,
+        productId: (gw as any).productId ?? null,
+        slug: (gw as any).slug ?? null,
+        unitPrice: (gw as any).unitPrice ?? null,
+        selectedQty,
+        mode: (gw as any).mode,
+        note: note || null,
+        perProduct: perProduct
+          .map((x: any) => ({ productId: Number(x?.productId), wrapQty: Number(x?.wrapQty || 0) }))
+          .filter((x: any) => Number.isFinite(x.productId) && x.productId > 0 && Number(x.wrapQty) > 0),
+        lines,
+        autoAddedQty: (gw as any).autoAddedQty ?? null,
+        alreadyInCartQty: (gw as any).alreadyInCartQty ?? null,
+      };
+
+      return normalized;
+    };
 
     // 1) nájdi/vytvor zákazníka podľa emailu
     const existing = await strapi.entityService.findMany('api::customer.customer', {
@@ -489,51 +704,62 @@ export default () => ({
           },
         })).id;
 
-        const orderItems = await Promise.all(
-          items.map(async (item: CheckoutItem) => {
-            const product = await strapi.entityService.findOne('api::product.product', item.productId, {
-              populate: {
-                picture_new: { fields: ['url', 'formats'] },
-                pictures_new: { fields: ['url', 'formats'] },
-              },
-            });
-        
-            if (!product || (typeof product.price !== 'number' && typeof product.price !== 'string')) {
-              throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
-            }
-        
-            const ean =
-              (product as any).ean ||
-              (product as any).eanCode ||
-              (product as any).ean_code ||
-              (product as any).ean_kod ||
-              null;
-        
-            // 👇 flag z frontendu, fallback z produktu ak chceš:
-            const isDigitalProduct =
-              item.isDigitalProduct ??
-              (product as any).isDigitalProduct ??
-              false;
-        
-            const isGiftVoucher =
-              item.isGiftVoucher ??
-              (product as any).isGiftVoucher ??
-              false;
-        
-            return {
-              productId: item.productId,
-              productName: item.productName ?? product.name,
-              slug: product.slug,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              event: item.event ?? undefined,
-              _image: pickProductImage(product),
-              ean,
-              isDigitalProduct,   // 👈 teraz je to v orderItems
-              isGiftVoucher,
-            };
-          })
-        );
+    const orderItems = await Promise.all(
+      items.map(async (item: CheckoutItem) => {
+        const product = await strapi.entityService.findOne('api::product.product', item.productId, {
+          populate: {
+            picture_new: { fields: ['url', 'formats'] },
+            pictures_new: { fields: ['url', 'formats'] },
+          },
+        });
+
+        if (!product || (typeof product.price !== 'number' && typeof product.price !== 'string')) {
+          throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
+        }
+
+        const ean =
+          (product as any).ean ||
+          (product as any).eanCode ||
+          (product as any).ean_code ||
+          (product as any).ean_kod ||
+          null;
+
+        // 👇 flag z frontendu, fallback z produktu ak chceš:
+        const isDigitalProduct =
+          item.isDigitalProduct ??
+          (product as any).isDigitalProduct ??
+          false;
+
+        const isGiftVoucher =
+          item.isGiftVoucher ??
+          (product as any).isGiftVoucher ??
+          false;
+
+        // ✅ ak FE posiela flag pre giftwrap item, uložíme ho do itemu (pre email badge + DB)
+        const isGiftWrapProduct = (item as any).isGiftWrapProduct === true;
+
+        return {
+          productId: item.productId,
+          productName: item.productName ?? product.name,
+          slug: product.slug,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          event: item.event ?? undefined,
+          _image: pickProductImage(product),
+          ean,
+          isDigitalProduct,
+          isGiftVoucher,
+          isGiftWrapProduct,
+        };
+      })
+    );
+
+    // ✅ až teraz vieme obohatiť giftWrap o názvy produktov z košíka
+    const giftWrap = normalizeGiftWrap(
+      giftWrapRaw as any,
+      orderItems.map((x: any) => ({ productId: x.productId, productName: x.productName, quantity: x.quantity }))
+    );
+
     const hasEventSession = orderItems.some((it: any) => it?.event?.sessionId);
     const itemsTotal = orderItems.reduce((sum: number, i: any) => sum + i.quantity * i.unitPrice, 0);
     const deliveryMethod: DeliveryMethod = delivery.method;
@@ -601,10 +827,15 @@ export default () => ({
         total: itemsTotal,
         totalWithShipping,
 
+        giftWrap: giftWrap ? JSON.parse(JSON.stringify(giftWrap)) : null,
+        giftWrapMode: giftWrap?.mode ?? null,
+        giftWrapNote: giftWrap?.note ?? null,
+        giftWrapSelectedQty: giftWrap?.selectedQty ?? 0,
+
         items: orderItems.map(({ _image, event, ...rest }) => ({
           ...rest,
           imageUrl: absUrl(_image),
-        
+
           // JSON pole v Strapi musí byť JSONValue
           event: event ? JSON.parse(JSON.stringify(event)) : null,
         })),
@@ -617,7 +848,7 @@ export default () => ({
         paymentSessionId: '',
         temporaryId: temporaryId || null,
         ...billingDbData,
-      },
+      } as any,
     });
 
     // 4A) NE-KARTA – prelinkuj bookingy + pošli emaily + redirect na success
@@ -643,10 +874,11 @@ export default () => ({
       try {
         if (order.temporaryId) await recalcSessionsByTemporaryId(order.temporaryId);
         await recalcSessionsByOrderId(order.id);
-        
+
       } catch (e) {
         strapi.log.error('[GCAL][NON-CARD] recalc failed:', e);
       }
+
       let invoiceNumber: string | null = null;
       try {
         const inv = await issueInvoiceForOrder(order.id);
@@ -669,10 +901,13 @@ export default () => ({
         quantity: i.quantity,
         image: i._image,
         event: i.event,
-      
+
         // 👇 prenesieme do šablóny
         isDigitalProduct: !!i.isDigitalProduct || !!i.isGiftVoucher,
         isGiftVoucher: !!i.isGiftVoucher,
+
+        // ✅ darčekové balenie product badge
+        isGiftWrapProduct: !!i.isGiftWrapProduct,
       }));
 
       const billingHtml =
@@ -752,7 +987,10 @@ export default () => ({
         deliverySummary,
         orderNotes,
         billingHtml,
-        invoiceNumber
+        invoiceNumber,
+
+        // ✅ gift wrap do emailu
+        giftWrap,
       });
 
       const addrLine = [
@@ -775,6 +1013,32 @@ export default () => ({
         })
         .join('<br/>');
 
+      // ✅ admin: vypíš gift wrap textovo (okrem pekného boxu v šablóne)
+      const giftWrapAdminInline = giftWrap && Number(giftWrap.selectedQty || 0) > 0
+        ? (() => {
+            const modeHuman =
+              giftWrap.mode === 'each_item' ? 'Každý kus zvlášť' :
+              giftWrap.mode === 'by_product' ? 'Podľa produktov' :
+              giftWrap.mode === 'all_together' ? 'Všetko spolu' :
+              String(giftWrap.mode || '');
+
+            const lines = Array.isArray(giftWrap.lines) ? giftWrap.lines.filter(l => Number(l.wrapQty || 0) > 0) : [];
+            const linesHtml = lines.length
+              ? lines.map(l => `• ${escapeHtml(String(l.productName || `Produkt #${l.productId}`))} — ${escapeHtml(String(l.wrapQty))}${l.cartQty ? ` z ${escapeHtml(String(l.cartQty))}` : ''}`).join('<br/>')
+              : '';
+
+            const note = typeof giftWrap.note === 'string' ? giftWrap.note.trim() : '';
+            return `
+              <p><b>Darčekové balenie:</b><br/>
+                Počet: ${escapeHtml(String(giftWrap.selectedQty))}<br/>
+                Režim: ${escapeHtml(modeHuman)}<br/>
+                ${linesHtml ? `Čo zabaliť:<br/>${linesHtml}<br/>` : ''}
+                ${note ? `Poznámka: ${escapeHtml(note).replace(/\n/g,'<br/>')}` : ''}
+              </p>
+            `;
+          })()
+        : '';
+
       const adminBodyHtml = `
         <p><b>Objednávka č. ${invoiceNumber}, ID: ${order.id} </b> (${orderDate})</p>
         <p><b>Zákazník:</b><br/>
@@ -783,6 +1047,7 @@ export default () => ({
           Telefón: ${escapeHtml(customer.phone || '')}<br/>
           Adresa: ${escapeHtml(addrLine || '-')}</p>
         <p>${escapeHtml(bodyAdminIntro)}</p>
+        ${giftWrapAdminInline}
         <p><b>Položky (s EAN):</b><br/>
           ${productsWithEanHtml}
         </p>
@@ -800,7 +1065,10 @@ export default () => ({
         deliverySummary,
         orderNotes,
         billingHtml,
-        invoiceNumber
+        invoiceNumber,
+
+        // ✅ gift wrap do emailu
+        giftWrap,
       });
 
       const adminEmails = ['info@appdesign.sk', 'objednavky@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
@@ -818,11 +1086,9 @@ export default () => ({
           html: adminEmailHtml,
         });
 
-
       } catch (e) {
         strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
       }
-
 
       return { checkoutUrl: `${FRONTEND_URL}/checkout/success?order=${order.id}`, sessionUrl: null };
     }
