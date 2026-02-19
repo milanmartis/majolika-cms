@@ -1,9 +1,20 @@
 // src/api/order/controllers/order.ts
+'use strict';
+
 import { factories } from '@strapi/strapi';
 import { sendEmail } from '../../../utils/email';
 
+type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
 
-type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+type GiftWrapMode = 'all' | 'selected' | 'none';
+type GiftWrapItem = { productId?: number; quantity?: number; orderItemProductId?: number; };
+type GiftWrap = {
+  enabled?: boolean;
+  mode?: GiftWrapMode;
+  note?: string | null;     // poznámka k baleniu
+  message?: string | null;  // text na kartičku
+  items?: GiftWrapItem[] | null;
+};
 
 type OrderWithPacketa = {
   id: number;
@@ -38,10 +49,93 @@ type OrderWithShipping = {
   packetaTrackingNumber?: string | null;
   packetaLabelUrl?: string | null;
   packetaStatus?: string | null;
+
+  // giftWrap JSON
+  giftWrap?: GiftWrap | null;
 };
+
+function esc(s?: string) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function absUrl(url?: string): string {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
+  const base =
+    process.env.PUBLIC_UPLOADS_URL ||
+    process.env.UPLOADS_BASE_URL ||
+    serverUrl ||
+    process.env.FRONTEND_URL ||
+    '';
+  if (!base) return '';
+  const root = String(base).replace(/\/$/, '');
+  const rel = url.startsWith('/') ? url : `/${url}`;
+  return `${root}${rel}`;
+}
+
+function pickProductImage(product: any): string {
+  const single = product?.picture_new;
+  const firstMulti = Array.isArray(product?.pictures_new) ? product.pictures_new[0] : null;
+  const media = single || firstMulti || null;
+  const url =
+    media?.formats?.thumbnail?.url ||
+    media?.formats?.small?.url ||
+    media?.formats?.medium?.url ||
+    media?.formats?.large?.url ||
+    media?.url;
+  return absUrl(url);
+}
+
+function normalizeGiftWrap(raw: any): GiftWrap | null {
+  if (!raw) return null;
+
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      // string -> ber ako note
+      return { enabled: true, mode: 'all', note: raw, message: null, items: null };
+    }
+  }
+
+  if (typeof raw !== 'object') return null;
+
+  const enabled = !!raw.enabled;
+  if (!enabled) return null;
+
+  const mode: GiftWrapMode =
+    raw.mode === 'selected' ? 'selected' :
+    raw.mode === 'none' ? 'none' :
+    'all';
+
+  const note = typeof raw.note === 'string' ? raw.note.trim() : null;
+  const message = typeof raw.message === 'string' ? raw.message.trim() : null;
+
+  let items: GiftWrapItem[] | null = null;
+  if (mode === 'selected' && Array.isArray(raw.items)) {
+    items = raw.items
+      .map((x: any) => ({
+        productId: Number(x?.productId) || undefined,
+        quantity: Number(x?.quantity) || undefined,
+        orderItemProductId: Number(x?.orderItemProductId) || undefined,
+      }))
+      .filter((x: any) => x.productId || x.orderItemProductId);
+
+    if (!items.length) items = null;
+  }
+
+  return { enabled, mode, note, message, items };
+}
 
 export default factories.createCoreController('api::order.order', ({ strapi }) => ({
   async ping(ctx) { ctx.send({ ok: true }); },
+
   async create(ctx) {
     const body = ctx.request.body || {};
     const data = body.data || {};
@@ -52,9 +146,18 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     const details = delivery.details || {};
     const addr = delivery.address || {};
 
-    // --- normalizácia poznámky z FE
+    // --- normalizácia poznámky z FE (notes = poznámka k objednávke)
     if (typeof data.notes === 'string') {
       data.notes = data.notes.trim() || null;
+    }
+
+    // --- normalizácia giftWrap z FE
+    // očakávam: data.giftWrap (JSON alebo string JSON)
+    // uložíme ako JSON, alebo null
+    if (data.giftWrap !== undefined) {
+      const gw = normalizeGiftWrap(data.giftWrap);
+      // JSONValue v Strapi: najistejšie je stringify/parse, aby to bolo čisté JSON
+      data.giftWrap = gw ? JSON.parse(JSON.stringify(gw)) : null;
     }
 
     // --- doplnenie imageUrl do položiek (ak chýba)
@@ -145,37 +248,21 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       data.deliveryAddress = null;
     }
 
-
-
-    // helpery si vytiahni do shared util, tu inline kvôli stručnosti:
-function absUrl(url?: string): string {
-  if (!url) return '';
-  if (/^https?:\/\//i.test(url)) return url;
-  const serverUrl = (strapi.config?.get?.('server.url') as string) || '';
-  const base = process.env.PUBLIC_UPLOADS_URL || process.env.UPLOADS_BASE_URL || serverUrl;
-  if (!base) return ''; // do emailu relatívnu cestu nechceme
-  const root = String(base).replace(/\/$/, '');
-  const rel = url.startsWith('/') ? url : `/${url}`;
-  return `${root}${rel}`;
-}
-
-function pickProductImage(product: any): string {
-  const single = product?.picture_new;
-  const firstMulti = Array.isArray(product?.pictures_new) ? product.pictures_new[0] : null;
-  const media = single || firstMulti || null;
-  const url =
-    media?.formats?.thumbnail?.url ||
-    media?.formats?.small?.url ||
-    media?.formats?.medium?.url ||
-    media?.formats?.large?.url ||
-    media?.url;
-  return absUrl(url);
-}
+    if (method === 'digital_product') {
+      data.deliveryMethod = 'digital_product';
+      data.deliveryDetails = {
+        provider: null,
+        postOfficeId: null,
+        packetaBoxId: null,
+        notes: details.notes ?? null,
+      };
+      data.deliveryAddress = null;
+    }
 
     // --- Vytvor objednávku s už normalizovanými dátami ---
-    // Pozn.: populate doplň podľa potreby
+    // IMPORTANT: data as any -> kvôli TS typu Input<order> (kým sa typy nezregenerujú)
     const order = await strapi.entityService.create('api::order.order', {
-      data,
+      data: data as any,
       populate: ['items', 'deliveryAddress', 'deliveryDetails', 'customer'],
     }) as unknown as OrderWithShipping;
 
@@ -187,20 +274,33 @@ function pickProductImage(product: any): string {
     const items: any[] = (order as any).items || [];
     const orderId = order.id;
 
-    // 1) Potvrdenie emailom
+    // 1) Potvrdenie emailom (toto je len "order created" — pri karte ti aj tak príde "paid" mail z payment controller)
+    // (nechávam minimálny mail, ale dopĺňam info o giftWrap, nech to máš aj tu keď sa používa)
     try {
       const det = (order as any).deliveryDetails || {};
-      const addr = (order as any).deliveryAddress || {};
+      const dAddr = (order as any).deliveryAddress || {};
       const isPostOffice = (order as any).deliveryMethod === 'post_office';
 
-      const addressLine = [addr.street, addr.city, addr.zip, addr.country].filter(Boolean).join(', ');
+      const addressLine = [dAddr.street, dAddr.city, dAddr.zip, dAddr.country].filter(Boolean).join(', ');
       const deliverySection = isPostOffice
         ? `
           <hr>
           <p><strong>Vyzdvihnutie na pošte</strong><br>
-          ID pobočky: ${det.postOfficeId ?? ''}<br>
-          Adresa: ${addressLine || '-'}
+          ID pobočky: ${esc(det.postOfficeId ?? '')}<br>
+          Adresa: ${esc(addressLine || '-')}
           </p>`
+        : '';
+
+      const gw = normalizeGiftWrap((order as any).giftWrap);
+      const giftWrapSection = gw
+        ? `
+          <hr>
+          <p><strong>Darčekové balenie:</strong><br>
+          Režim: ${esc(gw.mode || 'all')}<br>
+          ${gw.message ? `Text na kartičku: ${esc(gw.message)}<br>` : ''}
+          ${gw.note ? `Poznámka k baleniu: ${esc(gw.note)}<br>` : ''}
+          </p>
+        `
         : '';
 
       await sendEmail({
@@ -209,6 +309,7 @@ function pickProductImage(product: any): string {
         html: `
           <p>Vaša objednávka bola prijatá.</p>
           ${deliverySection}
+          ${giftWrapSection}
         `,
       });
 
@@ -220,6 +321,7 @@ function pickProductImage(product: any): string {
     // 2) Logy
     strapi.log.info(`[ORDER] incoming FE payload temporaryId: ${temporaryId}`);
     strapi.log.info(`[ORDER] incoming FE payload customerEmail: ${customerEmail}`);
+    strapi.log.info(`[ORDER] giftWrap: ${(order as any).giftWrap ? 'YES' : 'NO'}`);
 
     // 3) Spárovanie bookingov podľa temporaryId + email
     if (temporaryId && customerEmail) {
@@ -230,7 +332,7 @@ function pickProductImage(product: any): string {
             where: {
               temporaryId,
               customerEmail,
-              customerPhone, 
+              customerPhone,
               orderId: null,
             },
           });
@@ -250,7 +352,7 @@ function pickProductImage(product: any): string {
           strapi.log.info(`✅ Bookingy s temporaryId=${temporaryId} spárované s orderId=${orderId}`);
         } else {
           strapi.log.warn(
-            `[ORDER] Žiadne pending bookingy na spárovanie s temporaryId=${temporaryId} a email=${customerEmail}!`,
+            `[ORDER] Žiadne pending bookingy na spárovaní s temporaryId=${temporaryId} a email=${customerEmail}!`,
           );
         }
       } catch (e) {
@@ -313,7 +415,7 @@ function pickProductImage(product: any): string {
             );
 
             strapi.log.info(
-              `✅ Nový booking vytvorený pre orderId=${orderId}, sessionId=${item.sessionId}, bookingId=${createdBooking.id}`,
+              `✅ Nový booking vytvorený pre orderId=${orderId}, sessionId=${item.sessionId}, bookingId=${(createdBooking as any).id}`,
             );
           }
         } catch (e) {
@@ -332,59 +434,56 @@ function pickProductImage(product: any): string {
   async shipPacketa(ctx) {
     const id = Number(ctx.params.id);
     const { weightKg } = ctx.request.body || {};
-  
+
     if (!Number.isFinite(id)) return ctx.badRequest('Invalid order id');
     const w = Number(weightKg);
     if (!Number.isFinite(w) || w <= 0) return ctx.badRequest('weightKg is required');
-  
+
     // 🔁 Documents API – nájdi dokument podľa numeric id
     const order = await strapi.documents('api::order.order').findFirst({
       filters: { id },
       populate: ['deliveryDetails', 'deliveryAddress'],
     }) as unknown as OrderWithPacketa | null;
-  
+
     if (!order) return ctx.notFound('Order not found');
     if (order.deliveryMethod !== 'packeta_box') return ctx.badRequest('Order is not Packeta delivery');
     if (!order.deliveryDetails?.packetaBoxId) return ctx.badRequest('Missing Packeta pickup point');
     if (!order.documentId) {
-      // v Strapi v5 by mal mať každý záznam documentId – ak nie, radšej failni
       return ctx.throw(500, 'Order has no documentId (unexpected in Strapi v5)');
     }
-  
+
     try {
-      // ⚠️ oprav názov service na tvoju Packeta službu
       const shipping = await strapi
         .service('api::packeta.packeta')
         .createShipmentFromOrder(order as any, { weightKg: w });
-  
+
       const updateData = {
         parcelWeightKg: w,
-        packetaShipmentId: shipping.shipmentId ?? null,
-        packetaTrackingNumber: shipping.trackingNumber ?? null,
-        packetaLabelUrl: shipping.labelUrl ?? null,
+        packetaShipmentId: (shipping as any).shipmentId ?? null,
+        packetaTrackingNumber: (shipping as any).trackingNumber ?? null,
+        packetaLabelUrl: (shipping as any).labelUrl ?? null,
         packetaStatus: 'created',
         deliveryStatus: 'label_created',
         fulfillmentStatus: 'processing',
       };
-  
-      // 🔁 Documents API update – žiadny deprecated fallback
+
       await strapi.documents('api::order.order').update({
         documentId: order.documentId,
         data: updateData as any,
       });
-  
+
       ctx.body = {
         ok: true,
-        shipmentId: shipping.shipmentId ?? null,
-        trackingNumber: shipping.trackingNumber ?? null,
-        labelUrl: shipping.labelUrl ?? null,
+        shipmentId: (shipping as any).shipmentId ?? null,
+        trackingNumber: (shipping as any).trackingNumber ?? null,
+        labelUrl: (shipping as any).labelUrl ?? null,
       };
     } catch (e: any) {
       strapi.log.error('[PACKETA][SHIP] error', e?.message || e);
       return ctx.throw(502, 'Packeta ship failed');
     }
   },
-  
+
   // GET /orders/my
   async my(ctx) {
     const user = ctx.state.user;
@@ -424,6 +523,8 @@ function pickProductImage(product: any): string {
         shippingFee: order.shippingFee,
         paymentFee: order.paymentFee,
 
+        // 👇 vráť aj giftWrap, nech to vie FE/účty ukázať
+        giftWrap: order.giftWrap ?? null,
       })),
       totalSpent,
     };

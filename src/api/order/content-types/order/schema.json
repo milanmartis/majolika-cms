@@ -120,6 +120,11 @@
       "enum": ["created","label_downloaded","shipped","delivered","cancelled"]
     },
 
-    "temporaryId": { "type": "string" }
+    "temporaryId": { "type": "string" },
+    
+    "giftWrap": { "type": "json" },
+    "giftWrapMode": { "type": "string" },
+    "giftWrapNote": { "type": "text" },
+    "giftWrapSelectedQty": { "type": "integer" }
   }
 }

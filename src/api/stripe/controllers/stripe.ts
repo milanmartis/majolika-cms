@@ -1,4 +1,6 @@
 // src/api/payment/controllers/payment.ts
+'use strict';
+
 import qs from 'qs';
 import fetch from 'node-fetch';
 import { sendEmail } from '../../../utils/email';
@@ -21,9 +23,24 @@ type FulfillmentStatus = 'new' | 'processing' | 'shipped' | 'delivered' | 'cance
 type EventInfo = {
   sessionId?: number;
   type?: 'workshop' | 'tour' | string;
-  startDateTime?: string;   // ISO (UTC)
+  startDateTime?: string; // ISO (UTC)
   peopleCount?: number;
   bookingId?: number;
+};
+
+type GiftWrapMode = 'all' | 'selected' | 'none';
+type GiftWrapItem = {
+  productId?: number;
+  quantity?: number;
+  // optional: keď raz budeš chcieť viazať na konkrétne order item id
+  orderItemProductId?: number;
+};
+type GiftWrap = {
+  enabled?: boolean;
+  mode?: GiftWrapMode;
+  note?: string | null;         // poznámka k baleniu / darčeku
+  message?: string | null;      // text na kartičku (ak máš)
+  items?: GiftWrapItem[] | null; // ak mode=selected
 };
 
 type OrderItem = {
@@ -35,7 +52,7 @@ type OrderItem = {
   event?: EventInfo | null;
   imageUrl?: string;
   isDigitalProduct?: boolean;
-  isGiftVoucher?: boolean;   
+  isGiftVoucher?: boolean;
 };
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
@@ -43,10 +60,14 @@ type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' 
 type OrderRecord = {
   id: number;
   notes?: string | null;
+
+  giftWrap?: GiftWrap | null; // 👈 NOVÉ
+
   customerEmail?: string;
   customerName?: string;
   customerPhone?: string;
   shippingFee?: number | string;
+  paymentFee?: number | string;
   total?: number | string;
   totalWithShipping?: number | string;
   deliveryMethod?: DeliveryMethod;
@@ -103,6 +124,7 @@ type OrderRecord = {
     city?: string | null;
     zip?: string | null;
     country?: string | null;
+    shippingAddress?: any;
   } | null;
 };
 
@@ -155,20 +177,20 @@ function sanitizeComgateRaw(x: any) {
 
 function esc(s?: string) {
   return String(s ?? '')
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function aesc(s?: string) {
   return String(s ?? '')
-    .replace(/&/g,'&amp;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;');
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function absUrl(url?: string): string {
@@ -203,7 +225,9 @@ function pickProductImage(product: any): string {
   return absUrl(url);
 }
 
-function money(n: number) { return `${n.toFixed(2)} €`; }
+function money(n: number) {
+  return `${n.toFixed(2)} €`;
+}
 
 function formatEventSk(event?: EventInfo): string {
   if (!event?.startDateTime) return '';
@@ -224,15 +248,98 @@ function formatEventSk(event?: EventInfo): string {
   return `Termín: ${d}, ${t}${ppl}`;
 }
 
+function normalizeGiftWrap(raw: any): GiftWrap | null {
+  if (!raw) return null;
+
+  // ak by prišlo ako string
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      // ak je string a nie JSON, berieme ako poznámku
+      return { enabled: true, mode: 'all', note: raw, message: null, items: null };
+    }
+  }
+
+  if (typeof raw !== 'object') return null;
+
+  const enabled = !!raw.enabled;
+  if (!enabled) return null;
+
+  const mode: GiftWrapMode =
+    raw.mode === 'selected' ? 'selected' :
+    raw.mode === 'none' ? 'none' :
+    'all';
+
+  const note = typeof raw.note === 'string' ? raw.note.trim() : null;
+  const message = typeof raw.message === 'string' ? raw.message.trim() : null;
+
+  let items: GiftWrapItem[] | null = null;
+  if (mode === 'selected' && Array.isArray(raw.items)) {
+    items = raw.items
+      .map((x: any) => ({
+        productId: Number(x?.productId) || undefined,
+        quantity: Number(x?.quantity) || undefined,
+        orderItemProductId: Number(x?.orderItemProductId) || undefined,
+      }))
+      .filter((x: any) => x.productId || x.orderItemProductId);
+    if (!items.length) items = null;
+  }
+
+  return { enabled, mode, note, message, items };
+}
+
+function renderGiftWrapBlock(giftWrap: GiftWrap | null | undefined, emailItems: Array<{ productName: string; productId?: number; quantity: number }>) {
+  const gw = normalizeGiftWrap(giftWrap);
+  if (!gw) return '';
+
+  const lines: string[] = [];
+
+  const modeLabel =
+    gw.mode === 'selected' ? 'Len vybrané produkty' :
+    gw.mode === 'none' ? 'Bez balenia' :
+    'Všetky fyzické produkty';
+
+  lines.push(`<div><b>Režim:</b> ${esc(modeLabel)}</div>`);
+
+  if (gw.mode === 'selected' && gw.items?.length) {
+    const selected = gw.items;
+    const list = selected.map((s) => {
+      const pid = s.productId || s.orderItemProductId;
+      const name = emailItems.find((i: any) => Number(i.productId) === Number(pid))?.productName || `Produkt #${pid}`;
+      const qty = s.quantity ? ` × ${s.quantity}` : '';
+      return `• ${esc(name)}${esc(qty)}`;
+    }).join('<br/>');
+    lines.push(`<div style="margin-top:8px;"><b>Vybrané na balenie:</b><br/>${list}</div>`);
+  }
+
+  if (gw.message) {
+    lines.push(`<div style="margin-top:8px;"><b>Text na kartičku:</b><br/>${esc(gw.message).replace(/\n/g, '<br/>')}</div>`);
+  }
+  if (gw.note) {
+    lines.push(`<div style="margin-top:8px;"><b>Poznámka k baleniu:</b><br/>${esc(gw.note).replace(/\n/g, '<br/>')}</div>`);
+  }
+
+  return `
+    <div style="margin-top:16px;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
+      <div style="font-weight:700;color:#333;margin-bottom:6px;">Darčekové balenie</div>
+      <div style="font-size:14px;color:#444;line-height:1.5;">
+        ${lines.join('')}
+      </div>
+    </div>
+  `;
+}
+
 function renderItemsRows(items: Array<{
   productName: string;
+  productId?: number;
   slug: string;
   unitPrice: number;
   quantity: number;
   image?: string;
   event?: EventInfo | null;
 
-  // 👇 pridáme, aj keď môžu byť undefined
+  // badge
   isDigitalProduct?: boolean;
   isGiftVoucher?: boolean;
 }>) {
@@ -281,22 +388,44 @@ function renderOrderEmail(opts: {
   heading: string;
   introLines: string[];
   cta?: { label: string; href: string } | null;
-  items: Array<{ productName: string; slug: string; unitPrice: number; quantity: number; image?: string; event?: EventInfo | null; isDigitalProduct?: boolean;
-    isGiftVoucher?: boolean; }>;
+
+  items: Array<{
+    productName: string;
+    productId?: number;
+    slug: string;
+    unitPrice: number;
+    quantity: number;
+    image?: string;
+    event?: EventInfo | null;
+    isDigitalProduct?: boolean;
+    isGiftVoucher?: boolean;
+  }>;
+
   shippingFee: number;
-  paymentFee: number; 
+  paymentFee: number;
   totalWithShipping: number;
   deliverySummary: string;
+
+  giftWrapHtml?: string; // 👈 NOVÉ
+
   orderNotes?: string | null;
   billingHtml?: string | null;
 }) {
   const itemsRows = renderItemsRows(opts.items);
+
+  const giftWrapHtml = opts.giftWrapHtml || '';
+
   const notesHtml = opts.orderNotes
-  ? `<div style="margin-top:16px;padding:12px;border:1px solid #eaeaea;border-radius:6px;background:#fcfcfc;">
-       <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
-       <div style="font-size:14px;color:#444;line-height:1.5;">${esc(opts.orderNotes).replace(/\n/g, '<br>')}</div>
-     </div>`
-  : '';
+    ? `<div style="margin-top:16px;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
+         <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
+         <div style="font-size:14px;color:#444;line-height:1.5;">${esc(opts.orderNotes).replace(/\n/g, '<br>')}</div>
+       </div>`
+    : '';
+
+  const ctaHtml = opts.cta?.href
+    ? `<a class="button" href="${aesc(opts.cta.href)}" target="_blank">${esc(opts.cta.label)}</a>`
+    : '';
+
   return `<!DOCTYPE html>
 <html lang="sk">
 <head>
@@ -308,9 +437,8 @@ function renderOrderEmail(opts: {
     .header { background-color: #0e29a0; color: white; padding: 24px; text-align: center; }
     .content { padding: 32px; }
     .content h2 { margin-top: 0; color: #333; }
-    .content p { font-size: 16px; line-height: 1.6; color: #444; }
-    .button { display: inline-block; margin-top: 24px; padding: 12px 24px; background-color: #0e29a0; color: white !important; text-decoration: none; border-radius: 0px; font-weight: bold; transition: background-color 0.3s ease; }
-    .button:hover { background-color: #0b1e7c; }
+    .content p { font-size: 16px; line-height: 1.6; color: #444; margin: 0 0 10px 0; }
+    .button { display: inline-block; margin-top: 18px; padding: 12px 24px; background-color: #0e29a0; color: white !important; text-decoration: none; border-radius: 0px; font-weight: bold; }
     .footer { background-color: #fafafa; color: #777; font-size: 13px; padding: 24px; text-align: center; line-height: 1.5; }
     .footer a { color: #0e29a0; text-decoration: none; }
     .footer-logo { margin-top: 16px; }
@@ -326,11 +454,15 @@ function renderOrderEmail(opts: {
     <div class="content">
       <h2>${esc(opts.heading)}</h2>
       ${opts.introLines.map((t) => `<p>${esc(t)}</p>`).join('')}
- 
+      ${ctaHtml}
 
-      <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
+      <h3 style="color:#333;margin-top:28px;">Zhrnutie objednávky</h3>
       <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${esc(opts.deliverySummary)}</p>
+
       ${opts.billingHtml || ''}
+
+      ${giftWrapHtml}
+
       ${notesHtml}
 
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
@@ -425,8 +557,6 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
   return base + suffix;
 }
 
-
-
 // ========================= DB & Comgate helpery =========================
 
 async function markOrderCancelled(orderId: number) {
@@ -460,7 +590,7 @@ function isCancelledLike(s?: string) {
 async function getOrderAndExpectedCents(orderId: number) {
   const ord = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['items', 'deliveryAddress', 'deliveryDetails'],
-    fields: ['id','total','totalWithShipping','customerEmail','customerName', 'customerPhone', 'paymentStatus','deliveryMethod'] as any,
+    fields: ['id', 'total', 'totalWithShipping', 'customerEmail', 'customerName', 'customerPhone', 'paymentStatus', 'deliveryMethod'] as any,
   })) as unknown as OrderRecord | null;
 
   if (!ord) throw new Error('Order not found');
@@ -510,15 +640,15 @@ function mapComgateToOrder(s: string): PaymentStatus {
   if (st === 'PAID') return 'paid';
   if (AUTH_AS_PAID && st === 'AUTHORIZED') return 'paid';
   if (st === 'REFUNDED' || st === 'PARTIALLY_REFUNDED') return 'refunded';
-  return 'unpaid'; // CANCELLED, PENDING, TIMEOUT, ERROR, ...
+  return 'unpaid';
 }
-
 
 async function runPostPaidFlow(orderId: number) {
   const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
     fields: [
       'id',
       'notes',
+      'giftWrap', // 👈 NOVÉ
       'shippingFee',
       'paymentFee',
       'total',
@@ -545,35 +675,38 @@ async function runPostPaidFlow(orderId: number) {
     },
   }) as unknown as OrderRecord;
 
+  // Guard: posielaj email len ak je už paid (aby webhook/returnBridge nezduplikoval)
   const guard = await strapi.db.query('api::order.order').findOne({
     where: { id: orderId },
     select: ['id', 'paymentStatus'],
   }) as any;
-  
+
   if (guard?.paymentStatus !== 'paid') {
     strapi.log.warn(`[PAID_FLOW] order #${orderId} not marked paid yet, skipping email/invoice`);
     return;
   }
 
-
   const orderNotes = freshOrder?.notes ? String(freshOrder.notes) : null;
+  const giftWrap = normalizeGiftWrap((freshOrder as any).giftWrap);
+
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
+  strapi.log.info(`[EMAIL][PAID] giftWrap=${giftWrap ? 'YES' : 'NO'}`);
 
   const customerPhone =
     (freshOrder as any).customerPhone ||
     freshOrder.customer?.phone ||
     '';
-    let invoiceNumber: string | null = null;
-    try {
-      const inv = await issueInvoiceForOrder(freshOrder.id);
-      invoiceNumber = inv?.invoiceNumber || null;
-    } catch (e) {
-      strapi.log.error('[INVOICE][PAID] issue failed:', e);
-    }
-    
 
-    
-    const docNo = invoiceNumber || String(freshOrder.id);
+  let invoiceNumber: string | null = null;
+  try {
+    const inv = await issueInvoiceForOrder(freshOrder.id);
+    invoiceNumber = inv?.invoiceNumber || null;
+  } catch (e) {
+    strapi.log.error('[INVOICE][PAID] issue failed:', e);
+  }
+
+  const docNo = invoiceNumber || String(freshOrder.id);
+
   // Previazanie bookingov
   if (freshOrder.temporaryId) {
     const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
@@ -582,7 +715,7 @@ async function runPostPaidFlow(orderId: number) {
         orderId: String(freshOrder.id),
         status: 'paid',
         customerEmail: freshOrder.customerEmail || undefined,
-        customerName:  freshOrder.customerName  || undefined,
+        customerName: freshOrder.customerName || undefined,
         customerPhone: customerPhone || undefined,
       },
     });
@@ -593,16 +726,14 @@ async function runPostPaidFlow(orderId: number) {
     data: {
       status: 'paid',
       customerEmail: freshOrder.customerEmail || undefined,
-      customerName:  freshOrder.customerName  || undefined,
+      customerName: freshOrder.customerName || undefined,
       customerPhone: customerPhone || undefined,
     },
   });
   strapi.log.info(`[COMGATE][BOOKINGS] by orderId -> paid (${res2.count})`);
 
   try {
-    if (freshOrder.temporaryId) {
-      await recalcSessionsByTemporaryId(freshOrder.temporaryId);
-    }
+    if (freshOrder.temporaryId) await recalcSessionsByTemporaryId(freshOrder.temporaryId);
     await recalcSessionsByOrderId(freshOrder.id);
   } catch (e) {
     strapi.log.error('[GCAL][AFTER-PAID] recalc failed:', e);
@@ -611,12 +742,10 @@ async function runPostPaidFlow(orderId: number) {
   // Zloženie položiek pre email (s obrázkami)
   const orderItems = Array.isArray(freshOrder.items) ? freshOrder.items : [];
   const hasEventSession = orderItems.some((it: any) => it?.event?.sessionId);
+
   const emailItems = await Promise.all(
-    orderItems.map(async (it) => {
-      // preferuj imageUrl uložené v order.items
-      let image = (it as any).imageUrl || '';
-      image = absUrl(image);
-      // fallback – načítanie z produktu
+    orderItems.map(async (it: any) => {
+      let image = absUrl(String((it as any).imageUrl || ''));
       if (!image && it.productId) {
         try {
           const pid = Number(it.productId);
@@ -636,13 +765,12 @@ async function runPostPaidFlow(orderId: number) {
 
       return {
         productName: it.productName || `Produkt #${it.productId}`,
+        productId: Number(it.productId) || undefined,
         slug: it.slug || '',
         unitPrice: Number(it.unitPrice),
         quantity: Number(it.quantity),
         image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
         event: (it as any).event || null,
-  
-        // 👇 prenesieme flagy z order.items
         isDigitalProduct: !!(it as any).isDigitalProduct || !!(it as any).isGiftVoucher,
         isGiftVoucher: !!(it as any).isGiftVoucher,
       };
@@ -653,7 +781,7 @@ async function runPostPaidFlow(orderId: number) {
   const to = freshOrder.customerEmail;
   const deliverySummary = summarizeDeliveryFromOrder(freshOrder);
   const shippingFee = Number(freshOrder.shippingFee || 0);
-  const paymentFee   = Number((freshOrder as any).paymentFee || 0);
+  const paymentFee = Number((freshOrder as any).paymentFee || 0);
   const totalWithShipping = Number(freshOrder.totalWithShipping || freshOrder.total || 0);
 
   const billingFromOrder = {
@@ -688,11 +816,17 @@ async function runPostPaidFlow(orderId: number) {
         </div>`
       : '';
 
+  const giftWrapHtmlCustomer = renderGiftWrapBlock(giftWrap, emailItems.map(i => ({
+    productName: i.productName,
+    productId: i.productId,
+    quantity: i.quantity,
+  })));
+
   const customerEmailHtml = renderOrderEmail({
     title: `Potvrdenie objednávky ${docNo}`,
     heading: 'Ďakujeme, platba prijatá',
     introLines: [
-      `Dobrý deň${freshOrder.customerName ? `, ${esc(freshOrder.customerName)}` : ''}.`,
+      `Dobrý deň${freshOrder.customerName ? `, ${freshOrder.customerName}` : ''}.`,
       `Platba za vašu objednávku #${docNo} prebehla úspešne.`,
     ],
     cta: FRONTEND_URL
@@ -706,71 +840,59 @@ async function runPostPaidFlow(orderId: number) {
     paymentFee,
     totalWithShipping,
     deliverySummary,
+    giftWrapHtml: giftWrapHtmlCustomer,
     orderNotes,
-    billingHtml
+    billingHtml,
   });
 
+  // ADMIN blok (texty)
   const addr = (freshOrder.deliveryAddress || {}) as any;
-  const customerPhoneLine =
-    customerPhone || (freshOrder as any).phone || '';
-  
-  // 1) primárne z order.shippingAddress (JSON na objednávke)
+  const customerPhoneLine = customerPhone || (freshOrder as any).phone || '';
+
   let customerShipping: any = (freshOrder as any).shippingAddress;
-  
-  // 2) ak chýba, skús customer.shippingAddress (môže byť JSON/string)
+
   if (!customerShipping) {
     customerShipping = (freshOrder.customer as any)?.shippingAddress;
     if (typeof customerShipping === 'string') {
-      try {
-        customerShipping = JSON.parse(customerShipping);
-      } catch {
-        customerShipping = null;
-      }
+      try { customerShipping = JSON.parse(customerShipping); } catch { customerShipping = null; }
     }
   }
-  
-  // 3) ak stále nič, fallback na rozbité polia na customer
+
   if (!customerShipping || typeof customerShipping !== 'object') {
     customerShipping = {
-      street:  (freshOrder.customer as any)?.street,
-      zip:     (freshOrder.customer as any)?.zip,
-      city:    (freshOrder.customer as any)?.city,
+      street: (freshOrder.customer as any)?.street,
+      zip: (freshOrder.customer as any)?.zip,
+      city: (freshOrder.customer as any)?.city,
       country: (freshOrder.customer as any)?.country,
     };
   }
-  
+
   const customerAddressLine =
-    [
-      customerShipping.street,
-      customerShipping.zip,
-      customerShipping.city,
-      customerShipping.country,
-    ]
+    [customerShipping.street, customerShipping.zip, customerShipping.city, customerShipping.country]
       .filter(Boolean)
       .join(', ') || '-';
-  
+
   const adminIntroLines = [
     `Zákazník: ${freshOrder.customerName || '-'}`,
     `E-mail: ${freshOrder.customerEmail || '-'}`,
     `Telefón: ${customerPhoneLine || '-'}`,
     `Adresa zákazníka: ${customerAddressLine}`,
     `Doručovacia adresa: ${
-      [addr.street, addr.zip, addr.city, addr.country]
-        .filter(Boolean)
-        .join(', ') || '-'
+      [addr.street, addr.zip, addr.city, addr.country].filter(Boolean).join(', ') || '-'
     }`,
     '',
     'Produkty (s EAN):',
     ...orderItems.map((it) => {
-      const ean =
-        (it as any).ean ||
-        (it as any).eanCode ||
-        (it as any).ean_code ||
-        (it as any).ean_kod ||
-        '-';
+      const ean = (it as any).ean || (it as any).eanCode || (it as any).ean_code || (it as any).ean_kod || '-';
       return `• ${it.productName || `Produkt #${it.productId}`} - EAN: ${ean}, množstvo: ${it.quantity}`;
     }),
   ];
+
+  const giftWrapHtmlAdmin = renderGiftWrapBlock(giftWrap, emailItems.map(i => ({
+    productName: i.productName,
+    productId: i.productId,
+    quantity: i.quantity,
+  })));
 
   const adminEmailHtml = renderOrderEmail({
     title: `Nová objednávka #${docNo} - zaplatené`,
@@ -782,8 +904,9 @@ async function runPostPaidFlow(orderId: number) {
     paymentFee,
     totalWithShipping,
     deliverySummary,
+    giftWrapHtml: giftWrapHtmlAdmin,
     orderNotes,
-    billingHtml
+    billingHtml,
   });
 
   try {
@@ -793,12 +916,21 @@ async function runPostPaidFlow(orderId: number) {
     } else {
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${docNo}`);
     }
-    await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${docNo} - zaplatené`, html: adminEmailHtml });
 
-    const adminEmails = ['info@appdesign.sk', 'objednavky@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
-    if (hasEventSession) {
-      adminEmails.push('prehliadky@majolika.sk');
-    }
+    await sendEmail({
+      to: 'majolika@majolika.sk',
+      subject: `Nová objednávka #${docNo} - zaplatené`,
+      html: adminEmailHtml,
+    });
+
+    const adminEmails = [
+      'info@appdesign.sk',
+      'objednavky@majolika.sk',
+      'romana.uhercikova@majolika.sk',
+      'katarina.borisova@majolika.sk',
+    ];
+    if (hasEventSession) adminEmails.push('prehliadky@majolika.sk');
+
     await sendEmail({
       to: adminEmails.join(','),
       subject: `Nová objednávka #${docNo} - zaplatené`,
@@ -819,7 +951,7 @@ async function runPostPaidFlow(orderId: number) {
       try {
         await strapi.db.query('api::order.order').update({
           where: { id: freshOrder.id },
-          data: {},
+          data: {} as any,
         });
       } catch {
         strapi.log.info('[PACKETA][AUTO] Shipment created (not persisted in order): ' + JSON.stringify(result));
@@ -852,9 +984,9 @@ export default {
       const SERVER_URL = (strapi.config?.get?.('server.url') as string) || '';
       const bridgeBase = `${String(SERVER_URL).replace(/\/$/, '')}/api/payments/return`;
 
-      const url_paid      = (process.env.RETURN_PAID      || `${bridgeBase}?status=PAID&refId={refId}&transId={id}`);
+      const url_paid = (process.env.RETURN_PAID || `${bridgeBase}?status=PAID&refId={refId}&transId={id}`);
       const url_cancelled = (process.env.RETURN_CANCELLED || `${bridgeBase}?status=CANCELLED&refId={refId}&transId={id}`);
-      const url_pending   = (process.env.RETURN_PENDING   || `${bridgeBase}?status=PENDING&refId={refId}&transId={id}`);
+      const url_pending = (process.env.RETURN_PENDING || `${bridgeBase}?status=PENDING&refId={refId}&transId={id}`);
 
       // Pozn.: prepareOnly=true → my získame redirect URL a sami presmerujeme FE na Comgate
       const body = qs.stringify({
@@ -1029,13 +1161,12 @@ export default {
 
           return {
             productName: it.productName || `Produkt #${it.productId}`,
+            productId: Number(it.productId) || undefined,
             slug: it.slug || '',
             unitPrice: Number(it.unitPrice || 0),
             quantity: Number(it.quantity || 1),
             image: image || 'https://www.majolika.sk/assets/img/logo-SLM-modre.gif',
             event: it.event || null,
-      
-            // 👇 aj v preview chceme vidieť badge
             isDigitalProduct: !!it.isDigitalProduct || !!it.isGiftVoucher,
             isGiftVoucher: !!it.isGiftVoucher,
           };
@@ -1044,7 +1175,7 @@ export default {
 
       // 3) výpočty + sumarizácia
       const shippingFee = Number(order.shippingFee || 0);
-      const paymentFee  = Number(order.paymentFee || 0);
+      const paymentFee = Number(order.paymentFee || 0);
       const totalWithShipping = Number(order.totalWithShipping || order.total || 0);
       const deliverySummary = summarizeDeliveryFromOrder(order);
       const FRONTEND_URL = process.env.FRONTEND_URL || '';
@@ -1052,6 +1183,13 @@ export default {
       const orderNotes = typeof notesOverride === 'string'
         ? notesOverride
         : (order.notes ? String(order.notes) : null);
+
+      const giftWrap = normalizeGiftWrap(order.giftWrap);
+      const giftWrapHtml = renderGiftWrapBlock(giftWrap, emailItems.map(i => ({
+        productName: i.productName,
+        productId: i.productId,
+        quantity: i.quantity,
+      })));
 
       // ADMIN TEXTY
       const addr = (order.deliveryAddress || {}) as any;
@@ -1066,37 +1204,23 @@ export default {
       if (!customerShipping) {
         customerShipping = (order.customer as any)?.shippingAddress;
         if (typeof customerShipping === 'string') {
-          try {
-            customerShipping = JSON.parse(customerShipping);
-          } catch {
-            customerShipping = null;
-          }
+          try { customerShipping = JSON.parse(customerShipping); } catch { customerShipping = null; }
         }
       }
 
       if (!customerShipping || typeof customerShipping !== 'object') {
         customerShipping = {
-          street:  (order.customer as any)?.street,
-          zip:     (order.customer as any)?.zip,
-          city:    (order.customer as any)?.city,
+          street: (order.customer as any)?.street,
+          zip: (order.customer as any)?.zip,
+          city: (order.customer as any)?.city,
           country: (order.customer as any)?.country,
         };
       }
 
       const customerAddressLine =
-        [
-          customerShipping.street,
-          customerShipping.zip,
-          customerShipping.city,
-          customerShipping.country,
-        ]
+        [customerShipping.street, customerShipping.zip, customerShipping.city, customerShipping.country]
           .filter(Boolean)
           .join(', ') || '-';
-
-      strapi.log.info('[PREVIEW] order.shippingAddress = ' + JSON.stringify((order as any).shippingAddress));
-      strapi.log.info('[PREVIEW] customer.shippingAddress = ' + JSON.stringify((order.customer as any)?.shippingAddress));
-      strapi.log.info('[PREVIEW] customerShipping used = ' + JSON.stringify(customerShipping));
-      strapi.log.info('[PREVIEW] customerAddressLine = ' + customerAddressLine);
 
       const adminIntroLines = [
         `Zákazník: ${order.customerName || '-'}`,
@@ -1104,19 +1228,12 @@ export default {
         `Telefón: ${customerPhoneLine || '-'}`,
         `Adresa zákazníka: ${customerAddressLine}`,
         `Doručovacia adresa: ${
-          [addr.street, addr.zip, addr.city, addr.country]
-            .filter(Boolean)
-            .join(', ') || '-'
+          [addr.street, addr.zip, addr.city, addr.country].filter(Boolean).join(', ') || '-'
         }`,
         '',
         'Produkty (s EAN):',
         ...items.map((it: any) => {
-          const ean =
-            it.ean ||
-            it.eanCode ||
-            it.ean_code ||
-            it.ean_kod ||
-            '-';
+          const ean = it.ean || it.eanCode || it.ean_code || it.ean_kod || '-';
           return `• ${it.productName || `Produkt #${it.productId}`} - EAN: ${ean}, množstvo: ${it.quantity}`;
         }),
       ];
@@ -1144,6 +1261,7 @@ export default {
         paymentFee,
         totalWithShipping,
         deliverySummary,
+        giftWrapHtml,
         orderNotes,
         billingHtml
       });
@@ -1230,13 +1348,13 @@ export default {
     try {
       order = (await strapi.db.query('api::order.order').findOne({
         where: { comgateTransId: String(transId) },
-        select: ['id','paymentStatus','comgateTransId','orderStatus','fulfillmentStatus'],
+        select: ['id', 'paymentStatus', 'comgateTransId', 'orderStatus', 'fulfillmentStatus'],
       })) as any;
 
       if (!order && refId) {
         order = (await strapi.db.query('api::order.order').findOne({
           where: { id: Number(refId) },
-          select: ['id','paymentStatus','comgateTransId','orderStatus','fulfillmentStatus'],
+          select: ['id', 'paymentStatus', 'comgateTransId', 'orderStatus', 'fulfillmentStatus'],
         })) as any;
       }
     } catch (e) {
@@ -1310,7 +1428,7 @@ export default {
     if (!t && orderId) {
       const o = await strapi.db.query('api::order.order').findOne({
         where: { id: Number(orderId) },
-        select: ['id','comgateTransId','paymentStatus'],
+        select: ['id', 'comgateTransId', 'paymentStatus'],
       });
       ord = o as any;
       t = (o as any)?.comgateTransId || null;
@@ -1330,7 +1448,7 @@ export default {
 
     const o2 = await strapi.db.query('api::order.order').findOne({
       where: { comgateTransId: String(t) },
-      select: ['id','paymentStatus','orderStatus','fulfillmentStatus'],
+      select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus'],
     }) as any;
     if (!o2) {
       return ctx.send({ ok: true, transId: t, comgateRaw: comgateRawSafe, paymentStatus: 'unpaid', source: 'comgate' });
@@ -1377,10 +1495,10 @@ export default {
       const q: any = ctx.query || {};
       const FRONTEND = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
       const to = {
-        pending:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
-        success:   (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}`   : `/checkout/success?order=${id}`),
+        pending: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}` : `/checkout/success?order=${id}`),
+        success: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}` : `/checkout/success?order=${id}`),
         cancelled: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${id}` : `/checkout/cancelled?order=${id}`),
-        fallback:  ()            => (FRONTEND ? `${FRONTEND}/checkout`                      : `/checkout`),
+        fallback: () => (FRONTEND ? `${FRONTEND}/checkout` : `/checkout`),
       };
       const redirect = (loc: string) => { strapi.log.info(`[COMGATE][RETURN] 302 -> ${loc}`); ctx.status = 302; ctx.redirect(loc); };
 
@@ -1405,13 +1523,13 @@ export default {
       if (transId) {
         order = await strapi.db.query('api::order.order').findOne({
           where: { comgateTransId: String(transId) },
-          select: ['id','paymentStatus','orderStatus','fulfillmentStatus','comgateTransId','updatedAt'],
+          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt'],
         }) as any;
       }
       if (!order && refIdQ) {
         order = await strapi.db.query('api::order.order').findOne({
           where: { id: Number(refIdQ) },
-          select: ['id','paymentStatus','orderStatus','fulfillmentStatus','comgateTransId','updatedAt'],
+          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt'],
         }) as any;
       }
 
@@ -1419,7 +1537,7 @@ export default {
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
         const recent = await strapi.db.query('api::order.order').findMany({
           where: { comgateTransId: { $notNull: true }, updatedAt: { $gt: fiveMinAgo } },
-          select: ['id','paymentStatus','orderStatus','fulfillmentStatus','comgateTransId','updatedAt'],
+          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt'],
           orderBy: { updatedAt: 'desc' } as any,
           limit: 1,
         }) as any[];
@@ -1435,7 +1553,7 @@ export default {
 
       if (!transId && order!.comgateTransId) transId = String(order!.comgateTransId);
 
-      if (['CANCELLED','CANCELED','REJECTED','TIMEOUT','EXPIRED'].includes(statusParam)) {
+      if (['CANCELLED', 'CANCELED', 'REJECTED', 'TIMEOUT', 'EXPIRED'].includes(statusParam)) {
         try {
           await strapi.db.query('api::order.order').update({
             where: { id: order!.id },
@@ -1463,12 +1581,12 @@ export default {
 
       const { expectedCents } = await getOrderAndExpectedCents(order!.id);
       const statusRefId = Number((s as any).refId || (s as any).refID || (s as any).reference || 0);
-      const statusCurr  = String((s as any).curr || (s as any).currency || '').toUpperCase();
+      const statusCurr = String((s as any).curr || (s as any).currency || '').toUpperCase();
       const statusPrice = Number((s as any).price || (s as any).amount || 0);
 
       if ((statusRefId && statusRefId !== order!.id) ||
-          (statusCurr && statusCurr !== 'EUR') ||
-          (statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
+        (statusCurr && statusCurr !== 'EUR') ||
+        (statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
         return redirect(to.pending(order!.id));
       }
 
