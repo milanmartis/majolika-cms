@@ -11,7 +11,7 @@
     "invoiceNumber": { "type": "string", "unique": true },
     "invoiceIssuedAt": { "type": "datetime" },
     "customerName": { "type": "string", "required": true },
-    "locale": {
+    "orderLocale": {
       "type": "enumeration",
       "enum": ["sk", "en", "de"],
       "default": "sk"
