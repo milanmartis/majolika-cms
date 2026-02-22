@@ -54,7 +54,7 @@ type OrderWithShipping = {
   giftWrap?: GiftWrap | null;
 
   // (voliteľné) locale na objednávke
-  locale?: string | null;
+  orderLocale?: string | null;
 };
 
 /* ========================= i18n ========================= */
@@ -225,7 +225,8 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     const data = body.data || {};
 
     // ✅ locale z FE (preferované), fallback z data.locale, neskôr fallback z order.locale
-    const localeFromPayload: AppLocale = normalizeLocale(data?.locale);
+    const localeFromPayload: AppLocale = normalizeLocale(data?.orderLocale ?? data?.locale);
+    data.orderLocale = localeFromPayload;
 
     // --- Bezpečná extrakcia FE payloadu ---
     const delivery = data.delivery || {};
@@ -354,7 +355,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     }) as unknown as OrderWithShipping;
 
     // ✅ locale finálne: payload.locale -> order.locale -> sk
-    const orderLocale: AppLocale = normalizeLocale((order as any)?.locale ?? localeFromPayload);
+    const orderLocale: AppLocale = normalizeLocale((order as any)?.orderLocale ?? localeFromPayload);
     const TT = t(orderLocale);
 
     // --- Post-create logika (email, párovanie bookingov) ---

@@ -64,7 +64,7 @@ type OrderRecord = {
   giftWrap?: GiftWrap | null; // 👈 NOVÉ
 
   // 👇 locale (Strapi i18n), alebo custom pole
-  locale?: string | null;
+  orderLocale?: string | null;
 
   customerEmail?: string;
   customerName?: string;
@@ -851,6 +851,7 @@ async function runPostPaidFlow(orderId: number) {
   const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
     fields: [
       'id',
+      'orderLocale',
       'locale',          // ✅ dôležité pre jazyk emailu
       'notes',
       'giftWrap',
@@ -880,7 +881,7 @@ async function runPostPaidFlow(orderId: number) {
     },
   }) as unknown as OrderRecord;
 
-  const locale: AppLocale = normalizeLocale((freshOrder as any)?.locale);
+  const locale: AppLocale = normalizeLocale((freshOrder as any)?.orderLocale ?? (freshOrder as any)?.locale);
   const TT = t(locale);
 
   // Guard: posielaj email len ak je už paid (aby webhook/returnBridge nezduplikoval)
@@ -1284,7 +1285,7 @@ export default {
       }) as any;
       if (!order) return ctx.notFound('Order not found');
 
-      const locale: AppLocale = normalizeLocale(order?.locale);
+      const locale: AppLocale = normalizeLocale(order?.orderLocale ?? order?.locale);
       const TT = t(locale);
 
       const billingFromOrder = {

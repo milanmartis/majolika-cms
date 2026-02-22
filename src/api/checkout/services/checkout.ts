@@ -902,7 +902,7 @@ export default () => ({
     const FRONTEND_URL = process.env.FRONTEND_URL || '';
     if (!FRONTEND_URL) throw new Error('Missing FRONTEND_URL in environment variables.');
 
-    const locale = normalizeLocale(payload?.locale);
+    const locale = normalizeLocale((payload as any)?.orderLocale ?? payload?.locale);
     const TT = t(locale);
 
     const {
@@ -1165,7 +1165,7 @@ export default () => ({
 
         // ✅ uložíme aj locale do orderu (ak máš field; ak nemáš, nič to nepokazí len to ignorne)
         // @ts-ignore
-        locale: locale,
+        orderLocale: locale,
 
         ...billingDbData,
       } as any,
