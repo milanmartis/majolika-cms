@@ -64,29 +64,332 @@ interface GiftWrapPayload {
   alreadyInCartQty?: number | null;
 }
 
+/* ========================= i18n ========================= */
+
+type AppLocale = 'sk' | 'en' | 'de';
+
+function normalizeLocale(raw?: string | null): AppLocale {
+  const v = String(raw || '').trim().toLowerCase();
+  if (!v) return 'sk';
+  if (v.startsWith('en')) return 'en';
+  if (v.startsWith('de')) return 'de';
+  if (v.startsWith('sk') || v.startsWith('cs')) return 'sk';
+  return 'sk';
+}
+
+function intlLocale(locale: AppLocale): string {
+  switch (locale) {
+    case 'en': return 'en-GB';
+    case 'de': return 'de-DE';
+    case 'sk':
+    default: return 'sk-SK';
+  }
+}
+
+function siteLocaleLabel(locale: AppLocale): string {
+  // HTML <html lang="">
+  switch (locale) {
+    case 'en': return 'en';
+    case 'de': return 'de';
+    case 'sk':
+    default: return 'sk';
+  }
+}
+
+const I18N = {
+  sk: {
+    shopWelcome: 'Vitajte v Majolike',
+
+    hello: 'Dobrý deň,',
+    thanksOrder: 'ďakujeme za Vašu objednávku v našom e-shope.',
+    thanksOrderMajolika: 'ďakujeme za Vašu objednávku na našom e-shope majolika.sk.',
+    moreInfoLater: 'O ďalšom priebehu Vás budeme informovať emailom.',
+
+    orderDetails: 'Podrobnosti objednávky:',
+    orderNumber: 'Číslo objednávky',
+    date: 'Dátum',
+    paymentMethod: 'Spôsob platby',
+    deliveryMethod: 'Spôsob doručenia',
+
+    payment_bank: 'bankový prevod',
+    payment_cod: 'dobierka',
+    payment_onsite: 'platba na mieste',
+    payment_post: 'platba na pošte',
+    payment_noncard: 'nekartová platba',
+
+    delivery_pickup: 'osobný odber',
+    delivery_post_office: 'pošta',
+    delivery_packeta_box: 'Packeta',
+    delivery_post_courier: 'kuriér',
+    delivery_digital_product: 'digitálny produkt',
+
+    deliverySummaryLabel: 'Doručenie:',
+    orderSummary: 'Zhrnutie objednávky',
+    item: 'Položka',
+    totalCol: 'Spolu',
+    shippingFee: 'Poplatok za dopravu',
+    paymentFee: 'Poplatok za dobierku',
+    total: 'Celkom',
+
+    orderNoteTitle: 'Poznámka k objednávke',
+    billingTitle: 'Fakturačné údaje',
+
+    eventTerm: 'Termín',
+    people: 'Osoby',
+
+    badgeDigital: 'Digitálny produkt / darčekový poukaz',
+    badgeGiftWrapSvc: 'Darčekové balenie (služba)',
+
+    giftWrapTitle: 'Darčekové balenie',
+    giftWrapCount: 'Počet balení',
+    giftWrapHow: 'Ako zabaliť',
+    giftWrapWhat: 'Čo zabaliť',
+    giftWrapNote: 'Poznámka k baleniu',
+
+    giftWrapMode_each_item: 'Každý kus zvlášť',
+    giftWrapMode_by_product: 'Podľa produktov (jeden produkt = jeden balíček)',
+    giftWrapMode_all_together: 'Všetko spolu (1 balíček)',
+
+    urgency_rush: ' – objednávka ponáhľa',
+    urgency_standard: ' – štandardná doba dodania (cca 2 týždne)',
+
+    delivery_pickup_summary: 'Osobné vyzdvihnutie na mieste',
+    delivery_post_office_prefix: 'Na poštu',
+    delivery_packeta_prefix: 'Packeta/Carrier box',
+    delivery_packeta_fallback: 'Packeta Box',
+    delivery_courier_prefix: 'Kuriér na adresu',
+    delivery_digital_summary: 'Digitálny produkt (bez fyzického doručenia)',
+
+    bankTransferTitle: 'Platba bankovým prevodom',
+    bankTransferIntro: 'Prosíme Vás o úhradu podľa nasledovných údajov:',
+    bankTransferVs: 'Variabilný symbol',
+    bankTransferAmount: 'Suma',
+    bankTransferOutro: 'Objednávku začneme spracovávať hneď po pripísaní platby na náš účet.',
+
+    viewOrder: 'Zobraziť objednávku',
+
+    subjectConfirm: (num: string) => `Potvrdenie objednávky č. ${num}`,
+    headingConfirm: (num: string) => `Potvrdenie objednávky č. ${num}`,
+    subjectNewOrder: (num: string) => `Nová objednávka #${num}`,
+    headingNewOrder: (num: string) => `Nová objednávka #${num}`,
+
+    adminBlockTitle: (inv: string, id: string, date: string) => `Objednávka č. ${inv}, ID: ${id}  (${date})`,
+    adminCustomer: 'Zákazník:',
+    adminName: 'Meno a priezvisko',
+    adminEmail: 'E-mail',
+    adminPhone: 'Telefón',
+    adminAddr: 'Adresa',
+    adminItemsEan: 'Položky (s EAN):',
+    adminPaymentPrefix: 'Platba:',
+  },
+
+  en: {
+    shopWelcome: 'Welcome to Majolika',
+
+    hello: 'Hello,',
+    thanksOrder: 'thank you for your order in our online store.',
+    thanksOrderMajolika: 'thank you for your order on majolika.sk.',
+    moreInfoLater: 'We will keep you informed about the next steps by email.',
+
+    orderDetails: 'Order details:',
+    orderNumber: 'Order number',
+    date: 'Date',
+    paymentMethod: 'Payment method',
+    deliveryMethod: 'Delivery method',
+
+    payment_bank: 'bank transfer',
+    payment_cod: 'cash on delivery',
+    payment_onsite: 'pay on site',
+    payment_post: 'pay at post office',
+    payment_noncard: 'non-card payment',
+
+    delivery_pickup: 'store pickup',
+    delivery_post_office: 'post office',
+    delivery_packeta_box: 'Packeta',
+    delivery_post_courier: 'courier',
+    delivery_digital_product: 'digital product',
+
+    deliverySummaryLabel: 'Delivery:',
+    orderSummary: 'Order summary',
+    item: 'Item',
+    totalCol: 'Total',
+    shippingFee: 'Shipping fee',
+    paymentFee: 'Cash on delivery fee',
+    total: 'Grand total',
+
+    orderNoteTitle: 'Order note',
+    billingTitle: 'Billing details',
+
+    eventTerm: 'Date/time',
+    people: 'People',
+
+    badgeDigital: 'Digital product / gift voucher',
+    badgeGiftWrapSvc: 'Gift wrapping (service)',
+
+    giftWrapTitle: 'Gift wrapping',
+    giftWrapCount: 'Number of wraps',
+    giftWrapHow: 'How to wrap',
+    giftWrapWhat: 'What to wrap',
+    giftWrapNote: 'Wrapping note',
+
+    giftWrapMode_each_item: 'Each item separately',
+    giftWrapMode_by_product: 'By products (one product = one package)',
+    giftWrapMode_all_together: 'All together (1 package)',
+
+    urgency_rush: ' – rush order',
+    urgency_standard: ' – standard delivery time (approx. 2 weeks)',
+
+    delivery_pickup_summary: 'Pickup at the store',
+    delivery_post_office_prefix: 'To post office',
+    delivery_packeta_prefix: 'Packeta/Carrier box',
+    delivery_packeta_fallback: 'Packeta Box',
+    delivery_courier_prefix: 'Courier to address',
+    delivery_digital_summary: 'Digital product (no physical delivery)',
+
+    bankTransferTitle: 'Payment by bank transfer',
+    bankTransferIntro: 'Please pay using the following details:',
+    bankTransferVs: 'Reference / variable symbol',
+    bankTransferAmount: 'Amount',
+    bankTransferOutro: 'We will start processing your order once the payment is credited to our account.',
+
+    viewOrder: 'View order',
+
+    subjectConfirm: (num: string) => `Order confirmation no. ${num}`,
+    headingConfirm: (num: string) => `Order confirmation no. ${num}`,
+    subjectNewOrder: (num: string) => `New order #${num}`,
+    headingNewOrder: (num: string) => `New order #${num}`,
+
+    adminBlockTitle: (inv: string, id: string, date: string) => `Order no. ${inv}, ID: ${id}  (${date})`,
+    adminCustomer: 'Customer:',
+    adminName: 'Full name',
+    adminEmail: 'Email',
+    adminPhone: 'Phone',
+    adminAddr: 'Address',
+    adminItemsEan: 'Items (with EAN):',
+    adminPaymentPrefix: 'Payment:',
+  },
+
+  de: {
+    shopWelcome: 'Willkommen bei Majolika',
+
+    hello: 'Guten Tag,',
+    thanksOrder: 'vielen Dank für Ihre Bestellung in unserem Online-Shop.',
+    thanksOrderMajolika: 'vielen Dank für Ihre Bestellung auf majolika.sk.',
+    moreInfoLater: 'Über den weiteren Ablauf informieren wir Sie per E-Mail.',
+
+    orderDetails: 'Bestelldetails:',
+    orderNumber: 'Bestellnummer',
+    date: 'Datum',
+    paymentMethod: 'Zahlungsart',
+    deliveryMethod: 'Lieferart',
+
+    payment_bank: 'Banküberweisung',
+    payment_cod: 'Nachnahme',
+    payment_onsite: 'Zahlung vor Ort',
+    payment_post: 'Zahlung in der Postfiliale',
+    payment_noncard: 'Zahlung ohne Karte',
+
+    delivery_pickup: 'Abholung',
+    delivery_post_office: 'Post',
+    delivery_packeta_box: 'Packeta',
+    delivery_post_courier: 'Kurier',
+    delivery_digital_product: 'Digitalprodukt',
+
+    deliverySummaryLabel: 'Lieferung:',
+    orderSummary: 'Bestellübersicht',
+    item: 'Artikel',
+    totalCol: 'Summe',
+    shippingFee: 'Versandkosten',
+    paymentFee: 'Nachnahmegebühr',
+    total: 'Gesamt',
+
+    orderNoteTitle: 'Hinweis zur Bestellung',
+    billingTitle: 'Rechnungsdaten',
+
+    eventTerm: 'Termin',
+    people: 'Personen',
+
+    badgeDigital: 'Digitalprodukt / Gutschein',
+    badgeGiftWrapSvc: 'Geschenkverpackung (Service)',
+
+    giftWrapTitle: 'Geschenkverpackung',
+    giftWrapCount: 'Anzahl der Verpackungen',
+    giftWrapHow: 'Wie verpacken',
+    giftWrapWhat: 'Was verpacken',
+    giftWrapNote: 'Hinweis zur Verpackung',
+
+    giftWrapMode_each_item: 'Jedes Stück einzeln',
+    giftWrapMode_by_product: 'Nach Produkten (ein Produkt = ein Paket)',
+    giftWrapMode_all_together: 'Alles zusammen (1 Paket)',
+
+    urgency_rush: ' – Eilbestellung',
+    urgency_standard: ' – Standardlieferzeit (ca. 2 Wochen)',
+
+    delivery_pickup_summary: 'Abholung vor Ort',
+    delivery_post_office_prefix: 'Zur Post',
+    delivery_packeta_prefix: 'Packeta/Carrier Box',
+    delivery_packeta_fallback: 'Packeta Box',
+    delivery_courier_prefix: 'Kurier an die Adresse',
+    delivery_digital_summary: 'Digitalprodukt (keine physische Lieferung)',
+
+    bankTransferTitle: 'Zahlung per Banküberweisung',
+    bankTransferIntro: 'Bitte überweisen Sie mit folgenden Angaben:',
+    bankTransferVs: 'Referenz / variabler Symbol',
+    bankTransferAmount: 'Betrag',
+    bankTransferOutro: 'Wir beginnen mit der Bearbeitung Ihrer Bestellung, sobald die Zahlung auf unserem Konto gutgeschrieben ist.',
+
+    viewOrder: 'Bestellung ansehen',
+
+    subjectConfirm: (num: string) => `Bestellbestätigung Nr. ${num}`,
+    headingConfirm: (num: string) => `Bestellbestätigung Nr. ${num}`,
+    subjectNewOrder: (num: string) => `Neue Bestellung #${num}`,
+    headingNewOrder: (num: string) => `Neue Bestellung #${num}`,
+
+    adminBlockTitle: (inv: string, id: string, date: string) => `Bestellung Nr. ${inv}, ID: ${id}  (${date})`,
+    adminCustomer: 'Kunde:',
+    adminName: 'Name',
+    adminEmail: 'E-Mail',
+    adminPhone: 'Telefon',
+    adminAddr: 'Adresse',
+    adminItemsEan: 'Artikel (mit EAN):',
+    adminPaymentPrefix: 'Zahlung:',
+  },
+} as const;
+
+function t(locale: AppLocale) {
+  return I18N[locale] || I18N.sk;
+}
+
 /* ========================= Format ========================= */
-function formatEvent(event?: EventInfo): string {
+
+function formatEvent(event: EventInfo | undefined, locale: AppLocale): string {
   if (!event?.startDateTime) return '';
   const dt = new Date(event.startDateTime);
-  const d = new Intl.DateTimeFormat('sk-SK', {
+
+  const d = new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: 'Europe/Bratislava',
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   }).format(dt);
-  const t = new Intl.DateTimeFormat('sk-SK', {
+
+  const tm = new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: 'Europe/Bratislava',
     hour: '2-digit',
     minute: '2-digit',
   }).format(dt);
-  const people = typeof event.peopleCount === 'number' ? ` • Osoby: ${event.peopleCount}` : '';
-  return `Termín: ${d}, ${t}${people}`;
+
+  const people = typeof event.peopleCount === 'number'
+    ? ` • ${t(locale).people}: ${event.peopleCount}`
+    : '';
+
+  return `${t(locale).eventTerm}: ${d}, ${tm}${people}`;
 }
 
-function formatNowSk(): string {
+function formatNow(locale: AppLocale): string {
   const now = new Date();
-  return new Intl.DateTimeFormat('sk-SK', {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: 'Europe/Bratislava',
     day: '2-digit',
     month: '2-digit',
@@ -132,36 +435,39 @@ function money(n: number) {
   return `${n.toFixed(2)} €`;
 }
 
-function renderItemsRows(items: Array<{
-  productName: string;
-  slug: string;
-  unitPrice: number;
-  quantity: number;
-  image?: string;
-  event?: EventInfo;
+function renderItemsRows(
+  items: Array<{
+    productName: string;
+    slug: string;
+    unitPrice: number;
+    quantity: number;
+    image?: string;
+    event?: EventInfo;
 
-  // 👇 pridáme
-  isDigitalProduct?: boolean;
-  isGiftVoucher?: boolean;
+    isDigitalProduct?: boolean;
+    isGiftVoucher?: boolean;
+    isGiftWrapProduct?: boolean;
+  }>,
+  locale: AppLocale
+) {
+  const TT = t(locale);
 
-  // ✅ voliteľné – aby si vedel vizuálne rozlíšiť giftwrap produkt v emaili
-  isGiftWrapProduct?: boolean;
-}>) {
   return items
     .map((it) => {
       const subtotal = it.unitPrice * it.quantity;
+
       const eventLine = it.event?.startDateTime
-        ? `<div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">${formatEvent(it.event)}</div>`
+        ? `<div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">${formatEvent(it.event, locale)}</div>`
         : '';
 
       const digitalBadge =
         it.isDigitalProduct || it.isGiftVoucher
-          ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">Digitálny produkt / darčekový poukaz</div>`
+          ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">${escapeHtml(TT.badgeDigital)}</div>`
           : '';
 
       const giftWrapBadge =
         it.isGiftWrapProduct
-          ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">Darčekové balenie (služba)</div>`
+          ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">${escapeHtml(TT.badgeGiftWrapSvc)}</div>`
           : '';
 
       return `
@@ -195,22 +501,24 @@ function renderItemsRows(items: Array<{
 }
 
 /* ========================= 🎁 Gift wrap blok do emailu ========================= */
-function renderGiftWrapHtml(gw?: GiftWrapPayload | null): string {
+function renderGiftWrapHtml(gw: GiftWrapPayload | null | undefined, locale: AppLocale): string {
   if (!gw) return '';
+
+  const TT = t(locale);
 
   const selected = Number(gw.selectedQty || 0);
   if (!Number.isFinite(selected) || selected <= 0) return '';
 
   const modeHuman =
-    gw.mode === 'each_item' ? 'Každý kus zvlášť' :
-    gw.mode === 'by_product' ? 'Podľa produktov (jeden produkt = jeden balíček)' :
-    gw.mode === 'all_together' ? 'Všetko spolu (1 balíček)' :
+    gw.mode === 'each_item' ? TT.giftWrapMode_each_item :
+    gw.mode === 'by_product' ? TT.giftWrapMode_by_product :
+    gw.mode === 'all_together' ? TT.giftWrapMode_all_together :
     String(gw.mode || '');
 
   const note = typeof gw.note === 'string' ? gw.note.trim() : '';
   const noteHtml = note
     ? `<div style="margin-top:8px;font-size:14px;color:#444;line-height:1.5;">
-         <b>Poznámka k baleniu:</b><br/>
+         <b>${escapeHtml(TT.giftWrapNote)}:</b><br/>
          ${escapeHtml(note).replace(/\n/g, '<br/>')}
        </div>`
     : '';
@@ -222,25 +530,26 @@ function renderGiftWrapHtml(gw?: GiftWrapPayload | null): string {
   const linesHtml = hasLines && lines.length
     ? `
       <div style="margin-top:10px;">
-        <div style="font-weight:600;color:#333;margin-bottom:6px;">Čo zabaliť:</div>
+        <div style="font-weight:600;color:#333;margin-bottom:6px;">${escapeHtml(TT.giftWrapWhat)}:</div>
         <div style="font-size:14px;color:#444;line-height:1.6;">
           ${lines.map(l => {
-            const nm = (l.productName || `Produkt #${l.productId}`) as string;
+            const nm = (l.productName || `Product #${l.productId}`) as string;
             const cartQty = Number(l.cartQty || 0);
             const wrapQty = Number(l.wrapQty || 0);
-            const tail = cartQty > 0 ? ` z ${cartQty} ks` : '';
-            return `• ${escapeHtml(nm)} — zabaliť: <b>${wrapQty}</b>${tail}`;
+            const tail = cartQty > 0 ? ` / ${cartQty}` : '';
+            // “wrap: X (of Y)” jazykovo nechávam neutrálne
+            return `• ${escapeHtml(nm)} — <b>${wrapQty}</b>${tail}`;
           }).join('<br/>')}
         </div>
       </div>`
     : (Array.isArray(gw.perProduct) && gw.perProduct.length
       ? `
         <div style="margin-top:10px;">
-          <div style="font-weight:600;color:#333;margin-bottom:6px;">Čo zabaliť:</div>
+          <div style="font-weight:600;color:#333;margin-bottom:6px;">${escapeHtml(TT.giftWrapWhat)}:</div>
           <div style="font-size:14px;color:#444;line-height:1.6;">
             ${gw.perProduct
               .filter(x => Number(x.wrapQty || 0) > 0)
-              .map(x => `• Produkt #${escapeHtml(String(x.productId))} — zabaliť: <b>${escapeHtml(String(x.wrapQty))}</b>`)
+              .map(x => `• Product #${escapeHtml(String(x.productId))} — <b>${escapeHtml(String(x.wrapQty))}</b>`)
               .join('<br/>')}
           </div>
         </div>`
@@ -248,10 +557,10 @@ function renderGiftWrapHtml(gw?: GiftWrapPayload | null): string {
 
   return `
     <div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
-      <div style="font-weight:700;color:#0e29a0;margin-bottom:6px;">Darčekové balenie</div>
+      <div style="font-weight:700;color:#0e29a0;margin-bottom:6px;">${escapeHtml(TT.giftWrapTitle)}</div>
       <div style="font-size:14px;color:#444;line-height:1.5;">
-        <b>Počet balení:</b> ${escapeHtml(String(selected))}<br/>
-        <b>Ako zabaliť:</b> ${escapeHtml(modeHuman)}
+        <b>${escapeHtml(TT.giftWrapCount)}:</b> ${escapeHtml(String(selected))}<br/>
+        <b>${escapeHtml(TT.giftWrapHow)}:</b> ${escapeHtml(modeHuman)}
       </div>
       ${linesHtml}
       ${noteHtml}
@@ -263,7 +572,7 @@ function renderGiftWrapHtml(gw?: GiftWrapPayload | null): string {
 function renderEmail(opts: {
   title: string;
   heading: string;
-  bodyHtml: string; // ← iba toto sa mení podľa variantu
+  bodyHtml: string;
   items: Array<{
     productName: string;
     slug: string;
@@ -283,23 +592,25 @@ function renderEmail(opts: {
   orderNotes?: string | null;
   billingHtml?: string | null;
   invoiceNumber: string | null;
+  giftWrap?: GiftWrapPayload | null;
 
   // ✅ nové
-  giftWrap?: GiftWrapPayload | null;
+  locale: AppLocale;
 }) {
-  const itemsRows = renderItemsRows(opts.items);
+  const TT = t(opts.locale);
 
-  const giftWrapHtml = renderGiftWrapHtml(opts.giftWrap);
+  const itemsRows = renderItemsRows(opts.items, opts.locale);
+  const giftWrapHtml = renderGiftWrapHtml(opts.giftWrap, opts.locale);
 
   const notesHtml = opts.orderNotes && String(opts.orderNotes).trim()
     ? `<div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
-         <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
+         <div style="font-weight:600;color:#333;margin-bottom:6px;">${escapeHtml(TT.orderNoteTitle)}</div>
          <div style="font-size:14px;color:#444;line-height:1.5;">${escapeHtml(String(opts.orderNotes)).replace(/\n/g,'<br>')}</div>
        </div>`
     : '';
 
   return `<!DOCTYPE html>
-<html lang="sk">
+<html lang="${siteLocaleLabel(opts.locale)}">
 <head>
   <meta charset="UTF-8" />
   <title>${opts.title}</title>
@@ -325,14 +636,13 @@ function renderEmail(opts: {
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>Vitajte v Majolike</h1></div>
+    <div class="header"><h1>${escapeHtml(TT.shopWelcome)}</h1></div>
     <div class="content">
       <h2>${opts.heading}</h2>
       ${opts.bodyHtml}
-    
 
-      <h3 style="color:#333;margin-top:32px;">Zhrnutie objednávky</h3>
-      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${opts.deliverySummary}</p>
+      <h3 style="color:#333;margin-top:32px;">${escapeHtml(TT.orderSummary)}</h3>
+      <p style="font-size:14px;color:#666;margin:6px 0;"><b>${escapeHtml(TT.deliverySummaryLabel)}</b> ${opts.deliverySummary}</p>
 
       ${opts.billingHtml || ''}
 
@@ -343,27 +653,32 @@ function renderEmail(opts: {
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
         <thead>
           <tr>
-            <th>Položka</th>
-            <th style="text-align:right;">Spolu</th>
+            <th>${escapeHtml(TT.item)}</th>
+            <th style="text-align:right;">${escapeHtml(TT.totalCol)}</th>
           </tr>
         </thead>
         <tbody>
           ${itemsRows}
           <tr>
-            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za dopravu</td>
+            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${escapeHtml(TT.shippingFee)}</td>
             <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td>
           </tr>
           <tr>
-            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za dobierku</td>
+            <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${escapeHtml(TT.paymentFee)}</td>
             <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td>
           </tr>
           <tr>
-            <td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">Celkom</td>
+            <td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${escapeHtml(TT.total)}</td>
             <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td>
           </tr>
         </tbody>
       </table>
 
+      ${
+        opts.cta?.href
+          ? `<a class="button" href="${opts.cta.href}" target="_blank">${escapeHtml(opts.cta.label || '')}</a>`
+          : ''
+      }
     </div>
 
     <div class="footer">
@@ -387,21 +702,23 @@ function renderEmail(opts: {
 }
 
 /** Špeciálny blok s inštrukciami pre bankový prevod */
-function renderBankTransferBlock(orderId: string | number, total: number) {
+function renderBankTransferBlock(orderId: string | number, total: number, locale: AppLocale) {
+  const TT = t(locale);
+
   const IBAN = 'SK97 0900 0000 0051 3558 7112 (Slovenská sporiteľňa)';
   const IBAN2 = 'SK17 0200 0000 0000 0241 9112 (VUB banka)';
-  const vs = String(orderId); // ← kľúčové
+  const vs = String(orderId);
 
   return `
     <div style="margin:20px 0;padding:16px;border:1px solid #e2e8f0;border-radius:0px;background:#f8fafc;">
-      <div style="font-weight:700;color:#0e29a0;margin-bottom:8px;">Platba bankovým prevodom</div>
+      <div style="font-weight:700;color:#0e29a0;margin-bottom:8px;">${escapeHtml(TT.bankTransferTitle)}</div>
       <div style="line-height:1.7;color:#333;">
-        Prosíme Vás o úhradu podľa nasledovných údajov:<br/>
+        ${escapeHtml(TT.bankTransferIntro)}<br/>
         • IBAN: ${IBAN}<br/>
         • IBAN: ${IBAN2}<br/>
-        • Variabilný symbol: ${vs}<br/>
-        • Suma: ${money(total)}<br/><br/>
-        Objednávku začneme spracovávať hneď po pripísaní platby na náš účet.
+        • ${escapeHtml(TT.bankTransferVs)}: ${escapeHtml(vs)}<br/>
+        • ${escapeHtml(TT.bankTransferAmount)}: ${money(total)}<br/><br/>
+        ${escapeHtml(TT.bankTransferOutro)}
       </div>
     </div>`;
 }
@@ -488,7 +805,6 @@ function validateDelivery(delivery: Delivery) {
       return;
 
     case 'digital_product':
-      // Digitálny produkt – nič neposielame, žiadne ďalšie validácie netreba
       return;
 
     case 'post_office': {
@@ -520,10 +836,12 @@ function validateDelivery(delivery: Delivery) {
   }
 }
 
-function summarizeDelivery(delivery: Delivery): string {
+function summarizeDelivery(delivery: Delivery, locale: AppLocale): string {
+  const TT = t(locale);
+
   switch (delivery?.method) {
     case 'pickup':
-      return 'Osobné vyzdvihnutie na mieste';
+      return TT.delivery_pickup_summary;
 
     case 'post_office': {
       const a = (delivery?.address || {}) as Address;
@@ -531,44 +849,46 @@ function summarizeDelivery(delivery: Delivery): string {
       const id = delivery?.details?.postOfficeId;
 
       if (addrStr && id) {
-        return `Na poštu: ${addrStr} (ID: ${id})`;
+        return `${TT.delivery_post_office_prefix}: ${addrStr} (ID: ${id})`;
       }
       if (addrStr) {
-        return `Na poštu: ${addrStr}`;
+        return `${TT.delivery_post_office_prefix}: ${addrStr}`;
       }
-      return `Na poštu (ID: ${id || '-'})`;
+      return `${TT.delivery_post_office_prefix} (ID: ${id || '-'})`;
     }
 
     case 'packeta_box':
       return delivery?.details?.notes
-        ? `Packeta/Carrier box: ${delivery.details.notes}`
-        : `Packeta Box (ID: ${delivery?.details?.packetaBoxId})`;
+        ? `${TT.delivery_packeta_prefix}: ${delivery.details.notes}`
+        : `${TT.delivery_packeta_fallback} (ID: ${delivery?.details?.packetaBoxId})`;
 
     case 'post_courier': {
       const a = delivery?.address || ({} as Address);
-      return `Kuriér na adresu: ${a.street}, ${a.city} ${a.zip}, ${a.country}`;
+      return `${TT.delivery_courier_prefix}: ${a.street}, ${a.city} ${a.zip}, ${a.country}`;
     }
 
     case 'digital_product':
-      return 'Digitálny produkt (bez fyzického doručenia)';
+      return TT.delivery_digital_summary;
 
     default:
       return String(delivery?.method || '');
   }
 }
 
-function humanDelivery(deliveryMethod: DeliveryMethod): string {
+function humanDelivery(deliveryMethod: DeliveryMethod, locale: AppLocale): string {
+  const TT = t(locale);
+
   switch (deliveryMethod) {
     case 'pickup':
-      return 'osobný odber';
+      return TT.delivery_pickup;
     case 'post_office':
-      return 'pošta';
+      return TT.delivery_post_office;
     case 'packeta_box':
-      return 'Packeta';
+      return TT.delivery_packeta_box;
     case 'post_courier':
-      return 'kuriér';
+      return TT.delivery_post_courier;
     case 'digital_product':
-      return 'digitálny produkt';
+      return TT.delivery_digital_product;
     default:
       return String(deliveryMethod);
   }
@@ -580,6 +900,9 @@ export default () => ({
   async createSession(payload: CheckoutPayload) {
     const FRONTEND_URL = process.env.FRONTEND_URL || '';
     if (!FRONTEND_URL) throw new Error('Missing FRONTEND_URL in environment variables.');
+
+    const locale = normalizeLocale(payload?.locale);
+    const TT = t(locale);
 
     const {
       customer,
@@ -613,7 +936,6 @@ export default () => ({
 
       const mode = (gw as any).mode as GiftWrapMode;
       if (mode !== 'each_item' && mode !== 'by_product' && mode !== 'all_together') {
-        // fallback aby ti to nikdy nepoložilo checkout
         (gw as any).mode = 'each_item';
       }
 
@@ -629,10 +951,8 @@ export default () => ({
         });
       }
 
-      // FE shape v tvojom Angular kóde: giftWrap.perProduct = [{productId, wrapQty}]
       const perProduct = Array.isArray((gw as any).perProduct) ? (gw as any).perProduct : [];
 
-      // ak FE posiela lines, použijeme ich, inak ich vytvoríme z perProduct
       let lines: GiftWrapPayloadLine[] = [];
       if (Array.isArray((gw as any).lines)) {
         lines = (gw as any).lines
@@ -656,7 +976,6 @@ export default () => ({
           .filter((l: GiftWrapPayloadLine) => Number.isFinite(l.productId) && l.productId > 0 && l.wrapQty > 0);
       }
 
-      // obohať názvy + cartQty z orderItems (aby email/admin nemusel hádať)
       lines = lines.map((l) => {
         const meta = namesMap.get(Number(l.productId));
         return {
@@ -691,7 +1010,7 @@ export default () => ({
       limit: 1,
     });
     const customerId = existing.length
-      ? existing[0].id
+      ? (existing as any)[0].id
       : (await strapi.entityService.create('api::customer.customer', {
           data: {
             name: customer.name,
@@ -702,7 +1021,7 @@ export default () => ({
             zip: customer.zip,
             country: customer.country,
           },
-        })).id;
+        }) as any).id;
 
     const orderItems = await Promise.all(
       items.map(async (item: CheckoutItem) => {
@@ -713,7 +1032,7 @@ export default () => ({
           },
         });
 
-        if (!product || (typeof product.price !== 'number' && typeof product.price !== 'string')) {
+        if (!product || (typeof (product as any).price !== 'number' && typeof (product as any).price !== 'string')) {
           throw new Error(`Produkt s ID ${item.productId} neexistuje alebo nemá cenu.`);
         }
 
@@ -724,7 +1043,6 @@ export default () => ({
           (product as any).ean_kod ||
           null;
 
-        // 👇 flag z frontendu, fallback z produktu ak chceš:
         const isDigitalProduct =
           item.isDigitalProduct ??
           (product as any).isDigitalProduct ??
@@ -735,13 +1053,12 @@ export default () => ({
           (product as any).isGiftVoucher ??
           false;
 
-        // ✅ ak FE posiela flag pre giftwrap item, uložíme ho do itemu (pre email badge + DB)
         const isGiftWrapProduct = (item as any).isGiftWrapProduct === true;
 
         return {
           productId: item.productId,
-          productName: item.productName ?? product.name,
-          slug: product.slug,
+          productName: item.productName ?? (product as any).name,
+          slug: (product as any).slug,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           event: item.event ?? undefined,
@@ -754,7 +1071,6 @@ export default () => ({
       })
     );
 
-    // ✅ až teraz vieme obohatiť giftWrap o názvy produktov z košíka
     const giftWrap = normalizeGiftWrap(
       giftWrapRaw as any,
       orderItems.map((x: any) => ({ productId: x.productId, productName: x.productName, quantity: x.quantity }))
@@ -832,14 +1148,12 @@ export default () => ({
         giftWrapNote: giftWrap?.note ?? null,
         giftWrapSelectedQty: giftWrap?.selectedQty ?? 0,
 
-        items: orderItems.map(({ _image, event, ...rest }) => ({
+        items: orderItems.map(({ _image, event, ...rest }: any) => ({
           ...rest,
           imageUrl: absUrl(_image),
-
-          // JSON pole v Strapi musí byť JSONValue
           event: event ? JSON.parse(JSON.stringify(event)) : null,
         })),
-        // status: 'pending',
+
         orderStatus: 'pending',
         fulfillmentStatus,
         deliveryStatus,
@@ -847,6 +1161,11 @@ export default () => ({
         paymentStatus,
         paymentSessionId: '',
         temporaryId: temporaryId || null,
+
+        // ✅ uložíme aj locale do orderu (ak máš field; ak nemáš, nič to nepokazí len to ignorne)
+        // @ts-ignore
+        locale: locale,
+
         ...billingDbData,
       } as any,
     });
@@ -854,44 +1173,43 @@ export default () => ({
     // 4A) NE-KARTA – prelinkuj bookingy + pošli emaily + redirect na success
     if (!isCard) {
       try {
-        if (order.temporaryId) {
+        if ((order as any).temporaryId) {
           const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
-            where: { temporaryId: order.temporaryId, orderId: null },
+            where: { temporaryId: (order as any).temporaryId, orderId: null },
             data: {
-              orderId: String(order.id),
+              orderId: String((order as any).id),
               status: 'confirmed',
               customerEmail: customer.email,
               customerName: customer.name,
               customerPhone: customer.phone,
             },
           });
-          strapi.log.info(`[CHECKOUT][BOOKINGS][NON-CARD] linked by temporaryId (${res.count}) → orderId=${order.id}`);
+          strapi.log.info(`[CHECKOUT][BOOKINGS][NON-CARD] linked by temporaryId (${res.count}) → orderId=${(order as any).id}`);
         }
       } catch (e) {
         strapi.log.warn(`[CHECKOUT][BOOKINGS][NON-CARD] linking failed: ${String(e)}`);
       }
 
       try {
-        if (order.temporaryId) await recalcSessionsByTemporaryId(order.temporaryId);
-        await recalcSessionsByOrderId(order.id);
-
+        if ((order as any).temporaryId) await recalcSessionsByTemporaryId((order as any).temporaryId);
+        await recalcSessionsByOrderId((order as any).id);
       } catch (e) {
         strapi.log.error('[GCAL][NON-CARD] recalc failed:', e);
       }
 
       let invoiceNumber: string | null = null;
       try {
-        const inv = await issueInvoiceForOrder(order.id);
+        const inv = await issueInvoiceForOrder((order as any).id);
         invoiceNumber = inv?.invoiceNumber || null;
       } catch (e) {
         strapi.log.error('[INVOICE][NON-CARD] issue failed:', e);
       }
 
-      const baseDeliverySummary = summarizeDelivery(delivery);
+      const baseDeliverySummary = summarizeDelivery(delivery, locale);
       const urgencySuffix =
         deliveryUrgency === 'rush'
-          ? ' – objednávka ponáhľa'
-          : ' – štandardná doba dodania (cca 2 týždne)';
+          ? TT.urgency_rush
+          : TT.urgency_standard;
       const deliverySummary = `${baseDeliverySummary}${urgencySuffix}`;
 
       const emailItems = orderItems.map((i: any) => ({
@@ -902,11 +1220,8 @@ export default () => ({
         image: i._image,
         event: i.event,
 
-        // 👇 prenesieme do šablóny
         isDigitalProduct: !!i.isDigitalProduct || !!i.isGiftVoucher,
         isGiftVoucher: !!i.isGiftVoucher,
-
-        // ✅ darčekové balenie product badge
         isGiftWrapProduct: !!i.isGiftWrapProduct,
       }));
 
@@ -914,7 +1229,7 @@ export default () => ({
         billing && billing.isCompany
           ? `
             <div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
-              <div style="font-weight:600;color:#333;margin-bottom:6px;">Fakturačné údaje</div>
+              <div style="font-weight:600;color:#333;margin-bottom:6px;">${escapeHtml(TT.billingTitle)}</div>
               <div style="font-size:14px;color:#444;line-height:1.5;">
                 ${escapeHtml(billing.companyName || '')}<br/>
                 IČO: ${escapeHtml(billing.ico || '')}<br/>
@@ -933,53 +1248,53 @@ export default () => ({
             </div>`
           : '';
 
-      const orderNo = order.id;
-      const orderDate = formatNowSk();
-      const deliveryHuman = humanDelivery(deliveryMethod);
-      const subject = `Potvrdenie objednávky č. ${invoiceNumber || orderNo}`;
+      const orderNo = (order as any).id;
+      const orderDate = formatNow(locale);
+      const deliveryHuman = humanDelivery(deliveryMethod, locale);
+      const numberForEmail = String(invoiceNumber || orderNo);
+
+      const subject = TT.subjectConfirm(numberForEmail);
 
       let bodyCustomerHtml = '';
       let bodyAdminIntro = '';
 
       if (paymentMethod === 'bank') {
-        // Bankový prevod – špeciálne telo
         bodyCustomerHtml = `
-          <p>Dobrý deň,</p>
-          <p>ďakujeme za Vašu objednávku v našom e-shope.</p>
-          <p><b>Podrobnosti objednávky:</b><br/>
-          • Číslo objednávky: ${invoiceNumber || String(order.id)}<br/>
-          • Dátum: ${orderDate}<br/>
-          • Spôsob platby: bankový prevod<br/>
-          • Spôsob doručenia: ${deliveryHuman}</p>
-          ${renderBankTransferBlock(orderNo, totalWithShipping)}
+          <p>${escapeHtml(TT.hello)}</p>
+          <p>${escapeHtml(TT.thanksOrder)}</p>
+          <p><b>${escapeHtml(TT.orderDetails)}</b><br/>
+          • ${escapeHtml(TT.orderNumber)}: ${escapeHtml(numberForEmail)}<br/>
+          • ${escapeHtml(TT.date)}: ${escapeHtml(orderDate)}<br/>
+          • ${escapeHtml(TT.paymentMethod)}: ${escapeHtml(TT.payment_bank)}<br/>
+          • ${escapeHtml(TT.deliveryMethod)}: ${escapeHtml(deliveryHuman)}</p>
+          ${renderBankTransferBlock(orderNo, totalWithShipping, locale)}
         `;
-        bodyAdminIntro = `Platba: bankový prevod`;
+        bodyAdminIntro = `${TT.adminPaymentPrefix} ${TT.payment_bank}`;
       } else {
-        // Ostatné nekartové (dobierka / na mieste / pošta)
         const pmHuman =
-          paymentMethod === 'cod' ? 'dobierka' :
-          paymentMethod === 'onsite' ? 'platba na mieste' :
-          paymentMethod === 'post' ? 'platba na pošte' :
-          'nekartová platba';
+          paymentMethod === 'cod' ? TT.payment_cod :
+          paymentMethod === 'onsite' ? TT.payment_onsite :
+          paymentMethod === 'post' ? TT.payment_post :
+          TT.payment_noncard;
 
         bodyCustomerHtml = `
-          <p>Dobrý deň,</p>
-          <p>ďakujeme za Vašu objednávku na našom e-shope majolika.sk.</p>
-          <p><b>Podrobnosti objednávky:</b><br/>
-          • Číslo objednávky: ${invoiceNumber || String(order.id)}<br/>
-          • Dátum: ${orderDate}<br/>
-          • Spôsob platby: ${pmHuman}<br/>
-          • Spôsob doručenia: ${deliveryHuman}</p>
-          <p>O ďalšom priebehu Vás budeme informovať emailom.</p>
+          <p>${escapeHtml(TT.hello)}</p>
+          <p>${escapeHtml(TT.thanksOrderMajolika)}</p>
+          <p><b>${escapeHtml(TT.orderDetails)}</b><br/>
+          • ${escapeHtml(TT.orderNumber)}: ${escapeHtml(numberForEmail)}<br/>
+          • ${escapeHtml(TT.date)}: ${escapeHtml(orderDate)}<br/>
+          • ${escapeHtml(TT.paymentMethod)}: ${escapeHtml(pmHuman)}<br/>
+          • ${escapeHtml(TT.deliveryMethod)}: ${escapeHtml(deliveryHuman)}</p>
+          <p>${escapeHtml(TT.moreInfoLater)}</p>
         `;
-        bodyAdminIntro = `Platba: ${pmHuman}`;
+        bodyAdminIntro = `${TT.adminPaymentPrefix} ${pmHuman}`;
       }
 
       const customerEmailHtml = renderEmail({
         title: subject,
-        heading: `Potvrdenie objednávky č. ${invoiceNumber}`,
+        heading: TT.headingConfirm(numberForEmail),
         bodyHtml: bodyCustomerHtml,
-        cta: { label: 'Zobraziť objednávku', href: `${FRONTEND_URL}/checkout/success?order=${order.id}` },
+        cta: { label: TT.viewOrder, href: `${FRONTEND_URL}/checkout/success?order=${(order as any).id}` },
         items: emailItems,
         shippingFee,
         paymentFee,
@@ -989,8 +1304,8 @@ export default () => ({
         billingHtml,
         invoiceNumber,
 
-        // ✅ gift wrap do emailu
         giftWrap,
+        locale,
       });
 
       const addrLine = [
@@ -1013,49 +1328,48 @@ export default () => ({
         })
         .join('<br/>');
 
-      // ✅ admin: vypíš gift wrap textovo (okrem pekného boxu v šablóne)
       const giftWrapAdminInline = giftWrap && Number(giftWrap.selectedQty || 0) > 0
         ? (() => {
             const modeHuman =
-              giftWrap.mode === 'each_item' ? 'Každý kus zvlášť' :
-              giftWrap.mode === 'by_product' ? 'Podľa produktov' :
-              giftWrap.mode === 'all_together' ? 'Všetko spolu' :
+              giftWrap.mode === 'each_item' ? TT.giftWrapMode_each_item :
+              giftWrap.mode === 'by_product' ? TT.giftWrapMode_by_product :
+              giftWrap.mode === 'all_together' ? TT.giftWrapMode_all_together :
               String(giftWrap.mode || '');
 
             const lines = Array.isArray(giftWrap.lines) ? giftWrap.lines.filter(l => Number(l.wrapQty || 0) > 0) : [];
             const linesHtml = lines.length
-              ? lines.map(l => `• ${escapeHtml(String(l.productName || `Produkt #${l.productId}`))} — ${escapeHtml(String(l.wrapQty))}${l.cartQty ? ` z ${escapeHtml(String(l.cartQty))}` : ''}`).join('<br/>')
+              ? lines.map(l => `• ${escapeHtml(String(l.productName || `Produkt #${l.productId}`))} — ${escapeHtml(String(l.wrapQty))}${l.cartQty ? ` / ${escapeHtml(String(l.cartQty))}` : ''}`).join('<br/>')
               : '';
 
             const note = typeof giftWrap.note === 'string' ? giftWrap.note.trim() : '';
             return `
-              <p><b>Darčekové balenie:</b><br/>
-                Počet: ${escapeHtml(String(giftWrap.selectedQty))}<br/>
-                Režim: ${escapeHtml(modeHuman)}<br/>
-                ${linesHtml ? `Čo zabaliť:<br/>${linesHtml}<br/>` : ''}
-                ${note ? `Poznámka: ${escapeHtml(note).replace(/\n/g,'<br/>')}` : ''}
+              <p><b>${escapeHtml(TT.giftWrapTitle)}:</b><br/>
+                ${escapeHtml(TT.giftWrapCount)}: ${escapeHtml(String(giftWrap.selectedQty))}<br/>
+                ${escapeHtml(TT.giftWrapHow)}: ${escapeHtml(modeHuman)}<br/>
+                ${linesHtml ? `${escapeHtml(TT.giftWrapWhat)}:<br/>${linesHtml}<br/>` : ''}
+                ${note ? `${escapeHtml(TT.giftWrapNote)}: ${escapeHtml(note).replace(/\n/g,'<br/>')}` : ''}
               </p>
             `;
           })()
         : '';
 
       const adminBodyHtml = `
-        <p><b>Objednávka č. ${invoiceNumber}, ID: ${order.id} </b> (${orderDate})</p>
-        <p><b>Zákazník:</b><br/>
-          Meno a priezvisko: ${escapeHtml(customer.name)}<br/>
-          E-mail: ${escapeHtml(customer.email)}<br/>
-          Telefón: ${escapeHtml(customer.phone || '')}<br/>
-          Adresa: ${escapeHtml(addrLine || '-')}</p>
+        <p><b>${escapeHtml(TT.adminBlockTitle(numberForEmail, String((order as any).id), orderDate))}</b></p>
+        <p><b>${escapeHtml(TT.adminCustomer)}</b><br/>
+          ${escapeHtml(TT.adminName)}: ${escapeHtml(customer.name)}<br/>
+          ${escapeHtml(TT.adminEmail)}: ${escapeHtml(customer.email)}<br/>
+          ${escapeHtml(TT.adminPhone)}: ${escapeHtml(customer.phone || '')}<br/>
+          ${escapeHtml(TT.adminAddr)}: ${escapeHtml(addrLine || '-')}</p>
         <p>${escapeHtml(bodyAdminIntro)}</p>
         ${giftWrapAdminInline}
-        <p><b>Položky (s EAN):</b><br/>
+        <p><b>${escapeHtml(TT.adminItemsEan)}</b><br/>
           ${productsWithEanHtml}
         </p>
       `;
 
       const adminEmailHtml = renderEmail({
-        title: `Nová objednávka #${invoiceNumber}`,
-        heading: `Nová objednávka #${invoiceNumber}`,
+        title: TT.subjectNewOrder(numberForEmail),
+        heading: TT.headingNewOrder(numberForEmail),
         bodyHtml: adminBodyHtml,
         cta: null,
         items: emailItems,
@@ -1067,8 +1381,8 @@ export default () => ({
         billingHtml,
         invoiceNumber,
 
-        // ✅ gift wrap do emailu
         giftWrap,
+        locale,
       });
 
       const adminEmails = ['info@appdesign.sk', 'objednavky@majolika.sk', 'romana.uhercikova@majolika.sk', 'katarina.borisova@majolika.sk'];
@@ -1078,11 +1392,16 @@ export default () => ({
 
       try {
         await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
-        await sendEmail({ to: 'majolika@majolika.sk', subject: `Nová objednávka #${invoiceNumber || String(order.id)}`, html: adminEmailHtml });
+
+        await sendEmail({
+          to: 'majolika@majolika.sk',
+          subject: TT.subjectNewOrder(numberForEmail),
+          html: adminEmailHtml
+        });
 
         await sendEmail({
           to: adminEmails.join(','),
-          subject: `Nová objednávka #${invoiceNumber || String(order.id)}`,
+          subject: TT.subjectNewOrder(numberForEmail),
           html: adminEmailHtml,
         });
 
@@ -1090,7 +1409,7 @@ export default () => ({
         strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
       }
 
-      return { checkoutUrl: `${FRONTEND_URL}/checkout/success?order=${order.id}`, sessionUrl: null };
+      return { checkoutUrl: `${FRONTEND_URL}/checkout/success?order=${(order as any).id}`, sessionUrl: null };
     }
 
     // 4B) KARTA – Comgate create + redirect
@@ -1106,9 +1425,9 @@ export default () => ({
         test: TEST ? 'true' : 'false',
         country: 'SK',
         curr: 'EUR',
-        price: String(Math.round(totalWithShipping * 100)), // v centoch
-        label: clampLabel('Order'),                         // max 16 znakov
-        refId: String(order.id),
+        price: String(Math.round(totalWithShipping * 100)),
+        label: clampLabel('Order'),
+        refId: String((order as any).id),
         method: 'ALL',
         email: customer.email,
         phone: customer.phone || '',
@@ -1127,24 +1446,24 @@ export default () => ({
       const txt = await resp.text();
       const parsed = Object.fromEntries(new URLSearchParams(txt));
 
-      if (parsed.code !== '0') {
+      if ((parsed as any).code !== '0') {
         strapi.log.error('[COMGATE][CREATE] error:', parsed);
-        throw new Error(parsed.message || 'Comgate create error');
+        throw new Error((parsed as any).message || 'Comgate create error');
       }
 
       try {
         await strapi.db.query('api::order.order').update({
-          where: { id: order.id },
-          data: { comgateTransId: parsed.transId, paymentStatus: 'unpaid' },
+          where: { id: (order as any).id },
+          data: { comgateTransId: (parsed as any).transId, paymentStatus: 'unpaid' },
         });
       } catch (e) {
-        strapi.log.warn(`[COMGATE][CREATE] persist transId failed for order #${order.id}: ${String(e)}`);
+        strapi.log.warn(`[COMGATE][CREATE] persist transId failed for order #${(order as any).id}: ${String(e)}`);
       }
 
       return {
-        checkoutUrl: decodeURIComponent(parsed.redirect),
+        checkoutUrl: decodeURIComponent((parsed as any).redirect),
         sessionUrl: null,
-        orderId: order.id,
+        orderId: (order as any).id,
         totalWithShippingCents: Math.round(totalWithShipping * 100),
       };
     }

@@ -52,7 +52,91 @@ type OrderWithShipping = {
 
   // giftWrap JSON
   giftWrap?: GiftWrap | null;
+
+  // (voliteľné) locale na objednávke
+  locale?: string | null;
 };
+
+/* ========================= i18n ========================= */
+
+type AppLocale = 'sk' | 'en' | 'de';
+
+function normalizeLocale(raw?: any): AppLocale {
+  const v = String(raw ?? '').trim().toLowerCase();
+  if (!v) return 'sk';
+  if (v.startsWith('en')) return 'en';
+  if (v.startsWith('de')) return 'de';
+  if (v.startsWith('sk') || v.startsWith('cs')) return 'sk';
+  return 'sk';
+}
+
+const I18N = {
+  sk: {
+    subjectOrderCreated: 'Potvrdenie objednávky',
+    orderReceived: 'Vaša objednávka bola prijatá.',
+
+    postOfficePickupTitle: 'Vyzdvihnutie na pošte',
+    branchId: 'ID pobočky',
+    address: 'Adresa',
+
+    giftWrapTitle: 'Darčekové balenie',
+    mode: 'Režim',
+    cardMessage: 'Text na kartičku',
+    wrapNote: 'Poznámka k baleniu',
+
+    // value pre mode — nech je aj v sk ľudskejšie (nechávam jednoduché)
+    gw_mode_all: 'všetko',
+    gw_mode_selected: 'vybrané',
+    gw_mode_none: 'žiadne',
+  },
+  en: {
+    subjectOrderCreated: 'Order confirmation',
+    orderReceived: 'We have received your order.',
+
+    postOfficePickupTitle: 'Pickup at post office',
+    branchId: 'Branch ID',
+    address: 'Address',
+
+    giftWrapTitle: 'Gift wrapping',
+    mode: 'Mode',
+    cardMessage: 'Card message',
+    wrapNote: 'Wrapping note',
+
+    gw_mode_all: 'all',
+    gw_mode_selected: 'selected',
+    gw_mode_none: 'none',
+  },
+  de: {
+    subjectOrderCreated: 'Bestellbestätigung',
+    orderReceived: 'Ihre Bestellung wurde angenommen.',
+
+    postOfficePickupTitle: 'Abholung in der Postfiliale',
+    branchId: 'Filial-ID',
+    address: 'Adresse',
+
+    giftWrapTitle: 'Geschenkverpackung',
+    mode: 'Modus',
+    cardMessage: 'Kartentext',
+    wrapNote: 'Hinweis zur Verpackung',
+
+    gw_mode_all: 'alles',
+    gw_mode_selected: 'ausgewählt',
+    gw_mode_none: 'keine',
+  },
+} as const;
+
+function t(locale: AppLocale) {
+  return I18N[locale] || I18N.sk;
+}
+
+function humanGiftWrapMode(mode?: GiftWrapMode | null, locale: AppLocale = 'sk'): string {
+  const TT = t(locale);
+  if (mode === 'selected') return TT.gw_mode_selected;
+  if (mode === 'none') return TT.gw_mode_none;
+  return TT.gw_mode_all;
+}
+
+/* ========================= helpers ========================= */
 
 function esc(s?: string) {
   return String(s ?? '')
@@ -139,6 +223,9 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
   async create(ctx) {
     const body = ctx.request.body || {};
     const data = body.data || {};
+
+    // ✅ locale z FE (preferované), fallback z data.locale, neskôr fallback z order.locale
+    const localeFromPayload: AppLocale = normalizeLocale(data?.locale);
 
     // --- Bezpečná extrakcia FE payloadu ---
     const delivery = data.delivery || {};
@@ -266,6 +353,10 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       populate: ['items', 'deliveryAddress', 'deliveryDetails', 'customer'],
     }) as unknown as OrderWithShipping;
 
+    // ✅ locale finálne: payload.locale -> order.locale -> sk
+    const orderLocale: AppLocale = normalizeLocale((order as any)?.locale ?? localeFromPayload);
+    const TT = t(orderLocale);
+
     // --- Post-create logika (email, párovanie bookingov) ---
     const customerEmail: string | undefined = (order as any).customerEmail;
     const customerName: string | undefined = (order as any).customerName;
@@ -285,9 +376,9 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       const deliverySection = isPostOffice
         ? `
           <hr>
-          <p><strong>Vyzdvihnutie na pošte</strong><br>
-          ID pobočky: ${esc(det.postOfficeId ?? '')}<br>
-          Adresa: ${esc(addressLine || '-')}
+          <p><strong>${esc(TT.postOfficePickupTitle)}</strong><br>
+          ${esc(TT.branchId)}: ${esc(det.postOfficeId ?? '')}<br>
+          ${esc(TT.address)}: ${esc(addressLine || '-')}
           </p>`
         : '';
 
@@ -295,25 +386,25 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       const giftWrapSection = gw
         ? `
           <hr>
-          <p><strong>Darčekové balenie:</strong><br>
-          Režim: ${esc(gw.mode || 'all')}<br>
-          ${gw.message ? `Text na kartičku: ${esc(gw.message)}<br>` : ''}
-          ${gw.note ? `Poznámka k baleniu: ${esc(gw.note)}<br>` : ''}
+          <p><strong>${esc(TT.giftWrapTitle)}:</strong><br>
+          ${esc(TT.mode)}: ${esc(humanGiftWrapMode(gw.mode, orderLocale))}<br>
+          ${gw.message ? `${esc(TT.cardMessage)}: ${esc(gw.message)}<br>` : ''}
+          ${gw.note ? `${esc(TT.wrapNote)}: ${esc(gw.note)}<br>` : ''}
           </p>
         `
         : '';
 
       await sendEmail({
         to: customerEmail || 'milanmartis@gmail.com',
-        subject: 'Potvrdenie objednávky',
+        subject: TT.subjectOrderCreated,
         html: `
-          <p>Vaša objednávka bola prijatá.</p>
+          <p>${esc(TT.orderReceived)}</p>
           ${deliverySection}
           ${giftWrapSection}
         `,
       });
 
-      strapi.log.info(`[ORDER] Potvrdenie objednávky odoslané na ${customerEmail}`);
+      strapi.log.info(`[ORDER] Potvrdenie objednávky odoslané na ${customerEmail} (locale=${orderLocale})`);
     } catch (e) {
       strapi.log.error(`[ORDER] Nepodarilo sa odoslať email na ${customerEmail}:`, e);
     }
@@ -322,6 +413,7 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     strapi.log.info(`[ORDER] incoming FE payload temporaryId: ${temporaryId}`);
     strapi.log.info(`[ORDER] incoming FE payload customerEmail: ${customerEmail}`);
     strapi.log.info(`[ORDER] giftWrap: ${(order as any).giftWrap ? 'YES' : 'NO'}`);
+    strapi.log.info(`[ORDER] locale: ${orderLocale}`);
 
     // 3) Spárovanie bookingov podľa temporaryId + email
     if (temporaryId && customerEmail) {

@@ -63,6 +63,9 @@ type OrderRecord = {
 
   giftWrap?: GiftWrap | null; // 👈 NOVÉ
 
+  // 👇 locale (Strapi i18n), alebo custom pole
+  locale?: string | null;
+
   customerEmail?: string;
   customerName?: string;
   customerPhone?: string;
@@ -127,6 +130,186 @@ type OrderRecord = {
     shippingAddress?: any;
   } | null;
 };
+
+// ========================= i18n =========================
+
+type AppLocale = 'sk' | 'en' | 'de';
+
+function normalizeLocale(raw?: any): AppLocale {
+  const v = String(raw ?? '').trim().toLowerCase();
+  if (!v) return 'sk';
+  if (v.startsWith('en')) return 'en';
+  if (v.startsWith('de')) return 'de';
+  if (v.startsWith('sk') || v.startsWith('cs')) return 'sk';
+  return 'sk';
+}
+
+const I18N = {
+  sk: {
+    // header
+    headerWelcome: 'Vitajte v Majolike',
+
+    // paid customer mail
+    subjectPaid: 'Potvrdenie objednávky - platba prijatá',
+    titlePaid: (docNo: string) => `Potvrdenie objednávky ${docNo}`,
+    headingPaid: 'Ďakujeme, platba prijatá',
+    hello: (name?: string) => `Dobrý deň${name ? `, ${name}` : ''}.`,
+    paidLine: (docNo: string) => `Platba za vašu objednávku #${docNo} prebehla úspešne.`,
+    ctaViewOrder: 'Zobraziť objednávku',
+
+    // admin paid
+    adminTitlePaid: (docNo: string) => `Nová objednávka #${docNo} - zaplatené`,
+    adminHeadingPaid: (docNo: string) => `Nová objednávka #${docNo} - platba prijatá`,
+
+    // summary section
+    orderSummary: 'Zhrnutie objednávky',
+    delivery: 'Doručenie',
+    item: 'Položka',
+    totalCol: 'Spolu',
+    shipping: 'Doprava',
+    paymentFee: 'Poplatok za dobierku',
+    total: 'Celkom',
+    orderNoteTitle: 'Poznámka k objednávke',
+
+    // badges
+    digitalBadge: 'Digitálny produkt / darčekový poukaz',
+
+    // event
+    eventTerm: 'Termín',
+    people: 'Osoby',
+
+    // urgency suffix
+    urgencyRush: ' – objednávka ponáhľa',
+    urgencyStandard: ' – štandardná doba dodania (cca 2 týždne)',
+
+    // delivery methods (base text)
+    delivery_pickup: 'Osobné vyzdvihnutie na mieste',
+    delivery_postOffice_prefix: 'Na poštu',
+    delivery_packeta_prefix: 'Packeta/Carrier box',
+    delivery_packeta_box: 'Packeta Box',
+    delivery_courier_prefix: 'Kuriér na adresu',
+    delivery_digital: 'Digitálny produkt (bez fyzického doručenia)',
+
+    // gift wrap
+    giftWrapTitle: 'Darčekové balenie',
+    giftWrapMode: 'Režim',
+    giftWrapSelected: 'Len vybrané produkty',
+    giftWrapNone: 'Bez balenia',
+    giftWrapAll: 'Všetky fyzické produkty',
+    giftWrapSelectedList: 'Vybrané na balenie',
+    giftWrapCardMessage: 'Text na kartičku',
+    giftWrapNote: 'Poznámka k baleniu',
+
+    // billing
+    billingTitle: 'Fakturačné údaje',
+  },
+  en: {
+    headerWelcome: 'Welcome to Majolika',
+
+    subjectPaid: 'Order confirmation - payment received',
+    titlePaid: (docNo: string) => `Order confirmation ${docNo}`,
+    headingPaid: 'Thank you, payment received',
+    hello: (name?: string) => `Hello${name ? `, ${name}` : ''}.`,
+    paidLine: (docNo: string) => `Your payment for order #${docNo} was successful.`,
+    ctaViewOrder: 'View order',
+
+    adminTitlePaid: (docNo: string) => `New order #${docNo} - paid`,
+    adminHeadingPaid: (docNo: string) => `New order #${docNo} - payment received`,
+
+    orderSummary: 'Order summary',
+    delivery: 'Delivery',
+    item: 'Item',
+    totalCol: 'Total',
+    shipping: 'Shipping',
+    paymentFee: 'Cash on delivery fee',
+    total: 'Total',
+    orderNoteTitle: 'Order note',
+
+    digitalBadge: 'Digital product / gift voucher',
+
+    eventTerm: 'Date',
+    people: 'People',
+
+    urgencyRush: ' – rush order',
+    urgencyStandard: ' – standard delivery time (approx. 2 weeks)',
+
+    delivery_pickup: 'Pickup in person',
+    delivery_postOffice_prefix: 'To post office',
+    delivery_packeta_prefix: 'Packeta/Carrier box',
+    delivery_packeta_box: 'Packeta Box',
+    delivery_courier_prefix: 'Courier to address',
+    delivery_digital: 'Digital product (no physical delivery)',
+
+    giftWrapTitle: 'Gift wrapping',
+    giftWrapMode: 'Mode',
+    giftWrapSelected: 'Selected products only',
+    giftWrapNone: 'No wrapping',
+    giftWrapAll: 'All physical products',
+    giftWrapSelectedList: 'Selected for wrapping',
+    giftWrapCardMessage: 'Card message',
+    giftWrapNote: 'Wrapping note',
+
+    billingTitle: 'Billing details',
+  },
+  de: {
+    headerWelcome: 'Willkommen bei Majolika',
+
+    subjectPaid: 'Bestellbestätigung - Zahlung erhalten',
+    titlePaid: (docNo: string) => `Bestellbestätigung ${docNo}`,
+    headingPaid: 'Vielen Dank, Zahlung erhalten',
+    hello: (name?: string) => `Hallo${name ? `, ${name}` : ''}.`,
+    paidLine: (docNo: string) => `Ihre Zahlung für die Bestellung #${docNo} war erfolgreich.`,
+    ctaViewOrder: 'Bestellung ansehen',
+
+    adminTitlePaid: (docNo: string) => `Neue Bestellung #${docNo} - bezahlt`,
+    adminHeadingPaid: (docNo: string) => `Neue Bestellung #${docNo} - Zahlung erhalten`,
+
+    orderSummary: 'Bestellübersicht',
+    delivery: 'Lieferung',
+    item: 'Artikel',
+    totalCol: 'Summe',
+    shipping: 'Versand',
+    paymentFee: 'Nachnahmegebühr',
+    total: 'Gesamt',
+    orderNoteTitle: 'Bestellhinweis',
+
+    digitalBadge: 'Digitales Produkt / Geschenkgutschein',
+
+    eventTerm: 'Termin',
+    people: 'Personen',
+
+    urgencyRush: ' – Eilbestellung',
+    urgencyStandard: ' – Standardlieferzeit (ca. 2 Wochen)',
+
+    delivery_pickup: 'Abholung vor Ort',
+    delivery_postOffice_prefix: 'Zur Postfiliale',
+    delivery_packeta_prefix: 'Packeta/Carrier Box',
+    delivery_packeta_box: 'Packeta Box',
+    delivery_courier_prefix: 'Kurier an Adresse',
+    delivery_digital: 'Digitales Produkt (keine physische Lieferung)',
+
+    giftWrapTitle: 'Geschenkverpackung',
+    giftWrapMode: 'Modus',
+    giftWrapSelected: 'Nur ausgewählte Produkte',
+    giftWrapNone: 'Keine Verpackung',
+    giftWrapAll: 'Alle physischen Produkte',
+    giftWrapSelectedList: 'Ausgewählt zum Verpacken',
+    giftWrapCardMessage: 'Kartentext',
+    giftWrapNote: 'Hinweis zur Verpackung',
+
+    billingTitle: 'Rechnungsdaten',
+  },
+} as const;
+
+function t(locale: AppLocale) {
+  return (I18N as any)[locale] || I18N.sk;
+}
+
+function localeToIntl(locale: AppLocale): string {
+  if (locale === 'en') return 'en-US';
+  if (locale === 'de') return 'de-DE';
+  return 'sk-SK';
+}
 
 // ========================= Helpery (bezpečnosť, render, logy) =========================
 
@@ -229,23 +412,28 @@ function money(n: number) {
   return `${n.toFixed(2)} €`;
 }
 
-function formatEventSk(event?: EventInfo): string {
+function formatEvent(event?: EventInfo, locale: AppLocale = 'sk'): string {
   if (!event?.startDateTime) return '';
   const dt = new Date(event.startDateTime);
-  const d = new Intl.DateTimeFormat('sk-SK', {
+  const TT = t(locale);
+  const intl = localeToIntl(locale);
+
+  const d = new Intl.DateTimeFormat(intl, {
     timeZone: 'Europe/Bratislava',
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   }).format(dt);
-  const t = new Intl.DateTimeFormat('sk-SK', {
+
+  const time = new Intl.DateTimeFormat(intl, {
     timeZone: 'Europe/Bratislava',
     hour: '2-digit',
     minute: '2-digit',
   }).format(dt);
-  const ppl = typeof event.peopleCount === 'number' ? ` • Osoby: ${event.peopleCount}` : '';
-  return `Termín: ${d}, ${t}${ppl}`;
+
+  const ppl = typeof event.peopleCount === 'number' ? ` • ${TT.people}: ${event.peopleCount}` : '';
+  return `${TT.eventTerm}: ${d}, ${time}${ppl}`;
 }
 
 function normalizeGiftWrap(raw: any): GiftWrap | null {
@@ -289,18 +477,23 @@ function normalizeGiftWrap(raw: any): GiftWrap | null {
   return { enabled, mode, note, message, items };
 }
 
-function renderGiftWrapBlock(giftWrap: GiftWrap | null | undefined, emailItems: Array<{ productName: string; productId?: number; quantity: number }>) {
+function renderGiftWrapBlock(
+  giftWrap: GiftWrap | null | undefined,
+  emailItems: Array<{ productName: string; productId?: number; quantity: number }>,
+  locale: AppLocale = 'sk'
+) {
   const gw = normalizeGiftWrap(giftWrap);
   if (!gw) return '';
 
+  const TT = t(locale);
   const lines: string[] = [];
 
   const modeLabel =
-    gw.mode === 'selected' ? 'Len vybrané produkty' :
-    gw.mode === 'none' ? 'Bez balenia' :
-    'Všetky fyzické produkty';
+    gw.mode === 'selected' ? TT.giftWrapSelected :
+    gw.mode === 'none' ? TT.giftWrapNone :
+    TT.giftWrapAll;
 
-  lines.push(`<div><b>Režim:</b> ${esc(modeLabel)}</div>`);
+  lines.push(`<div><b>${esc(TT.giftWrapMode)}:</b> ${esc(modeLabel)}</div>`);
 
   if (gw.mode === 'selected' && gw.items?.length) {
     const selected = gw.items;
@@ -310,19 +503,19 @@ function renderGiftWrapBlock(giftWrap: GiftWrap | null | undefined, emailItems: 
       const qty = s.quantity ? ` × ${s.quantity}` : '';
       return `• ${esc(name)}${esc(qty)}`;
     }).join('<br/>');
-    lines.push(`<div style="margin-top:8px;"><b>Vybrané na balenie:</b><br/>${list}</div>`);
+    lines.push(`<div style="margin-top:8px;"><b>${esc(TT.giftWrapSelectedList)}:</b><br/>${list}</div>`);
   }
 
   if (gw.message) {
-    lines.push(`<div style="margin-top:8px;"><b>Text na kartičku:</b><br/>${esc(gw.message).replace(/\n/g, '<br/>')}</div>`);
+    lines.push(`<div style="margin-top:8px;"><b>${esc(TT.giftWrapCardMessage)}:</b><br/>${esc(gw.message).replace(/\n/g, '<br/>')}</div>`);
   }
   if (gw.note) {
-    lines.push(`<div style="margin-top:8px;"><b>Poznámka k baleniu:</b><br/>${esc(gw.note).replace(/\n/g, '<br/>')}</div>`);
+    lines.push(`<div style="margin-top:8px;"><b>${esc(TT.giftWrapNote)}:</b><br/>${esc(gw.note).replace(/\n/g, '<br/>')}</div>`);
   }
 
   return `
     <div style="margin-top:16px;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
-      <div style="font-weight:700;color:#333;margin-bottom:6px;">Darčekové balenie</div>
+      <div style="font-weight:700;color:#333;margin-bottom:6px;">${esc(TT.giftWrapTitle)}</div>
       <div style="font-size:14px;color:#444;line-height:1.5;">
         ${lines.join('')}
       </div>
@@ -330,28 +523,33 @@ function renderGiftWrapBlock(giftWrap: GiftWrap | null | undefined, emailItems: 
   `;
 }
 
-function renderItemsRows(items: Array<{
-  productName: string;
-  productId?: number;
-  slug: string;
-  unitPrice: number;
-  quantity: number;
-  image?: string;
-  event?: EventInfo | null;
+function renderItemsRows(
+  items: Array<{
+    productName: string;
+    productId?: number;
+    slug: string;
+    unitPrice: number;
+    quantity: number;
+    image?: string;
+    event?: EventInfo | null;
 
-  // badge
-  isDigitalProduct?: boolean;
-  isGiftVoucher?: boolean;
-}>) {
+    // badge
+    isDigitalProduct?: boolean;
+    isGiftVoucher?: boolean;
+  }>,
+  locale: AppLocale = 'sk'
+) {
+  const TT = t(locale);
+
   return items.map((it) => {
     const subtotal = it.unitPrice * it.quantity;
     const eventLine = it?.event?.startDateTime
-      ? `<div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">${esc(formatEventSk(it.event!))}</div>`
+      ? `<div style="font-size:13px;color:#0e29a0;padding:4px 4px 0 4px;">${esc(formatEvent(it.event!, locale))}</div>`
       : '';
 
     const digitalBadge =
       it.isDigitalProduct || it.isGiftVoucher
-        ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">Digitálny produkt / darčekový poukaz</div>`
+        ? `<div style="font-size:12px;color:#0e29a0;padding:2px 4px 0 4px;">${esc(TT.digitalBadge)}</div>`
         : '';
 
     return `
@@ -406,18 +604,23 @@ function renderOrderEmail(opts: {
   totalWithShipping: number;
   deliverySummary: string;
 
-  giftWrapHtml?: string; // 👈 NOVÉ
+  giftWrapHtml?: string;
 
   orderNotes?: string | null;
   billingHtml?: string | null;
-}) {
-  const itemsRows = renderItemsRows(opts.items);
 
+  // 👇 i18n
+  locale?: AppLocale;
+}) {
+  const locale: AppLocale = normalizeLocale(opts.locale);
+  const TT = t(locale);
+
+  const itemsRows = renderItemsRows(opts.items, locale);
   const giftWrapHtml = opts.giftWrapHtml || '';
 
   const notesHtml = opts.orderNotes
     ? `<div style="margin-top:16px;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
-         <div style="font-weight:600;color:#333;margin-bottom:6px;">Poznámka k objednávke</div>
+         <div style="font-weight:600;color:#333;margin-bottom:6px;">${esc(TT.orderNoteTitle)}</div>
          <div style="font-size:14px;color:#444;line-height:1.5;">${esc(opts.orderNotes).replace(/\n/g, '<br>')}</div>
        </div>`
     : '';
@@ -427,7 +630,7 @@ function renderOrderEmail(opts: {
     : '';
 
   return `<!DOCTYPE html>
-<html lang="sk">
+<html lang="${esc(locale)}">
 <head>
   <meta charset="UTF-8" />
   <title>${esc(opts.title)}</title>
@@ -450,14 +653,14 @@ function renderOrderEmail(opts: {
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>Vitajte v Majolike</h1></div>
+    <div class="header"><h1>${esc(TT.headerWelcome)}</h1></div>
     <div class="content">
       <h2>${esc(opts.heading)}</h2>
       ${opts.introLines.map((t) => `<p>${esc(t)}</p>`).join('')}
       ${ctaHtml}
 
-      <h3 style="color:#333;margin-top:28px;">Zhrnutie objednávky</h3>
-      <p style="font-size:14px;color:#666;margin:6px 0;"><b>Doručenie:</b> ${esc(opts.deliverySummary)}</p>
+      <h3 style="color:#333;margin-top:28px;">${esc(TT.orderSummary)}</h3>
+      <p style="font-size:14px;color:#666;margin:6px 0;"><b>${esc(TT.delivery)}:</b> ${esc(opts.deliverySummary)}</p>
 
       ${opts.billingHtml || ''}
 
@@ -466,14 +669,14 @@ function renderOrderEmail(opts: {
       ${notesHtml}
 
       <table role="presentation" aria-hidden="true" style="margin-top:8px;">
-        <thead><tr><th>Položka</th><th style="text-align:right;">Spolu</th></tr></thead>
+        <thead><tr><th>${esc(TT.item)}</th><th style="text-align:right;">${esc(TT.totalCol)}</th></tr></thead>
         <tbody>
           ${itemsRows}
-          <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Doprava</td>
+          <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${esc(TT.shipping)}</td>
               <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td></tr>
-          <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">Poplatok za dobierku</td>
+          <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${esc(TT.paymentFee)}</td>
               <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td></tr>
-          <tr><td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">Celkom</td>
+          <tr><td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${esc(TT.total)}</td>
               <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td></tr>
         </tbody>
       </table>
@@ -497,12 +700,13 @@ function renderOrderEmail(opts: {
 </html>`;
 }
 
-function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
+function summarizeDeliveryFromOrder(order: OrderRecord | any, locale: AppLocale = 'sk'): string {
+  const TT = t(locale);
   let base: string;
 
   switch (order?.deliveryMethod) {
     case 'pickup':
-      base = 'Osobné vyzdvihnutie na mieste';
+      base = TT.delivery_pickup;
       break;
 
     case 'post_office': {
@@ -516,29 +720,29 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
       const id = order?.deliveryDetails?.postOfficeId || '';
 
       if (addrStr && id) {
-        base = `Na poštu: ${esc(addrStr)} (ID: ${esc(id)})`;
+        base = `${TT.delivery_postOffice_prefix}: ${esc(addrStr)} (ID: ${esc(id)})`;
       } else if (addrStr) {
-        base = `Na poštu: ${esc(addrStr)}`;
+        base = `${TT.delivery_postOffice_prefix}: ${esc(addrStr)}`;
       } else {
-        base = `Na poštu (ID: ${esc(id || '-')})`;
+        base = `${TT.delivery_postOffice_prefix} (ID: ${esc(id || '-')})`;
       }
       break;
     }
 
     case 'packeta_box':
       base = order?.deliveryDetails?.notes
-        ? `Packeta/Carrier box: ${esc(order.deliveryDetails.notes)}`
-        : `Packeta Box (ID: ${esc(order?.deliveryDetails?.packetaBoxId || '-')})`;
+        ? `${TT.delivery_packeta_prefix}: ${esc(order.deliveryDetails.notes)}`
+        : `${TT.delivery_packeta_box} (ID: ${esc(order?.deliveryDetails?.packetaBoxId || '-')})`;
       break;
 
     case 'post_courier': {
       const a = order?.deliveryAddress || {};
-      base = `Kuriér na adresu: ${esc(a.street)}; ${esc(a.city)} ${esc(a.zip)}, ${esc(a.country)}`;
+      base = `${TT.delivery_courier_prefix}: ${esc(a.street)}; ${esc(a.city)} ${esc(a.zip)}, ${esc(a.country)}`;
       break;
     }
 
     case 'digital_product':
-      base = 'Digitálny produkt (bez fyzického doručenia)';
+      base = TT.delivery_digital;
       break;
 
     default:
@@ -549,9 +753,9 @@ function summarizeDeliveryFromOrder(order: OrderRecord | any): string {
   const u = (order as any).deliveryUrgency;
   const suffix =
     u === 'rush'
-      ? ' – objednávka ponáhľa'
+      ? TT.urgencyRush
       : u === 'standard'
-        ? ' – štandardná doba dodania (cca 2 týždne)'
+        ? TT.urgencyStandard
         : '';
 
   return base + suffix;
@@ -647,8 +851,9 @@ async function runPostPaidFlow(orderId: number) {
   const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
     fields: [
       'id',
+      'locale',          // ✅ dôležité pre jazyk emailu
       'notes',
-      'giftWrap', // 👈 NOVÉ
+      'giftWrap',
       'shippingFee',
       'paymentFee',
       'total',
@@ -675,6 +880,9 @@ async function runPostPaidFlow(orderId: number) {
     },
   }) as unknown as OrderRecord;
 
+  const locale: AppLocale = normalizeLocale((freshOrder as any)?.locale);
+  const TT = t(locale);
+
   // Guard: posielaj email len ak je už paid (aby webhook/returnBridge nezduplikoval)
   const guard = await strapi.db.query('api::order.order').findOne({
     where: { id: orderId },
@@ -691,6 +899,7 @@ async function runPostPaidFlow(orderId: number) {
 
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
   strapi.log.info(`[EMAIL][PAID] giftWrap=${giftWrap ? 'YES' : 'NO'}`);
+  strapi.log.info(`[EMAIL][PAID] locale=${locale}`);
 
   const customerPhone =
     (freshOrder as any).customerPhone ||
@@ -779,7 +988,7 @@ async function runPostPaidFlow(orderId: number) {
 
   const FRONTEND_URL = process.env.FRONTEND_URL || '';
   const to = freshOrder.customerEmail;
-  const deliverySummary = summarizeDeliveryFromOrder(freshOrder);
+  const deliverySummary = summarizeDeliveryFromOrder(freshOrder, locale);
   const shippingFee = Number(freshOrder.shippingFee || 0);
   const paymentFee = Number((freshOrder as any).paymentFee || 0);
   const totalWithShipping = Number(freshOrder.totalWithShipping || freshOrder.total || 0);
@@ -797,7 +1006,7 @@ async function runPostPaidFlow(orderId: number) {
     billingFromOrder.isCompany
       ? `
         <div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
-          <div style="font-weight:600;color:#333;margin-bottom:6px;">Fakturačné údaje</div>
+          <div style="font-weight:600;color:#333;margin-bottom:6px;">${esc(TT.billingTitle)}</div>
           <div style="font-size:14px;color:#444;line-height:1.5;">
             ${esc(billingFromOrder.companyName)}<br/>
             IČO: ${esc(billingFromOrder.ico)}<br/>
@@ -816,22 +1025,22 @@ async function runPostPaidFlow(orderId: number) {
         </div>`
       : '';
 
-  const giftWrapHtmlCustomer = renderGiftWrapBlock(giftWrap, emailItems.map(i => ({
-    productName: i.productName,
-    productId: i.productId,
-    quantity: i.quantity,
-  })));
+  const giftWrapHtmlCustomer = renderGiftWrapBlock(
+    giftWrap,
+    emailItems.map(i => ({ productName: i.productName, productId: i.productId, quantity: i.quantity })),
+    locale
+  );
 
   const customerEmailHtml = renderOrderEmail({
-    title: `Potvrdenie objednávky ${docNo}`,
-    heading: 'Ďakujeme, platba prijatá',
+    title: TT.titlePaid(docNo),
+    heading: TT.headingPaid,
     introLines: [
-      `Dobrý deň${freshOrder.customerName ? `, ${freshOrder.customerName}` : ''}.`,
-      `Platba za vašu objednávku #${docNo} prebehla úspešne.`,
+      TT.hello(freshOrder.customerName),
+      TT.paidLine(docNo),
     ],
     cta: FRONTEND_URL
       ? {
-          label: 'Zobraziť objednávku',
+          label: TT.ctaViewOrder,
           href: `${FRONTEND_URL.replace(/\/$/, '')}/checkout/success?order=${freshOrder.id}`,
         }
       : null,
@@ -843,9 +1052,10 @@ async function runPostPaidFlow(orderId: number) {
     giftWrapHtml: giftWrapHtmlCustomer,
     orderNotes,
     billingHtml,
+    locale,
   });
 
-  // ADMIN blok (texty)
+  // ADMIN blok (texty) — nechávam SK (ako doteraz)
   const addr = (freshOrder.deliveryAddress || {}) as any;
   const customerPhoneLine = customerPhone || (freshOrder as any).phone || '';
 
@@ -888,11 +1098,12 @@ async function runPostPaidFlow(orderId: number) {
     }),
   ];
 
-  const giftWrapHtmlAdmin = renderGiftWrapBlock(giftWrap, emailItems.map(i => ({
-    productName: i.productName,
-    productId: i.productId,
-    quantity: i.quantity,
-  })));
+  // admin gift wrap (SK)
+  const giftWrapHtmlAdmin = renderGiftWrapBlock(
+    giftWrap,
+    emailItems.map(i => ({ productName: i.productName, productId: i.productId, quantity: i.quantity })),
+    'sk'
+  );
 
   const adminEmailHtml = renderOrderEmail({
     title: `Nová objednávka #${docNo} - zaplatené`,
@@ -903,15 +1114,16 @@ async function runPostPaidFlow(orderId: number) {
     shippingFee,
     paymentFee,
     totalWithShipping,
-    deliverySummary,
+    deliverySummary: summarizeDeliveryFromOrder(freshOrder, 'sk'),
     giftWrapHtml: giftWrapHtmlAdmin,
     orderNotes,
     billingHtml,
+    locale: 'sk',
   });
 
   try {
     if (to) {
-      await sendEmail({ to, subject: 'Potvrdenie objednávky - platba prijatá', html: customerEmailHtml });
+      await sendEmail({ to, subject: TT.subjectPaid, html: customerEmailHtml });
       strapi.log.info(`[EMAIL] Sent to customer [redacted] for order #${freshOrder.id}`);
     } else {
       strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${docNo}`);
@@ -1072,6 +1284,9 @@ export default {
       }) as any;
       if (!order) return ctx.notFound('Order not found');
 
+      const locale: AppLocale = normalizeLocale(order?.locale);
+      const TT = t(locale);
+
       const billingFromOrder = {
         isCompany: !!order.billingIsCompany,
         companyName: order.billingCompanyName || '',
@@ -1085,7 +1300,7 @@ export default {
         billingFromOrder.isCompany
           ? `
           <div style="margin:16px 0;padding:12px;border:1px solid #eaeaea;border-radius:0px;background:#fcfcfc;">
-            <div style="font-weight:600;color:#333;margin-bottom:6px;">Fakturačné údaje</div>
+            <div style="font-weight:600;color:#333;margin-bottom:6px;">${esc(TT.billingTitle)}</div>
             <div style="font-size:14px;color:#444;line-height:1.5;">
               ${esc(billingFromOrder.companyName)}<br/>
               IČO: ${esc(billingFromOrder.ico)}<br/>
@@ -1177,7 +1392,7 @@ export default {
       const shippingFee = Number(order.shippingFee || 0);
       const paymentFee = Number(order.paymentFee || 0);
       const totalWithShipping = Number(order.totalWithShipping || order.total || 0);
-      const deliverySummary = summarizeDeliveryFromOrder(order);
+      const deliverySummary = summarizeDeliveryFromOrder(order, locale);
       const FRONTEND_URL = process.env.FRONTEND_URL || '';
 
       const orderNotes = typeof notesOverride === 'string'
@@ -1189,9 +1404,9 @@ export default {
         productName: i.productName,
         productId: i.productId,
         quantity: i.quantity,
-      })));
+      })), locale);
 
-      // ADMIN TEXTY
+      // ADMIN TEXTY (SK)
       const addr = (order.deliveryAddress || {}) as any;
 
       const customerPhoneLine =
@@ -1263,7 +1478,8 @@ export default {
         deliverySummary,
         giftWrapHtml,
         orderNotes,
-        billingHtml
+        billingHtml,
+        locale,
       });
 
       if (doCheck) {
