@@ -77,6 +77,7 @@ function normalizeLocale(raw?: string | null): AppLocale {
   return 'sk';
 }
 
+
 function intlLocale(locale: AppLocale): string {
   switch (locale) {
     case 'en': return 'en-GB';

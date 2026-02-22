@@ -11,6 +11,11 @@
     "invoiceNumber": { "type": "string", "unique": true },
     "invoiceIssuedAt": { "type": "datetime" },
     "customerName": { "type": "string", "required": true },
+    "locale": {
+      "type": "enumeration",
+      "enum": ["sk", "en", "de"],
+      "default": "sk"
+    },
     "customerEmail": { "type": "email", "required": true },
     "customerPhone": {
       "type": "string"
