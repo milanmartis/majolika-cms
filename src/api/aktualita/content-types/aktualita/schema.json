@@ -25,7 +25,7 @@
         "type": "uid",
         "targetField": "title",
         "required": true,
-        "unique": false
+        "unique": true
       },
       "summary": {
         "type": "text",
