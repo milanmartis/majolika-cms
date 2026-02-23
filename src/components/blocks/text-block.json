@@ -3,9 +3,17 @@
   "info": { "displayName": "Text Block" },
   "options": {},
   "attributes": {
-    "richText": { "type": "richtext" },
-    "richBlocks": { "type": "blocks" },
-    "fontSize": { "type": "integer" },
+    "richText": {
+      "type": "richtext",
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
+    "richBlocks": {
+      "type": "blocks",
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
+    "fontSize": {
+      "type": "integer"
+    },
     "columns": {
       "type": "enumeration",
       "enum": ["one", "two"],

@@ -41,7 +41,8 @@
         "blocks.image-block",
         "blocks.link-block",
         "blocks.video-block"
-      ]
+      ],
+      "pluginOptions": { "i18n": { "localized": true } }
     }
   }
 }
