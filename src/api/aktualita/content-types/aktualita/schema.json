@@ -1,84 +1,93 @@
 {
-    "kind": "collectionType",
-    "collectionName": "aktuality",
-    "info": {
-      "singularName": "aktualita",
-      "pluralName": "aktuality",
-      "displayName": "Aktualita",
-      "description": "Novinky a oznámenia"
+  "kind": "collectionType",
+  "collectionName": "aktuality",
+  "info": {
+    "singularName": "aktualita",
+    "pluralName": "aktuality",
+    "displayName": "Aktualita",
+    "description": "Novinky a oznámenia"
+  },
+  "pluginOptions": {
+    "i18n": { "localized": true }
+  },
+  "options": {
+    "draftAndPublish": true,
+    "timestamps": true
+  },
+  "attributes": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "pluginOptions": { "i18n": { "localized": true } }
     },
-    "pluginOptions": {
-      "i18n": {
-        "localized": true
-      }
+    "slug": {
+      "type": "uid",
+      "targetField": "title",
+      "required": true,
+      "unique": true,
+      "pluginOptions": { "i18n": { "localized": true } }
     },
-    "options": {
-      "draftAndPublish": true,
-      "timestamps": true
+    "summary": {
+      "type": "text",
+      "required": true,
+      "pluginOptions": { "i18n": { "localized": true } }
     },
-    "attributes": {
-      "title": {
-        "type": "string",
-        "required": true
-      },
-      "slug": {
-        "type": "uid",
-        "targetField": "title",
-        "required": true,
-        "unique": true
-      },
-      "summary": {
-        "type": "text",
-        "required": true
-      },
-      "content": {
-        "type": "richtext",
-        "required": true
-      },
-      "publishedAt": {
-        "type": "datetime"
-      },
-      "status": {
-        "type": "enumeration",
-        "enum": ["draft", "published", "archived"],
-        "default": "draft",
-        "required": true
-      },
-      "featuredImage": {
-        "type": "media",
-        "multiple": false,
-        "required": false,
-        "allowedTypes": ["images"]
-      },
-      "gallery": {
-        "type": "media",
-        "multiple": true,
-        "required": false,
-        "allowedTypes": ["images", "videos"]
-      },
-      "author": {
-        "type": "relation",
-        "relation": "manyToOne",
-        "target": "plugin::users-permissions.user",
-        "inversedBy": "aktuality"
-      },
-      "categories": {
-        "type": "relation",
-        "relation": "manyToMany",
-        "target": "api::kategoria.kategoria",
-        "inversedBy": "aktuality"
-      },
-      "tags": {
-        "type": "relation",
-        "relation": "manyToMany",
-        "target": "api::tag.tag",
-        "inversedBy": "aktuality"
-      },
-      "seo": {
-        "type": "component",
-        "repeatable": false,
-        "component": "shared.seo"
-      }
+    "content": {
+      "type": "richtext",
+      "required": true,
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
+
+    "publishedAt": {
+      "type": "datetime"
+    },
+
+    "status": {
+      "type": "enumeration",
+      "enum": ["draft", "published", "archived"],
+      "default": "draft",
+      "required": true
+    },
+
+    "featuredImage": {
+      "type": "media",
+      "multiple": false,
+      "required": false,
+      "allowedTypes": ["images"],
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
+    "gallery": {
+      "type": "media",
+      "multiple": true,
+      "required": false,
+      "allowedTypes": ["images", "videos"],
+      "pluginOptions": { "i18n": { "localized": true } }
+    },
+
+    "author": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "inversedBy": "aktuality"
+    },
+    "categories": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::kategoria.kategoria",
+      "inversedBy": "aktuality"
+    },
+    "tags": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::tag.tag",
+      "inversedBy": "aktuality"
+    },
+
+    "seo": {
+      "type": "component",
+      "repeatable": false,
+      "component": "shared.seo",
+      "pluginOptions": { "i18n": { "localized": true } }
     }
   }
-  
+}
