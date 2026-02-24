@@ -530,41 +530,56 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
 
 
 // GET /orders/:id/public?ot=...
-async publicGet(ctx) {
+// GET /orders/:id/public?ot=...
+async publicGet(ctx: any) {
   const id = Number(ctx.params.id);
   const ot = String(ctx.query.ot || '').trim();
 
   if (!Number.isFinite(id)) return ctx.badRequest('Invalid id');
   if (!ot) return ctx.notFound();
 
-  const order = await strapi.entityService.findOne('api::order.order', id, {
-    fields: [
-      'invoiceNumber',
-      'total',
-      'totalWithShipping',
-      'shippingFee',
-      'paymentFee',
-      'publicToken',
-      'invoiceUrl',
-      'createdAt',
-      'paymentStatus',
-      'orderStatus',
-    ],
-    populate: {
-      items: {
-        fields: ['productId', 'productName', 'quantity', 'unitPrice', 'imageUrl', 'slug'],
+  const order = (await strapi.entityService.findOne(
+    'api::order.order',
+    id,
+    {
+      fields: [
+        'invoiceNumber',
+        'invoiceUrl',
+        'orderStatus',
+        'paymentStatus',
+        'total',
+        'totalWithShipping',
+        'shippingFee',
+        'paymentFee',
+        'publicToken',
+        'createdAt',
+      ] as any,
+      populate: {
+        items: {
+          fields: [
+            'productId',
+            'productName',
+            'quantity',
+            'unitPrice',
+            'imageUrl',
+            'slug',
+            'variant',
+          ] as any,
+        },
       },
-      giftWrap: true, // ak giftWrap NIE JE relation/component, tak toto vyhoď
-    },
-  } as any);
+    } as any
+  )) as any;
+  if (!order) return ctx.notFound();
 
-  if (!order || String(order.publicToken || '') !== ot) return ctx.notFound();
+  const token = String(order?.publicToken || '');
+  if (token !== ot) return ctx.notFound();
 
   ctx.body = {
     id: order.id,
     invoiceNumber: order.invoiceNumber ?? null,
-    invoiceUrl: (order as any).invoiceUrl ?? null,
-    createdAt: (order as any).createdAt ?? null,
+    invoiceUrl: order.invoiceUrl ?? null,
+    createdAt: order.createdAt ?? null,
+
     currency: 'EUR',
 
     total: order.total ?? 0,
@@ -572,8 +587,8 @@ async publicGet(ctx) {
     shippingFee: order.shippingFee ?? 0,
     paymentFee: order.paymentFee ?? 0,
 
-    paymentStatus: (order as any).paymentStatus ?? null,
-    orderStatus: (order as any).orderStatus ?? null,
+    paymentStatus: order.paymentStatus ?? null,
+    orderStatus: order.orderStatus ?? null,
 
     items: (order.items || []).map((it: any) => ({
       productId: it.productId ?? null,
@@ -582,12 +597,10 @@ async publicGet(ctx) {
       unitPrice: it.unitPrice ?? 0,
       imageUrl: it.imageUrl ?? null,
       slug: it.slug ?? null,
-      // variant nedávaj, kým ho reálne nemáš v schéme
+      // variant sem nedávaj, kým ho reálne nemáš v schéme
     })),
-
-    giftWrap: (order as any).giftWrap ?? null,
   };
-}
+},
 
   async shipPacketa(ctx) {
     const id = Number(ctx.params.id);
