@@ -1199,9 +1199,21 @@ export default () => ({
       }
 
       let invoiceNumber: string | null = null;
+      let invoiceUrl: string | null = null;
+
       try {
         const inv = await issueInvoiceForOrder((order as any).id);
         invoiceNumber = inv?.invoiceNumber || null;
+        // invoiceUrl = inv?.invoiceUrl || inv?.url || null;
+
+        if (invoiceNumber || invoiceUrl) {
+          await strapi.entityService.update('api::order.order', (order as any).id, {
+            data: {
+              invoiceNumber: invoiceNumber,
+              invoiceUrl: invoiceUrl
+            } as any
+          });
+        }
       } catch (e) {
         strapi.log.error('[INVOICE][NON-CARD] issue failed:', e);
       }
