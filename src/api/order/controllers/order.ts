@@ -561,8 +561,7 @@ async publicGet(ctx: any) {
             'quantity',
             'unitPrice',
             'imageUrl',
-            'slug',
-            'variant',
+            'slug'
           ] as any,
         },
       },
