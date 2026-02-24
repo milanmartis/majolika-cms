@@ -526,31 +526,48 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
 
   async shipPacketa(ctx) {
     const id = Number(ctx.params.id);
-    const { weightKg, codEur } = ctx.request.body || {};
+    const { weightKg } = ctx.request.body || {};
   
     if (!Number.isFinite(id)) return ctx.badRequest('Invalid order id');
   
     const w = Number(weightKg);
     if (!Number.isFinite(w) || w <= 0) return ctx.badRequest('weightKg is required');
   
-    const cod = Number(codEur ?? 0);
-    if (!Number.isFinite(cod) || cod < 0) return ctx.badRequest('codEur must be a number >= 0');
-  
+    // 🔁 Documents API – nájdi dokument podľa numeric id
     const order = (await strapi.documents('api::order.order').findFirst({
       filters: { id },
       populate: ['deliveryDetails', 'deliveryAddress'],
-    })) as any; // tu si už aj tak castuješ, Strapi typy nie sú presné
+    })) as any;
   
     if (!order) return ctx.notFound('Order not found');
     if (order.deliveryMethod !== 'packeta_box') return ctx.badRequest('Order is not Packeta delivery');
     if (!order.deliveryDetails?.packetaBoxId) return ctx.badRequest('Missing Packeta pickup point');
     if (!order.documentId) return ctx.throw(500, 'Order has no documentId (unexpected in Strapi v5)');
   
-    // ✅ telefón berieme z customerPhone (tak ako ho reálne ukladáš)
+    // ✅ telefón berieme z customerPhone (tak ako ho reálne ukladáš), fallback na deliveryDetails.phone
     const phoneCandidate = order.customerPhone || order.deliveryDetails?.phone;
     if (!phoneCandidate) return ctx.badRequest('Missing phone');
   
+    // ✅ DOBIERKA: automaticky podľa objednávky (nie z requestu)
+    const cod =
+      order.paymentMethod === 'cod'
+        ? Number(order.totalWithShipping ?? 0)
+        : 0;
+  
+    if (!Number.isFinite(cod) || cod < 0) return ctx.badRequest('Invalid COD computed from order');
+  
     try {
+      // ✅ vstupné logy (uvidíš v journalctl)
+      strapi.log.info(
+        `[PACKETA][SHIP] orderId=${order.id} weightKg=${w} paymentMethod=${order.paymentMethod} codEur=${cod}`
+      );
+      strapi.log.info(
+        `[PACKETA][SHIP] packetaBoxId=${order.deliveryDetails?.packetaBoxId} provider=${order.deliveryDetails?.provider}`
+      );
+      strapi.log.info(
+        `[PACKETA][SHIP] phone customerPhone=${order.customerPhone} details.phone=${order.deliveryDetails?.phone}`
+      );
+  
       const shipping = await strapi
         .service('api::packeta.packeta')
         .createShipmentFromOrder(order, {
@@ -559,34 +576,40 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
           currency: 'EUR',
         });
   
-        const updateData = {
-          parcelWeightKg: w,
-          packetaShipmentId: shipping?.shipmentId ?? null,
-          packetaTrackingNumber: shipping?.trackingNumber ?? null,
-          packetaLabelUrl: shipping?.labelUrl ?? null,
-        
-          packetaStatus: 'created' as const,
-          deliveryStatus: 'label_created' as const,
-          fulfillmentStatus: 'processing' as const,
-        };
-        
-        await strapi.documents('api::order.order').update({
-          documentId: order.documentId,
-          data: updateData,
-        });
+      const updateData = {
+        parcelWeightKg: w,
+        packetaShipmentId: shipping?.shipmentId ?? null,
+        packetaTrackingNumber: shipping?.trackingNumber ?? null,
+        packetaLabelUrl: shipping?.labelUrl ?? null,
+  
+        packetaStatus: 'created' as const,
+        deliveryStatus: 'label_created' as const,
+        fulfillmentStatus: 'processing' as const,
+      };
+  
+      await strapi.documents('api::order.order').update({
+        documentId: order.documentId,
+        data: updateData as any, // Strapi typy enumov v TS často nesedia, runtime validuje Strapi
+      });
   
       ctx.body = {
         ok: true,
         shipmentId: shipping?.shipmentId ?? null,
         trackingNumber: shipping?.trackingNumber ?? null,
         labelUrl: shipping?.labelUrl ?? null,
+        codEur: cod,
       };
     } catch (e: any) {
-      strapi.log.error('[PACKETA][SHIP] error', e?.message || e);
-      return ctx.throw(502, 'Packeta ship failed');
+      const msg = e?.message || String(e);
+  
+      // ✅ logni reálnu chybu (aj stack)
+      strapi.log.error('[PACKETA][SHIP] error:', msg);
+      if (e?.stack) strapi.log.error(e.stack);
+  
+      // ✅ počas testovania vráť konkrétnu chybu (nie generickú)
+      return ctx.throw(502, msg);
     }
   },
-  
 
   // GET /orders/my
   async my(ctx) {
