@@ -9,6 +9,7 @@
   "options": { "draftAndPublish": false, "timestamps": true },
   "attributes": {
     "invoiceNumber": { "type": "string", "unique": true },
+    "publicToken": { "type": "string", "unique": true },
     "invoiceIssuedAt": { "type": "datetime" },
     "customerName": { "type": "string", "required": true },
     "orderLocale": {

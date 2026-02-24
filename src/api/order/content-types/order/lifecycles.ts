@@ -1,6 +1,6 @@
 // src/api/order/content-types/order/lifecycles.ts
 import { sendEmail } from '../../../../utils/email';
-
+import crypto from 'crypto';
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
 
 type EventInfo = {
@@ -450,7 +450,13 @@ const buildEmailItems = async (order: OrderEntity) => {
 /* ========================= Lifecycles ========================= */
 export default {
   async beforeCreate(event) {
+
+    
     const d = (event.params.data ??= {});
+
+    if (!d.publicToken) {
+      d.publicToken = crypto.randomBytes(32).toString('hex'); // 64 znakov
+    }
     stripStatus(d);
     d.fulfillmentStatus = mapFulfillment(d.fulfillmentStatus);
     d.deliveryStatus = mapDelivery(d.deliveryStatus);

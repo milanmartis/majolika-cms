@@ -521,8 +521,57 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
     }
 
     // 5) Response v tvare podobnom super.create
-    ctx.body = { data: { id: order.id, attributes: order } };
+    ctx.body = {
+      orderId: order.id,
+      ot: (order as any).publicToken,
+      invoiceNumber: (order as any).invoiceNumber ?? null,
+    };
   },
+
+
+  // GET /orders/:id/public?ot=...
+async publicGet(ctx) {
+  const id = Number(ctx.params.id);
+  const ot = String(ctx.query.ot || '').trim();
+
+  if (!Number.isFinite(id)) return ctx.badRequest('Invalid id');
+  if (!ot) return ctx.notFound(); // schovaj info (nevracaj 400)
+
+  // vytiahni len minimum + publicToken na porovnanie
+
+  const order = (await strapi.entityService.findOne(
+    'api::order.order',
+    id,
+    {
+      fields: ['invoiceNumber', 'total', 'totalWithShipping', 'shippingFee', 'paymentFee', 'publicToken'],
+      populate: {
+        items: { fields: ['productId', 'productName', 'quantity', 'unitPrice', 'imageUrl', 'slug', 'variant'] },
+      },
+    } as any
+  )) as any;
+  
+  if (!order || String(order.publicToken || '') !== ot) return ctx.notFound();
+
+  // ✅ vráť LEN čo chceš ukázať na success page (bez mena/emailu/adresy)
+  ctx.body = {
+    id: order.id,
+    invoiceNumber: order.invoiceNumber,
+    currency: order.currency || 'EUR',
+    total: order.total ?? 0,
+    totalWithShipping: order.totalWithShipping ?? order.total ?? 0,
+    shippingFee: order.shippingFee ?? 0,
+    paymentFee: order.paymentFee ?? 0,
+    items: (order.items || []).map((it: any) => ({
+      productId: it.productId ?? null,
+      name: it.productName ?? it.name ?? '',
+      qty: it.quantity ?? it.qty ?? 1,
+      unitPrice: it.unitPrice ?? 0,
+      imageUrl: it.imageUrl ?? null,
+      slug: it.slug ?? null,
+      variant: it.variant ?? null,
+    })),
+  };
+},
 
   async shipPacketa(ctx) {
     const id = Number(ctx.params.id);
