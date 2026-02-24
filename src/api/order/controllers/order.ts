@@ -529,43 +529,44 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
   },
 
 
-  // GET /orders/:id/public?ot=...
+// GET /orders/:id/public?ot=...
 async publicGet(ctx) {
   const id = Number(ctx.params.id);
   const ot = String(ctx.query.ot || '').trim();
 
   if (!Number.isFinite(id)) return ctx.badRequest('Invalid id');
-  if (!ot) return ctx.notFound(); // schovaj info (nevracaj 400)
+  if (!ot) return ctx.notFound();
 
-  // vytiahni len minimum + publicToken na porovnanie
+  const order: any = await strapi.entityService.findOne('api::order.order', id, {
+    fields: [
+      'invoiceNumber',
+      'currency',
+      'total',
+      'totalWithShipping',
+      'shippingFee',
+      'paymentFee',
+      'publicToken',
+    ] as any,
+    populate: {
+      items: { fields: ['productId', 'productName', 'quantity', 'unitPrice', 'imageUrl', 'slug', 'variant'] },
+    } as any,
+  });
 
-  const order = (await strapi.entityService.findOne(
-    'api::order.order',
-    id,
-    {
-      fields: ['invoiceNumber', 'total', 'totalWithShipping', 'shippingFee', 'paymentFee', 'publicToken'],
-      populate: {
-        items: { fields: ['productId', 'productName', 'quantity', 'unitPrice', 'imageUrl', 'slug', 'variant'] },
-      },
-    } as any
-  )) as any;
-  
   if (!order || String(order.publicToken || '') !== ot) return ctx.notFound();
 
-  // ✅ vráť LEN čo chceš ukázať na success page (bez mena/emailu/adresy)
   ctx.body = {
     id: order.id,
-    invoiceNumber: order.invoiceNumber,
+    invoiceNumber: order.invoiceNumber ?? null,
     currency: order.currency || 'EUR',
-    total: order.total ?? 0,
-    totalWithShipping: order.totalWithShipping ?? order.total ?? 0,
-    shippingFee: order.shippingFee ?? 0,
-    paymentFee: order.paymentFee ?? 0,
+    total: Number(order.total ?? 0),
+    totalWithShipping: Number(order.totalWithShipping ?? order.total ?? 0),
+    shippingFee: Number(order.shippingFee ?? 0),
+    paymentFee: Number(order.paymentFee ?? 0),
     items: (order.items || []).map((it: any) => ({
       productId: it.productId ?? null,
       name: it.productName ?? it.name ?? '',
       qty: it.quantity ?? it.qty ?? 1,
-      unitPrice: it.unitPrice ?? 0,
+      unitPrice: Number(it.unitPrice ?? 0),
       imageUrl: it.imageUrl ?? null,
       slug: it.slug ?? null,
       variant: it.variant ?? null,

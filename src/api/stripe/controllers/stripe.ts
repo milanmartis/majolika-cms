@@ -60,6 +60,7 @@ type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' 
 type OrderRecord = {
   id: number;
   notes?: string | null;
+  publicToken?: string | null;
 
   giftWrap?: GiftWrap | null; // 👈 NOVÉ
 
@@ -794,7 +795,7 @@ function isCancelledLike(s?: string) {
 async function getOrderAndExpectedCents(orderId: number) {
   const ord = (await strapi.entityService.findOne('api::order.order', orderId, {
     populate: ['items', 'deliveryAddress', 'deliveryDetails'],
-    fields: ['id', 'total', 'totalWithShipping', 'customerEmail', 'customerName', 'customerPhone', 'paymentStatus', 'deliveryMethod'] as any,
+    fields: ['id', 'total', 'totalWithShipping', 'customerEmail', 'customerName', 'customerPhone', 'paymentStatus', 'deliveryMethod', 'publicToken'] as any,
   })) as unknown as OrderRecord | null;
 
   if (!ord) throw new Error('Order not found');
@@ -1269,6 +1270,7 @@ export default {
       ctx.body = {
         transId: parsed.transId,
         paymentUrl,
+        ot: (ord as any).publicToken || null,   // ✅
         message: parsed.message,
         debug: { url_paid, url_cancelled, url_pending }
       };
@@ -1729,9 +1731,19 @@ export default {
       const q: any = ctx.query || {};
       const FRONTEND = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
       const to = {
-        pending: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}` : `/checkout/success?order=${id}`),
-        success: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/success?order=${id}` : `/checkout/success?order=${id}`),
-        cancelled: (id: number) => (FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${id}` : `/checkout/cancelled?order=${id}`),
+        pending: (id: number, ot?: string | null) =>
+          (FRONTEND
+            ? `${FRONTEND}/checkout/success?order=${id}${ot ? `&ot=${encodeURIComponent(ot)}` : ''}`
+            : `/checkout/success?order=${id}${ot ? `&ot=${encodeURIComponent(ot)}` : ''}`),
+      
+        success: (id: number, ot?: string | null) =>
+          (FRONTEND
+            ? `${FRONTEND}/checkout/success?order=${id}${ot ? `&ot=${encodeURIComponent(ot)}` : ''}`
+            : `/checkout/success?order=${id}${ot ? `&ot=${encodeURIComponent(ot)}` : ''}`),
+      
+        cancelled: (id: number) =>
+          (FRONTEND ? `${FRONTEND}/checkout/cancelled?order=${id}` : `/checkout/cancelled?order=${id}`),
+      
         fallback: () => (FRONTEND ? `${FRONTEND}/checkout` : `/checkout`),
       };
       const redirect = (loc: string) => { strapi.log.info(`[COMGATE][RETURN] 302 -> ${loc}`); ctx.status = 302; ctx.redirect(loc); };
@@ -1751,19 +1763,19 @@ export default {
         if (transId) strapi.log.info(`[COMGATE][RETURN] transId from Referer: ${transId}`);
       }
 
-      if (statusParam === 'PENDING' && refIdQ) return redirect(to.pending(refIdQ));
+      if (statusParam === 'PENDING' && refIdQ) return redirect(to.pending(refIdQ, null));
 
       let order: OrderRecord | null = null;
       if (transId) {
         order = await strapi.db.query('api::order.order').findOne({
           where: { comgateTransId: String(transId) },
-          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt'],
+          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt', 'publicToken'],
         }) as any;
       }
       if (!order && refIdQ) {
         order = await strapi.db.query('api::order.order').findOne({
-          where: { id: Number(refIdQ) },
-          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt'],
+          where: { comgateTransId: String(transId) },
+          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt', 'publicToken'],
         }) as any;
       }
 
@@ -1771,7 +1783,7 @@ export default {
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
         const recent = await strapi.db.query('api::order.order').findMany({
           where: { comgateTransId: { $notNull: true }, updatedAt: { $gt: fiveMinAgo } },
-          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt'],
+          select: ['id', 'paymentStatus', 'orderStatus', 'fulfillmentStatus', 'comgateTransId', 'updatedAt', 'publicToken'],
           orderBy: { updatedAt: 'desc' } as any,
           limit: 1,
         }) as any[];
@@ -1821,7 +1833,7 @@ export default {
       if ((statusRefId && statusRefId !== order!.id) ||
         (statusCurr && statusCurr !== 'EUR') ||
         (statusPrice && Math.abs(statusPrice - expectedCents) > 1)) {
-        return redirect(to.pending(order!.id));
+          return redirect(to.pending(order!.id, (order as any).publicToken || null));
       }
 
       const normalized = mapComgateToOrder(String((s as any).status || ''));
@@ -1836,7 +1848,7 @@ export default {
             await runPostPaidFlow(order!.id);
           }
         } catch (e) { strapi.log.error('[COMGATE][RETURN][PAID] update/send:', e); }
-        return redirect(to.success(order!.id));
+        return redirect(to.success(order!.id, (order as any).publicToken || null));
       }
 
       return redirect(to.pending(order!.id));

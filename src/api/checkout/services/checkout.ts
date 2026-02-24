@@ -3,6 +3,14 @@ import { sendEmail } from '../../../utils/email';
 import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
 import { issueInvoiceForOrder } from "../../../utils/issue-invoice";
 
+
+import crypto from 'crypto';
+
+function makePublicToken() {
+  return crypto.randomBytes(32).toString('hex'); // 64 znakov
+}
+
+
 /* ========================= Helpery ========================= */
 function escapeHtml(s: string = ''): string {
   return s
@@ -1125,6 +1133,7 @@ export default () => ({
         customerName: customer.name,
         customerEmail: customer.email,
         customerPhone: customer.phone,
+        publicToken: makePublicToken(),
         notes: orderNotes || null,
 
         shippingAddress: {
