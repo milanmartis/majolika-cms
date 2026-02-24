@@ -526,56 +526,67 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
 
   async shipPacketa(ctx) {
     const id = Number(ctx.params.id);
-    const { weightKg } = ctx.request.body || {};
-
+    const { weightKg, codEur } = ctx.request.body || {};
+  
     if (!Number.isFinite(id)) return ctx.badRequest('Invalid order id');
+  
     const w = Number(weightKg);
     if (!Number.isFinite(w) || w <= 0) return ctx.badRequest('weightKg is required');
-
-    // 🔁 Documents API – nájdi dokument podľa numeric id
-    const order = await strapi.documents('api::order.order').findFirst({
+  
+    const cod = Number(codEur ?? 0);
+    if (!Number.isFinite(cod) || cod < 0) return ctx.badRequest('codEur must be a number >= 0');
+  
+    const order = (await strapi.documents('api::order.order').findFirst({
       filters: { id },
       populate: ['deliveryDetails', 'deliveryAddress'],
-    }) as unknown as OrderWithPacketa | null;
-
+    })) as any; // tu si už aj tak castuješ, Strapi typy nie sú presné
+  
     if (!order) return ctx.notFound('Order not found');
     if (order.deliveryMethod !== 'packeta_box') return ctx.badRequest('Order is not Packeta delivery');
     if (!order.deliveryDetails?.packetaBoxId) return ctx.badRequest('Missing Packeta pickup point');
-    if (!order.documentId) {
-      return ctx.throw(500, 'Order has no documentId (unexpected in Strapi v5)');
-    }
-
+    if (!order.documentId) return ctx.throw(500, 'Order has no documentId (unexpected in Strapi v5)');
+  
+    // ✅ telefón berieme z customerPhone (tak ako ho reálne ukladáš)
+    const phoneCandidate = order.customerPhone || order.deliveryDetails?.phone;
+    if (!phoneCandidate) return ctx.badRequest('Missing phone');
+  
     try {
       const shipping = await strapi
         .service('api::packeta.packeta')
-        .createShipmentFromOrder(order as any, { weightKg: w });
-
-      const updateData = {
-        parcelWeightKg: w,
-        packetaShipmentId: (shipping as any).shipmentId ?? null,
-        packetaTrackingNumber: (shipping as any).trackingNumber ?? null,
-        packetaLabelUrl: (shipping as any).labelUrl ?? null,
-        packetaStatus: 'created',
-        deliveryStatus: 'label_created',
-        fulfillmentStatus: 'processing',
-      };
-
-      await strapi.documents('api::order.order').update({
-        documentId: order.documentId,
-        data: updateData as any,
-      });
-
+        .createShipmentFromOrder(order, {
+          weightKg: w,
+          codEur: cod,
+          currency: 'EUR',
+        });
+  
+        const updateData = {
+          parcelWeightKg: w,
+          packetaShipmentId: shipping?.shipmentId ?? null,
+          packetaTrackingNumber: shipping?.trackingNumber ?? null,
+          packetaLabelUrl: shipping?.labelUrl ?? null,
+        
+          packetaStatus: 'created' as const,
+          deliveryStatus: 'label_created' as const,
+          fulfillmentStatus: 'processing' as const,
+        };
+        
+        await strapi.documents('api::order.order').update({
+          documentId: order.documentId,
+          data: updateData,
+        });
+  
       ctx.body = {
         ok: true,
-        shipmentId: (shipping as any).shipmentId ?? null,
-        trackingNumber: (shipping as any).trackingNumber ?? null,
-        labelUrl: (shipping as any).labelUrl ?? null,
+        shipmentId: shipping?.shipmentId ?? null,
+        trackingNumber: shipping?.trackingNumber ?? null,
+        labelUrl: shipping?.labelUrl ?? null,
       };
     } catch (e: any) {
       strapi.log.error('[PACKETA][SHIP] error', e?.message || e);
       return ctx.throw(502, 'Packeta ship failed');
     }
   },
+  
 
   // GET /orders/my
   async my(ctx) {
