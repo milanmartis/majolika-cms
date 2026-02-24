@@ -544,7 +544,6 @@ async publicGet(ctx: any) {
     {
       fields: [
         'invoiceNumber',
-        'invoiceUrl',
         'orderStatus',
         'paymentStatus',
         'total',
