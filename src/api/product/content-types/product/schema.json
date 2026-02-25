@@ -41,6 +41,8 @@
       "pluginOptions": { "i18n": { "localized": true } }
     },
 
+    "isDigitalProduct": { "type": "boolean", "default": false },
+    
     "public": { "type": "boolean", "default": false },
     "price": { "type": "decimal" },
     "price_retail_net": { "type": "decimal" },
