@@ -2,6 +2,66 @@
 import { google } from 'googleapis';
 import pRetry from 'p-retry';
 
+export function isExternalBlockingEvent(ev: any): boolean {
+  // ignoruj eventy, čo vytvorilo Strapi
+  const sid = ev?.extendedProperties?.private?.strapiSessionId;
+  if (sid) return false;
+
+  // iba BLOCK prefix
+  const summary = String(ev?.summary || '').trim().toUpperCase();
+  return summary.startsWith('BLOCK');
+}
+
+export function externalSeatsFromGoogleEvent(ev: any): number {
+  const summary = String(ev?.summary || '').trim();
+
+  // 1) BLOCK:2
+  let m = summary.match(/^BLOCK\s*:\s*(\d+)/i);
+  if (m) return Math.max(1, Number(m[1]));
+
+  // 2) BLOCK x2
+  m = summary.match(/^BLOCK.*?\bx\s*(\d+)\b/i);
+  if (m) return Math.max(1, Number(m[1]));
+
+  // 3) BLOCK(2)
+  m = summary.match(/^BLOCK.*?\(\s*(\d+)\s*\)/i);
+  if (m) return Math.max(1, Number(m[1]));
+
+  // default: 1 seat
+  return 1;
+}
+
+export function getEventStartEndISO(ev: any): { start: string|null; end: string|null } {
+  const start = ev?.start?.dateTime || ev?.start?.date || null;
+  const end   = ev?.end?.dateTime   || ev?.end?.date   || null;
+  return { start, end };
+}
+
+export function overlaps(aStartISO: string, aEndISO: string, bStartISO: string, bEndISO: string) {
+  const a1 = new Date(aStartISO).getTime();
+  const a2 = new Date(aEndISO).getTime();
+  const b1 = new Date(bStartISO).getTime();
+  const b2 = new Date(bEndISO).getTime();
+  return a1 < b2 && b1 < a2;
+}
+
+export async function listGoogleEventsInRange(fromISO: string, toISO: string) {
+  const calendar = getCalendar();
+  const calendarId = String(process.env.GOOGLE_CALENDAR_ID);
+
+  const { data } = await calendar.events.list({
+    calendarId,
+    timeMin: fromISO,
+    timeMax: toISO,
+    singleEvents: true,
+    orderBy: 'startTime',
+    showDeleted: false,
+    maxResults: 2500,
+  });
+
+  return data.items ?? [];
+}
+
 function getCalendar() {
   const email = process.env.GOOGLE_SA_EMAIL;
   const keyRaw = process.env.GOOGLE_SA_KEY;

@@ -1,4 +1,13 @@
+// src/api/event-session/controllers/event-session.ts
 import { factories } from '@strapi/strapi';
+import {
+  listGoogleEventsInRange,
+  getEventStartEndISO,
+  overlaps,
+  isExternalBlockingEvent,
+  externalSeatsFromGoogleEvent,
+  occupancyFromBookings,
+} from '../../../utils/googleCalendar';
 
 type EventType = 'workshop' | 'tour';
 
@@ -51,9 +60,6 @@ function buildIcs(
 }
 
 export default factories.createCoreController('api::event-session.event-session', ({ strapi }) => ({
-
-  // --- tvoje metódy (ponechané) ---
-
   async ping(ctx) {
     strapi.log.debug('ping invoked');
     ctx.body = { ok: true, ts: new Date().toISOString() };
@@ -69,17 +75,17 @@ export default factories.createCoreController('api::event-session.event-session'
 
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: { product: { slug: { $eq: slug } } },
-      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
       populate: {
-        product: { fields: ['id','name','slug','price','price_sale','inSale'] },
-        series:  { fields: ['id','title','seriesVersion','frequency','interval','byWeekday','timeOfDay'] }
+        product: { fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale'] },
+        series: { fields: ['id', 'title', 'seriesVersion', 'frequency', 'interval', 'byWeekday', 'timeOfDay'] },
       },
       sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
     const withCapacity = await Promise.all(
-      sessions.map(async (s: any) => {
+      (sessions as any[]).map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
         return { ...s, capacity: cap };
       })
@@ -99,7 +105,9 @@ export default factories.createCoreController('api::event-session.event-session'
     const localDayEnd = new Date(localDayStart);
     localDayEnd.setDate(localDayEnd.getDate() + 1);
 
-    strapi.log.debug(`listForDay invoked, filtering sessions between ${localDayStart.toISOString()} and ${localDayEnd.toISOString()}`);
+    strapi.log.debug(
+      `listForDay invoked, filtering sessions between ${localDayStart.toISOString()} and ${localDayEnd.toISOString()}`
+    );
 
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters: {
@@ -108,17 +116,17 @@ export default factories.createCoreController('api::event-session.event-session'
           $lt: localDayEnd.toISOString(),
         },
       },
-      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
       populate: {
-        product: { fields: ['id','name','slug','price','price_sale','inSale'] },
-        series:  { fields: ['id','title','seriesVersion','frequency','interval','byWeekday','timeOfDay'] }
+        product: { fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale'] },
+        series: { fields: ['id', 'title', 'seriesVersion', 'frequency', 'interval', 'byWeekday', 'timeOfDay'] },
       },
       sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
     const withCapacity = await Promise.all(
-      sessions.map(async (s: any) => {
+      (sessions as any[]).map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
         return { ...s, capacity: cap };
       })
@@ -146,17 +154,17 @@ export default factories.createCoreController('api::event-session.event-session'
           $lte: rangeEnd.toISOString(),
         },
       },
-      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
       populate: {
-        product: { fields: ['id','name','slug','price','price_sale','inSale'] },
-        series:  { fields: ['id','title','seriesVersion','frequency','interval','byWeekday','timeOfDay'] }
+        product: { fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale'] },
+        series: { fields: ['id', 'title', 'seriesVersion', 'frequency', 'interval', 'byWeekday', 'timeOfDay'] },
       },
       sort: { startDateTime: 'asc' },
     });
 
     const sessionService = strapi.service('api::event-session.event-session');
     const withCapacity = await Promise.all(
-      sessions.map(async (s: any) => {
+      (sessions as any[]).map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
         return { ...s, capacity: cap };
       })
@@ -166,14 +174,12 @@ export default factories.createCoreController('api::event-session.event-session'
     ctx.body = { data: withCapacity };
   },
 
-  // --- doplnené .ics endpointy ---
-
   /** GET /event-sessions/:id/ics */
   async icsOne(ctx) {
     const id = Number(ctx.params.id);
     const s: any = await strapi.entityService.findOne('api::event-session.event-session', id, {
-      populate: { product: { fields: ['id','name','slug'] } },
-      fields: ['id','title','type','startDateTime','durationMinutes'],
+      populate: { product: { fields: ['id', 'name', 'slug'] } },
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes'],
     });
     if (!s) return ctx.notFound('Event session not found');
 
@@ -216,8 +222,8 @@ export default factories.createCoreController('api::event-session.event-session'
 
     const sessions: any[] = await strapi.entityService.findMany('api::event-session.event-session', {
       filters,
-      populate: { product: { fields: ['id','name','slug'] } },
-      fields: ['id','title','type','startDateTime','durationMinutes'],
+      populate: { product: { fields: ['id', 'name', 'slug'] } },
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes'],
       sort: { startDateTime: 'asc' },
     });
 
@@ -241,45 +247,63 @@ export default factories.createCoreController('api::event-session.event-session'
     ctx.body = ics;
   },
 
-
   async calendar(ctx) {
     const { from, to, type, product, slug } = ctx.query as Record<string, string | undefined>;
-  
+
     const filters: any = {};
     if (from || to) {
       filters.startDateTime = {} as any;
       if (from) filters.startDateTime.$gte = new Date(String(from)).toISOString();
-      if (to)   filters.startDateTime.$lte = new Date(String(to)).toISOString();
+      if (to) filters.startDateTime.$lte = new Date(String(to)).toISOString();
     }
     if (type) filters.type = { $eq: type };
-  
+
     // podpora product id aj slug naraz
     const productFilter: any = {};
     if (product) productFilter.id = { $eq: Number(product) };
-    if (slug)    productFilter.slug = { $eq: slug };
+    if (slug) productFilter.slug = { $eq: slug };
     if (Object.keys(productFilter).length) filters.product = productFilter;
-  
+
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters,
-      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
       populate: {
-        bookings: { fields: ['id','status'] },
-        product:  { fields: ['id','name','slug'] },
+        bookings: { fields: ['id', 'status', 'peopleCount'] as any },
+        product: { fields: ['id', 'name', 'slug'] },
       },
       sort: { startDateTime: 'asc' },
     });
-  
+
+    const fromISO = from ? new Date(String(from)).toISOString() : new Date(Date.now() - 7 * 864e5).toISOString();
+    const toISO = to ? new Date(String(to)).toISOString() : new Date(Date.now() + 180 * 864e5).toISOString();
+    const gEvents = await listGoogleEventsInRange(fromISO, toISO);
+
     const items = (sessions as any[]).map((s) => {
       const start = new Date(s.startDateTime);
-      const dur   = Number(s.durationMinutes ?? 60);
-      const end   = new Date(start.getTime() + dur * 60000);
-  
+      const dur = Number(s.durationMinutes ?? 60);
+      const end = new Date(start.getTime() + dur * 60000);
+
+      // ľudia zo Strapi bookingov
+      const confirmedPeople = occupancyFromBookings(s.bookings || []);
+
+      // len pre debug: počet bookingov (nie ľudí)
       const confirmedCount = Array.isArray(s.bookings)
-        ? s.bookings.filter((b: any) => (b?.status ? ['paid','confirmed'].includes(b.status) : true)).length
+        ? s.bookings.filter((b: any) => (b?.status ? ['paid', 'confirmed'].includes(b.status) : true)).length
         : 0;
-  
-      const available = Math.max(0, Number(s.maxCapacity) - confirmedCount);
-  
+
+      // externé BLOCK udalosti z Google
+      const externalBlocked = gEvents
+        .filter(isExternalBlockingEvent)
+        .filter((ev: any) => {
+          const se = getEventStartEndISO(ev);
+          if (!se.start || !se.end) return false;
+          return overlaps(se.start, se.end, start.toISOString(), end.toISOString());
+        })
+        .reduce((sum: number, ev: any) => sum + externalSeatsFromGoogleEvent(ev), 0);
+
+      const totalBooked = confirmedPeople + externalBlocked;
+      const available = Math.max(0, Number(s.maxCapacity) - totalBooked);
+
       return {
         id: s.id,
         title: s.title ?? (s.type === 'workshop' ? 'Workshop' : 'Prehliadka'),
@@ -289,23 +313,26 @@ export default factories.createCoreController('api::event-session.event-session'
         durationMinutes: dur,
         maxCapacity: s.maxCapacity,
         confirmedCount,
+        confirmedPeople,
+        externalBlocked,
+        totalBooked,
         available,
         product: s.product ? { id: s.product.id, title: s.product.name, slug: s.product.slug } : null,
       };
     });
-  
+
     ctx.body = { items };
   },
 
   async productCalendar(ctx) {
     const productId = Number(ctx.params.productId);
     if (!productId) return ctx.badRequest('Invalid productId');
-  
+
     const q = ctx.query as Record<string, string | undefined>;
     const from = q.from || q.start;
-    const to   = q.to   || q.end;
+    const to = q.to || q.end;
     const { type } = q;
-  
+
     const filters: any = { product: { id: { $eq: productId } } };
     if (from || to) {
       filters.startDateTime = {} as any;
@@ -313,42 +340,65 @@ export default factories.createCoreController('api::event-session.event-session'
       if (to) {
         const e = new Date(String(to));
         // ak používaš 'to' ako dátum bez času, posuň na koniec dňa
-        if (!q.to && q.end) { /* no-op */ } else { e.setHours(23,59,59,999); }
+        if (!q.to && q.end) {
+          /* no-op */
+        } else {
+          e.setHours(23, 59, 59, 999);
+        }
         filters.startDateTime.$lte = e.toISOString();
       }
     }
     if (type) filters.type = { $eq: type };
-  
+
     const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
       filters,
-      fields: ['id','title','type','startDateTime','durationMinutes','maxCapacity'],
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
       populate: {
-        bookings: { fields: ['id','status'] },
-        product:  { fields: ['id','name','slug'] },
+        // ⚠️ potrebuješ peopleCount
+        bookings: { fields: ['id', 'status', 'peopleCount'] as any },
+        product: { fields: ['id', 'name', 'slug'] },
       },
       sort: { startDateTime: 'asc' },
     });
-  
-    // ak používaš vlastný service na kapacitu:
+
+    // rovnaký range pre Google events (aby sme rátali BLOCK)
+    const fromISO = from ? new Date(String(from)).toISOString() : new Date(Date.now() - 7 * 864e5).toISOString();
+    const toISO = to ? new Date(String(to)).toISOString() : new Date(Date.now() + 180 * 864e5).toISOString();
+    const gEvents = await listGoogleEventsInRange(fromISO, toISO);
+
     const sessionService = strapi.service('api::event-session.event-session');
+
     const items = await Promise.all(
       (sessions as any[]).map(async (s) => {
         const start = new Date(s.startDateTime);
-        const dur   = Number(s.durationMinutes ?? 60);
-        const end   = new Date(start.getTime() + dur * 60000);
-  
-        // dostupnosť z bookings (fallback keď nemáš service.getCapacity)
+        const dur = Number(s.durationMinutes ?? 60);
+        const end = new Date(start.getTime() + dur * 60000);
+
+        const confirmedPeople = occupancyFromBookings(s.bookings || []);
         const confirmedCount = Array.isArray(s.bookings)
-          ? s.bookings.filter((b: any) => (b?.status ? ['paid','confirmed'].includes(b.status) : true)).length
+          ? s.bookings.filter((b: any) => (b?.status ? ['paid', 'confirmed'].includes(b.status) : true)).length
           : 0;
-        const available = Math.max(0, Number(s.maxCapacity) - confirmedCount);
-  
+
+        const externalBlocked = gEvents
+          .filter(isExternalBlockingEvent)
+          .filter((ev: any) => {
+            const se = getEventStartEndISO(ev);
+            if (!se.start || !se.end) return false;
+            return overlaps(se.start, se.end, start.toISOString(), end.toISOString());
+          })
+          .reduce((sum: number, ev: any) => sum + externalSeatsFromGoogleEvent(ev), 0);
+
+        const totalBooked = confirmedPeople + externalBlocked;
+        const available = Math.max(0, Number(s.maxCapacity) - totalBooked);
+
         // ak máš getCapacity, môžeš ho pridať do výstupu:
         let capacity: any = null;
         if (sessionService?.getCapacity) {
-          try { capacity = await sessionService.getCapacity(s.id); } catch (_) {}
+          try {
+            capacity = await sessionService.getCapacity(s.id);
+          } catch (_) {}
         }
-  
+
         return {
           id: s.id,
           title: s.title ?? (s.type === 'workshop' ? 'Workshop' : 'Prehliadka'),
@@ -358,13 +408,16 @@ export default factories.createCoreController('api::event-session.event-session'
           durationMinutes: dur,
           maxCapacity: s.maxCapacity,
           confirmedCount,
+          confirmedPeople,
+          externalBlocked,
+          totalBooked,
           available,
-          capacity, // voliteľné, ak máš service
+          capacity,
           product: s.product ? { id: s.product.id, title: s.product.name, slug: s.product.slug } : null,
         };
       })
     );
-  
+
     ctx.body = { items };
   },
 
@@ -387,8 +440,8 @@ export default factories.createCoreController('api::event-session.event-session'
 
     const sessions: any[] = await strapi.entityService.findMany('api::event-session.event-session', {
       filters,
-      populate: { product: { fields: ['id','name','slug'] } },
-      fields: ['id','title','type','startDateTime','durationMinutes'],
+      populate: { product: { fields: ['id', 'name', 'slug'] } },
+      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes'],
       sort: { startDateTime: 'asc' },
     });
 
