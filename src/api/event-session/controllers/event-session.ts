@@ -58,7 +58,66 @@ function buildIcs(
   lines.push('END:VCALENDAR');
   return lines.join('\r\n');
 }
+async function resolveProductDocumentIdFromAnySlug(strapi: any, slug: string): Promise<string | null> {
+  // Skús nájsť produkt podľa slugu (v akomkoľvek locale)
+  // Pozn.: Strapi “locale: 'all'” niekde funguje, niekde nie – preto robíme fallback.
+  const tryFind = async (localeArg?: any) => {
+    return await strapi.entityService.findMany('api::product.product', {
+      filters: { slug: { $eq: slug } },
+      fields: ['id', 'documentId', 'locale', 'slug'],
+      populate: {
+        localizations: { fields: ['id', 'documentId', 'locale', 'slug'] },
+      },
+      ...(localeArg ? { locale: localeArg } : {}),
+      pagination: { page: 1, pageSize: 1 },
+    });
+  };
 
+  let rows: any[] = [];
+  try {
+    rows = await tryFind('all');
+  } catch {
+    // fallback bez locale
+    rows = await tryFind(undefined);
+  }
+
+  const p = rows?.[0];
+  if (!p) return null;
+
+  // documentId priamo
+  if (p.documentId) return p.documentId as string;
+
+  // alebo cez localizations
+  const locs = p.localizations ?? p.localizations?.data ?? [];
+  const locArr = Array.isArray(locs) ? locs : [];
+  const hit = locArr.find((x: any) => (x?.slug ?? x?.attributes?.slug) === slug);
+  const doc = hit?.documentId ?? hit?.attributes?.documentId ?? null;
+
+  return doc;
+}
+
+function normalizeProductForFrontend(prod: any) {
+  if (!prod) return null;
+  // Strapi entityService vráti často “flat” object; keď by sa objavili attributes, zober aj tie.
+  const p = prod.attributes ?? prod;
+
+  const locsRaw = p.localizations?.data ?? p.localizations ?? [];
+  const locs = Array.isArray(locsRaw)
+    ? locsRaw.map((x: any) => (x.attributes ?? x))
+    : [];
+
+  return {
+    id: p.id,
+    name: p.name,
+    slug: p.slug,
+    price: p.price,
+    price_sale: p.price_sale,
+    inSale: p.inSale,
+    locale: p.locale,
+    documentId: p.documentId,
+    localizations: { data: locs },
+  };
+}
 export default factories.createCoreController('api::event-session.event-session', ({ strapi }) => ({
   async ping(ctx) {
     strapi.log.debug('ping invoked');
@@ -67,110 +126,245 @@ export default factories.createCoreController('api::event-session.event-session'
 
   async findByProductSlug(ctx) {
     const { slug } = ctx.query;
+  
     if (typeof slug !== 'string') {
-      ctx.status = 400;
-      ctx.body = { error: 'Missing or invalid slug parameter' };
-      return;
+      return ctx.badRequest('Missing or invalid slug parameter');
     }
-
-    const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
-      filters: { product: { slug: { $eq: slug } } },
-      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
-      populate: {
-        product: { fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale'] },
-        series: { fields: ['id', 'title', 'seriesVersion', 'frequency', 'interval', 'byWeekday', 'timeOfDay'] },
-      },
-      sort: { startDateTime: 'asc' },
-    });
-
+  
+    // 1️⃣ nájdi document_id z hocijakého jazyka
+    const baseProduct = await strapi.db
+      .query('api::product.product')
+      .findOne({
+        where: { slug },
+        select: ['id', 'document_id'],
+      });
+  
+    if (!baseProduct?.document_id) {
+      return ctx.send({ data: [] });
+    }
+  
+    const documentId = baseProduct.document_id;
+  
+    // 2️⃣ nájdi všetky jazykové verzie produktu
+    const localizedProducts = await strapi.db
+      .query('api::product.product')
+      .findMany({
+        where: { document_id: documentId },
+        select: ['id'],
+      });
+  
+    const productIds = localizedProducts.map(p => p.id);
+  
+    if (!productIds.length) {
+      return ctx.send({ data: [] });
+    }
+  
+    // 3️⃣ nájdi sessions podľa product.id IN (...)
+    const sessions = await strapi.entityService.findMany(
+      'api::event-session.event-session',
+      {
+        filters: {
+          product: {
+            id: { $in: productIds },
+          },
+        },
+        fields: [
+          'id',
+          'title',
+          'type',
+          'startDateTime',
+          'durationMinutes',
+          'maxCapacity',
+        ],
+        populate: {
+          product: {
+            fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale', 'locale'],
+            populate: {
+              localizations: {
+                fields: ['id', 'slug', 'locale'],
+              },
+            },
+          },
+          series: {
+            fields: [
+              'id',
+              'title',
+              'seriesVersion',
+              'frequency',
+              'interval',
+              'byWeekday',
+              'timeOfDay',
+            ],
+          },
+        },
+        sort: { startDateTime: 'asc' },
+      }
+    );
+  
     const sessionService = strapi.service('api::event-session.event-session');
+  
     const withCapacity = await Promise.all(
-      (sessions as any[]).map(async (s: any) => {
+      sessions.map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
-        return { ...s, capacity: cap };
+        return {
+          ...s,
+          capacity: cap,
+        };
       })
     );
-
-    ctx.body = { data: withCapacity };
+  
+    return ctx.send({ data: withCapacity });
   },
 
-  async listForDay(ctx) {
-    const { date } = ctx.query;
-    if (!date) return ctx.badRequest('Missing date query param');
-
-    const d = new Date(String(date));
-    if (isNaN(d.getTime())) return ctx.badRequest('Invalid date');
-
-    const localDayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
-    const localDayEnd = new Date(localDayStart);
-    localDayEnd.setDate(localDayEnd.getDate() + 1);
-
-    strapi.log.debug(
-      `listForDay invoked, filtering sessions between ${localDayStart.toISOString()} and ${localDayEnd.toISOString()}`
-    );
-
-    const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
-      filters: {
-        startDateTime: {
-          $gte: localDayStart.toISOString(),
-          $lt: localDayEnd.toISOString(),
+  async byDocument(ctx) {
+    const { documentId } = ctx.query as any;
+    if (!documentId) return ctx.badRequest('Missing documentId');
+  
+    // 1️⃣ nájdi všetky jazykové verzie produktu
+    const products = await strapi.db
+      .query('api::product.product')
+      .findMany({
+        where: { document_id: documentId },
+        select: ['id'],
+      });
+  
+    if (!products.length) {
+      return ctx.send({ data: [] });
+    }
+  
+    const productIds = products.map((p: any) => p.id);
+  
+    // 2️⃣ nájdi sessions podľa product.id IN (...)
+    const sessions = await strapi.entityService.findMany(
+      'api::event-session.event-session',
+      {
+        filters: {
+          product: {
+            id: { $in: productIds },
+          },
         },
-      },
-      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
-      populate: {
-        product: { fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale'] },
-        series: { fields: ['id', 'title', 'seriesVersion', 'frequency', 'interval', 'byWeekday', 'timeOfDay'] },
-      },
-      sort: { startDateTime: 'asc' },
-    });
-
+        populate: {
+          product: {
+            fields: ['id', 'name', 'slug', 'locale'],
+            populate: { localizations: true },
+          },
+        },
+        sort: { startDateTime: 'asc' },
+      }
+    );
+  
     const sessionService = strapi.service('api::event-session.event-session');
     const withCapacity = await Promise.all(
-      (sessions as any[]).map(async (s: any) => {
+      sessions.map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
         return { ...s, capacity: cap };
       })
     );
-
+  
     ctx.body = { data: withCapacity };
   },
 
   async listForRange(ctx) {
     const { start, end } = ctx.query;
-    if (!start || !end) return ctx.badRequest('Missing start or end query param');
-
-    const startDate = new Date(String(start));
-    const endDate = new Date(String(end));
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+  
+    if (!start || !end) {
+      return ctx.badRequest('Missing start or end query param');
+    }
+  
+    if (typeof start !== 'string' || typeof end !== 'string') {
       return ctx.badRequest('Invalid date range');
     }
-    const rangeEnd = new Date(endDate);
-    rangeEnd.setHours(23, 59, 59, 999);
-
-    const sessions = await strapi.entityService.findMany('api::event-session.event-session', {
-      filters: {
-        startDateTime: {
-          $gte: startDate.toISOString(),
-          $lte: rangeEnd.toISOString(),
+  
+    // očakávame formát YYYY-MM-DD
+    const rx = /^(\d{4})-(\d{2})-(\d{2})$/;
+  
+    const ms = rx.exec(start);
+    const me = rx.exec(end);
+  
+    if (!ms || !me) {
+      return ctx.badRequest('Invalid date format, expected YYYY-MM-DD');
+    }
+  
+    const startUtc = new Date(Date.UTC(
+      Number(ms[1]),
+      Number(ms[2]) - 1,
+      Number(ms[3]),
+      0, 0, 0, 0
+    ));
+  
+    const endUtc = new Date(Date.UTC(
+      Number(me[1]),
+      Number(me[2]) - 1,
+      Number(me[3]) + 1,   // posunieme na ďalší deň 00:00
+      0, 0, 0, 0
+    ));
+  
+    strapi.log.debug(
+      `listForRange UTC range ${startUtc.toISOString()} -> ${endUtc.toISOString()}`
+    );
+  
+    const sessions = await strapi.entityService.findMany(
+      'api::event-session.event-session',
+      {
+        filters: {
+          startDateTime: {
+            $gte: startUtc.toISOString(),
+            $lt: endUtc.toISOString(),
+          },
         },
-      },
-      fields: ['id', 'title', 'type', 'startDateTime', 'durationMinutes', 'maxCapacity'],
-      populate: {
-        product: { fields: ['id', 'name', 'slug', 'price', 'price_sale', 'inSale'] },
-        series: { fields: ['id', 'title', 'seriesVersion', 'frequency', 'interval', 'byWeekday', 'timeOfDay'] },
-      },
-      sort: { startDateTime: 'asc' },
-    });
-
+        fields: [
+          'id',
+          'title',
+          'type',
+          'startDateTime',
+          'durationMinutes',
+          'maxCapacity',
+        ],
+        populate: {
+          product: {
+            fields: [
+              'id',
+              'name',
+              'slug',
+              'price',
+              'price_sale',
+              'inSale',
+              'locale',
+            ],
+            populate: {
+              localizations: {
+                fields: ['id', 'slug', 'locale'],
+              },
+            },
+          },
+          series: {
+            fields: [
+              'id',
+              'title',
+              'seriesVersion',
+              'frequency',
+              'interval',
+              'byWeekday',
+              'timeOfDay',
+            ],
+          },
+        },
+        sort: { startDateTime: 'asc' },
+      }
+    );
+  
     const sessionService = strapi.service('api::event-session.event-session');
+  
     const withCapacity = await Promise.all(
       (sessions as any[]).map(async (s: any) => {
         const cap = await sessionService.getCapacity(s.id);
-        return { ...s, capacity: cap };
+        return {
+          ...s,
+          capacity: cap,
+        };
       })
     );
-
-    strapi.log.debug('by-range result', JSON.stringify(withCapacity));
+  
     ctx.body = { data: withCapacity };
   },
 
