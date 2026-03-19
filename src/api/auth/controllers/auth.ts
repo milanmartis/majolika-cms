@@ -20,6 +20,9 @@ export default {
     }
 
     try {
+      const normalizedUsername = String(username).trim();
+      const normalizedEmail = String(email).trim().toLowerCase();
+
       const body = new URLSearchParams();
       body.append('secret', process.env.TURNSTILE_SECRET_KEY || '');
       body.append('response', turnstileToken);
@@ -56,8 +59,8 @@ export default {
         .findOne({
           where: {
             $or: [
-              { email: email.toLowerCase() },
-              { username },
+              { email: normalizedEmail },
+              { username: normalizedUsername },
             ],
           },
         });
@@ -73,18 +76,30 @@ export default {
         });
 
       if (!defaultRole) {
+        strapi.log.error('Default authenticated role not found.');
         return ctx.internalServerError('Predvolená rola nebola nájdená.');
       }
 
       const user = await strapi.plugins['users-permissions'].services.user.add({
-        username,
-        email: email.toLowerCase(),
+        username: normalizedUsername,
+        email: normalizedEmail,
         password,
         provider: 'local',
         confirmed: false,
         blocked: false,
         role: defaultRole.id,
       });
+
+      try {
+        await strapi.plugins['users-permissions'].services.user.sendConfirmationEmail(user);
+      } catch (emailError) {
+        strapi.log.error('Confirmation email sending failed:', emailError);
+
+        // user už je vytvorený, ale mail sa neposlal
+        return ctx.internalServerError(
+          'Účet bol vytvorený, ale nepodarilo sa odoslať potvrdzovací e-mail.'
+        );
+      }
 
       return ctx.send({
         ok: true,
