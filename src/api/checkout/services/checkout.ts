@@ -1,7 +1,7 @@
 'use strict';
 import { sendEmail } from '../../../utils/email';
 import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
-// import { issueInvoiceForOrder } from "../../../utils/issue-invoice";
+import { issueInvoiceForOrder } from "../../../utils/issue-invoice";
 import { sendOrderToKros } from '../../../utils/kros';
 
 import crypto from 'crypto';
@@ -1220,6 +1220,23 @@ export default () => ({
         }
       } catch (e) {
         strapi.log.error('[KROS][NON-CARD] send failed:', e);
+      }
+
+      try {
+        const inv = await issueInvoiceForOrder((order as any).id);
+        invoiceNumber = inv?.invoiceNumber || null;
+        // invoiceUrl = inv?.invoiceUrl || inv?.url || null;
+
+        if (invoiceNumber || invoiceUrl) {
+          await strapi.entityService.update('api::order.order', (order as any).id, {
+            data: {
+              invoiceNumber: invoiceNumber,
+              invoiceUrl: invoiceUrl
+            } as any
+          });
+        }
+      } catch (e) {
+        strapi.log.error('[INVOICE][NON-CARD] issue failed:', e);
       }
 
       const baseDeliverySummary = summarizeDelivery(delivery, locale);
