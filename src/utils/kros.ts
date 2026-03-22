@@ -225,6 +225,7 @@ export async function sendOrderToKros(orderId: number) {
       'customerEmail',
       'customerPhone',
       'orderLocale',
+      'shippingAddress',
       'billingIsCompany',
       'billingCompanyName',
       'billingIco',
@@ -243,7 +244,6 @@ export async function sendOrderToKros(orderId: number) {
     ] as any,
     populate: {
       items: true,
-      shippingAddress: true,
       billingAddress: true,
     },
   }) as unknown as OrderRecord | null;
