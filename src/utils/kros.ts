@@ -2,6 +2,7 @@
 
 import crypto from 'crypto';
 import { sendEmail } from './email';
+
 type KrosDocumentItem = {
     amount: number;
     name: string;
@@ -254,6 +255,9 @@ export async function sendOrderToKros(orderId: number) {
 
   const payload = buildKrosPayload(order);
 
+  strapi.log.info(`[KROS][SEND] order #${orderId} payload=${JSON.stringify(payload)}`);
+  strapi.log.info(`[KROS][SEND] endpoint=${apiBase}${importPath}`);
+
   const res = await fetch(`${apiBase}${importPath}`, {
     method: 'POST',
     headers: {
@@ -295,8 +299,12 @@ export async function sendOrderToKros(orderId: number) {
     } as any,
   });
 
+
+  strapi.log.info(`[KROS][SEND] order #${orderId} response=${text}`);
   return { ok: true, requestId, response: data };
 }
+
+
 
 export async function markKrosRetry(orderId: number, errorMessage: string) {
   const order = await strapi.entityService.findOne('api::order.order', orderId, {
@@ -363,32 +371,60 @@ export async function processQueuedKrosOrders(limit = 10) {
 }
 
 async function sendInvoiceReadyEmail(orderId: number, invoiceNumber: string, invoiceUrl?: string | null) {
-  const order = await strapi.entityService.findOne('api::order.order', orderId, {
-    fields: ['customerEmail', 'customerName', 'orderLocale'] as any,
-  }) as any;
-
-  if (!order?.customerEmail) return;
-
-  const locale = String(order.orderLocale || 'sk').toLowerCase();
-
-  const subject =
-    locale.startsWith('en')
-      ? `Invoice for order ${invoiceNumber}`
-      : locale.startsWith('de')
-        ? `Rechnung zur Bestellung ${invoiceNumber}`
-        : `Faktúra k objednávke ${invoiceNumber}`;
-
-  await sendEmail({
-    to: order.customerEmail,
-    subject,
-    html: `
-      <p>Dobrý deň${order.customerName ? `, ${order.customerName}` : ''},</p>
-      <p>Vaša faktúra bola vystavená.</p>
-      <p>Číslo faktúry: <b>${invoiceNumber}</b></p>
-      ${invoiceUrl ? `<p><a href="${invoiceUrl}" target="_blank">Zobraziť faktúru</a></p>` : ''}
-    `,
-  });
-}
+    const order = await strapi.entityService.findOne('api::order.order', orderId, {
+      fields: ['customerEmail', 'customerName', 'orderLocale'] as any,
+    }) as any;
+  
+    if (!order?.customerEmail) return;
+  
+    const locale = String(order.orderLocale || 'sk').toLowerCase();
+  
+    const subject =
+      locale.startsWith('en')
+        ? `Invoice for order ${invoiceNumber}`
+        : locale.startsWith('de')
+          ? `Rechnung zur Bestellung ${invoiceNumber}`
+          : `Faktúra k objednávke ${invoiceNumber}`;
+  
+    const hello =
+      locale.startsWith('en')
+        ? `Hello${order.customerName ? `, ${order.customerName}` : ''},`
+        : locale.startsWith('de')
+          ? `Guten Tag${order.customerName ? `, ${order.customerName}` : ''},`
+          : `Dobrý deň${order.customerName ? `, ${order.customerName}` : ''},`;
+  
+    const intro =
+      locale.startsWith('en')
+        ? `Your invoice has been issued.`
+        : locale.startsWith('de')
+          ? `Ihre Rechnung wurde ausgestellt.`
+          : `Vaša faktúra bola vystavená.`;
+  
+    const invoiceLabel =
+      locale.startsWith('en')
+        ? `Invoice number`
+        : locale.startsWith('de')
+          ? `Rechnungsnummer`
+          : `Číslo faktúry`;
+  
+    const linkLabel =
+      locale.startsWith('en')
+        ? `View invoice`
+        : locale.startsWith('de')
+          ? `Rechnung zobraziť`
+          : `Zobraziť faktúru`;
+  
+    await sendEmail({
+      to: order.customerEmail,
+      subject,
+      html: `
+        <p>${hello}</p>
+        <p>${intro}</p>
+        <p><strong>${invoiceLabel}:</strong> ${invoiceNumber}</p>
+        ${invoiceUrl ? `<p><a href="${invoiceUrl}" target="_blank">${linkLabel}</a></p>` : ''}
+      `,
+    });
+  }
 
 export async function applyKrosWebhook(payload: any) {
   const requestId = payload?.requestId || null;
@@ -439,9 +475,9 @@ export async function applyKrosWebhook(payload: any) {
     strapi.log.warn(`[KROS][WEBHOOK] unmatched requestId=${requestId} variableSymbol=${variableSymbol}`);
     return { matched: false };
   }
-
+  const normalizedTopStatus = Number(topStatus);
   const updateData: any = {
-    krosStatus: topStatus === 200 ? 'processed' : 'processed_with_problems',
+    krosStatus: normalizedTopStatus === 200 ? 'processed' : 'processed_with_problems',
     krosLastWebhook: payload,
   };
 
@@ -460,7 +496,12 @@ export async function applyKrosWebhook(payload: any) {
   });
 
   if (invoiceNumber && !order.invoiceNumber) {
-    await sendInvoiceReadyEmail(order.id, String(invoiceNumber), apiUrl || null);
+    try {
+      await sendInvoiceReadyEmail(order.id, String(invoiceNumber), apiUrl || null);
+      strapi.log.info(`[KROS][EMAIL] invoice email sent for order #${order.id}`);
+    } catch (e) {
+      strapi.log.error(`[KROS][EMAIL] failed for order #${order.id}:`, e);
+    }
   }
 
   return {
