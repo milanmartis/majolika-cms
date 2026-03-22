@@ -240,10 +240,10 @@ export function buildKrosPayload(order: OrderRecord) {
         variableSymbol: String(order.id),
   
         bankAccount: {
-          iban: '',
-          accountNumber: '',
-          isForeign: false,
-          swift: '',
+            iban: process.env.KROS_BANK_IBAN || '',
+            accountNumber: '',
+            isForeign: false,
+            swift: process.env.KROS_BANK_SWIFT || '',
         },
   
         deliveryDate: today,
