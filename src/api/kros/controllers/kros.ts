@@ -6,16 +6,16 @@ export default {
   async webhook(ctx: any) {
     try {
       const signature = ctx.request.headers['x-kros-signature-256'];
+
       const rawBody =
         typeof ctx.request.body === 'string'
           ? ctx.request.body
           : JSON.stringify(ctx.request.body || {});
 
-      const secretEnabled = !!process.env.KROS_WEBHOOK_SECRET;
-      if (secretEnabled) {
-        const ok = verifyKrosSignature(rawBody, signature as string);
-        if (!ok) {
-          strapi.log.warn('[KROS][WEBHOOK] Invalid signature');
+      if (process.env.KROS_WEBHOOK_SECRET) {
+        const valid = verifyKrosSignature(rawBody, signature as string);
+        if (!valid) {
+          strapi.log.warn('[KROS][WEBHOOK] invalid signature');
           ctx.status = 401;
           ctx.body = { ok: false, error: 'Invalid signature' };
           return;
@@ -34,7 +34,7 @@ export default {
     } catch (e: any) {
       strapi.log.error('[KROS][WEBHOOK] failed:', e?.message || e);
       ctx.status = 500;
-      ctx.body = { ok: false, error: 'Webhook processing failed' };
+      ctx.body = { ok: false, error: 'Webhook failed' };
     }
   },
 
@@ -46,8 +46,8 @@ export default {
       const result = await sendOrderToKros(id);
       ctx.body = result;
     } catch (e: any) {
-      strapi.log.error('[KROS][SEND ORDER] failed:', e?.message || e);
-      ctx.throw(500, e?.message || 'KROS send failed');
+      strapi.log.error('[KROS][SEND] failed:', e?.message || e);
+      return ctx.throw(500, e?.message || 'KROS send failed');
     }
   },
 };

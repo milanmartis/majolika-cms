@@ -5,8 +5,8 @@ import qs from 'qs';
 import fetch from 'node-fetch';
 import { sendEmail } from '../../../utils/email';
 import { recalcSessionsByTemporaryId, recalcSessionsByOrderId } from '../../../utils/sessions';
-import { issueInvoiceForOrder } from '../../../utils/issue-invoice';
-
+//import { issueInvoiceForOrder } from '../../../utils/issue-invoice';
+import { sendOrderToKros } from '../../../utils/kros';
 // ========================= Comgate ENV =========================
 const API = process.env.COMGATE_API || 'https://payments.comgate.cz/v1.0';
 const MERCHANT = process.env.COMGATE_MERCHANT || '';
@@ -908,29 +908,22 @@ async function runPostPaidFlow(orderId: number) {
     freshOrder.customer?.phone ||
     '';
 
-    let invoiceNumber: string | null = null;
-    let invoiceUrl: string | null = null;
-    
+    let invoiceNumber: string | null = (freshOrder as any).invoiceNumber || null;
+    let invoiceUrl: string | null = (freshOrder as any).invoiceUrl || null;
+
     try {
-      const inv = await issueInvoiceForOrder(freshOrder.id);
-      invoiceNumber = inv?.invoiceNumber || null;
-      // invoiceUrl = inv?.invoiceUrl || inv?.url || null;
-    
-      if (invoiceNumber || invoiceUrl) {
-        await strapi.db.query('api::order.order').update({
-          where: { id: freshOrder.id },
-          data: {
-            invoiceNumber: invoiceNumber,
-            invoiceUrl: invoiceUrl,
-          } as any,
-        });
-    
-        // aby ďalej v kóde už bolo freshOrder "aktuálne"
-        (freshOrder as any).invoiceNumber = invoiceNumber;
-        (freshOrder as any).invoiceUrl = invoiceUrl;
+      const shouldSendToKros =
+        String(process.env.KROS_SEND_ON_CARD_PAID || 'true').toLowerCase() === 'true';
+
+      if (shouldSendToKros) {
+        const krosRes = await sendOrderToKros(freshOrder.id);
+
+        strapi.log.info(
+          `[KROS][PAID] order #${freshOrder.id} accepted: ${JSON.stringify(krosRes)}`
+        );
       }
     } catch (e) {
-      strapi.log.error('[INVOICE][PAID] issue failed:', e);
+      strapi.log.error('[KROS][PAID] send failed:', e);
     }
 
   const docNo = invoiceNumber || String(freshOrder.id);
