@@ -3,6 +3,7 @@
 
 import { factories } from '@strapi/strapi';
 import { sendEmail } from '../../../utils/email';
+import { sendOrderToKros } from '../../../utils/kros';
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
 

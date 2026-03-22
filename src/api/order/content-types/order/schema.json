@@ -131,6 +131,14 @@
     "giftWrap": { "type": "json" },
     "giftWrapMode": { "type": "string" },
     "giftWrapNote": { "type": "text" },
-    "giftWrapSelectedQty": { "type": "integer" }
+    "giftWrapSelectedQty": { "type": "integer" },
+
+    "krosRequestId": { "type": "string" },
+    "krosStatus": { "type": "string" },
+    "krosDocumentId": { "type": "string" },
+    "invoiceUrl": { "type": "text" },
+    "sentToKrosAt": { "type": "datetime" },
+    "krosLastPayload": { "type": "json" },
+    "krosLastWebhook": { "type": "json" }
   }
 }
