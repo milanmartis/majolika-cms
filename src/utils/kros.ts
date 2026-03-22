@@ -18,16 +18,17 @@ type Address = {
 };
 
 type OrderItem = {
-  productId?: number;
-  productName?: string;
-  quantity: number;
-  unitPrice: number;
-  ean?: string | null;
-  slug?: string | null;
-  isDigitalProduct?: boolean;
-  isGiftVoucher?: boolean;
-  isGiftWrapProduct?: boolean;
-};
+    productId?: number;
+    productName?: string;
+    quantity: number;
+    unitPrice: number;
+    vatPercentage?: number;
+    ean?: string | null;
+    slug?: string | null;
+    isDigitalProduct?: boolean;
+    isGiftVoucher?: boolean;
+    isGiftWrapProduct?: boolean;
+  };
 
 type OrderRecord = {
   id: number;
@@ -97,27 +98,35 @@ export function verifyKrosSignature(rawBody: string, signature?: string | string
   }
 }
 
-function buildCustomer(order: OrderRecord) {
-  const useBilling = !!order.billingIsCompany;
-  const addr = (useBilling ? order.billingAddress : order.shippingAddress) || {};
+function buildPartner(order: OrderRecord) {
+    const useBilling = !!order.billingIsCompany;
+    const addr = (useBilling ? order.billingAddress : order.shippingAddress) || {};
+  
+    return {
+      address: {
+        businessName: useBilling ? (order.billingCompanyName || order.customerName || '') : '',
+        contactName: order.customerName || '',
+        street: addr.street || '',
+        postCode: addr.zip || '',
+        city: addr.city || '',
+        country: addr.country || 'SK',
+      },
+      registrationId: order.billingIco || '',
+      taxId: order.billingDic || '',
+      vatId: order.billingIcDph || '',
+      phoneNumber: order.customerPhone || '',
+      email: order.customerEmail || '',
+      postalAddress: {
+        businessName: useBilling ? (order.billingCompanyName || order.customerName || '') : '',
+        contactName: order.customerName || '',
+        street: addr.street || '',
+        postCode: addr.zip || '',
+        city: addr.city || '',
+        country: addr.country || 'SK',
+      },
+    };
+  }
 
-  return {
-    name: useBilling
-      ? (order.billingCompanyName || order.customerName || '')
-      : (order.customerName || ''),
-    email: order.customerEmail || null,
-    phone: order.customerPhone || null,
-    ico: order.billingIco || null,
-    dic: order.billingDic || null,
-    icDph: order.billingIcDph || null,
-    address: {
-      street: addr.street || null,
-      city: addr.city || null,
-      zip: addr.zip || null,
-      country: addr.country || 'SK',
-    },
-  };
-}
 
 /**
  * DOKUMENTOVANÉ názvy, o ktoré sa opierame:
@@ -133,42 +142,135 @@ function buildCustomer(order: OrderRecord) {
 export function buildKrosPayload(order: OrderRecord) {
     const items = Array.isArray(order.items) ? order.items : [];
   
-    const documentItems: KrosDocumentItem[] = items.map((it) => ({
-      amount: Number(it.quantity || 1),
-      name: it.productName || `Produkt #${it.productId || ''}`.trim(),
-      unitPrice: n(it.unitPrice),
-      itemCode: it.productId ? String(it.productId) : undefined,
-      // warehouseCode: 'MAIN',
-    }));
+    const today = new Date().toISOString().slice(0, 10);
+  
+    const payloadItems = items.map((it) => {
+        const qty = Number(it.quantity || 1);
+        const unitPriceInclVat = n(it.unitPrice);
+        const totalPriceInclVat = Number((qty * unitPriceInclVat).toFixed(2));
+      
+        return {
+          name: it.productName || `Produkt #${it.productId || ''}`.trim(),
+          description: '',
+          amount: qty,
+          measureUnit: 'ks',
+          vatRate: Number(it.vatPercentage ?? 23),
+          discountPercent: 0,
+          totalPriceInclVat,
+          discountName: '',
+          itemCode: it.productId ? String(it.productId) : '',
+          warehouseCode: '',
+          eanCode: it.ean || '',
+        };
+      });
   
     if (n(order.shippingFee) > 0) {
-      documentItems.push({
-        amount: 1,
+      payloadItems.push({
         name: 'Doprava',
-        unitPrice: n(order.shippingFee),
+        description: '',
+        amount: 1,
+        measureUnit: 'ks',
+        vatRate: 23,
+        discountPercent: 0,
+        totalPriceInclVat: n(order.shippingFee),
+        discountName: '',
+        itemCode: '',
+        warehouseCode: '',
+        eanCode: '',
       });
     }
   
     if (n(order.paymentFee) > 0) {
-      documentItems.push({
-        amount: 1,
+      payloadItems.push({
         name: 'Poplatok za dobierku',
-        unitPrice: n(order.paymentFee),
+        description: '',
+        amount: 1,
+        measureUnit: 'ks',
+        vatRate: 23,
+        discountPercent: 0,
+        totalPriceInclVat: n(order.paymentFee),
+        discountName: '',
+        itemCode: '',
+        warehouseCode: '',
+        eanCode: '',
       });
     }
   
     return {
-      documents: [
-        {
-          externalId: `eshop-order-${order.id}`,
-          documentNumber: '',
-          variableSymbol: String(order.id),
-          orderNumber: String(order.id),
-          note: order.notes || null,
-          customer: buildCustomer(order),
-          items: documentItems,
+      data: {
+        externalId: `eshop-order-${order.id}`,
+  
+        partner: buildPartner(order),
+  
+        items: payloadItems,
+  
+        internalNote: order.notes || '',
+        printedNote: '',
+        vatPayerType: 1,
+        useParagraph7or7a: false,
+        culture: 'sk-SK',
+        openingText: '',
+        closingText: '',
+        registrationCourtText: '',
+  
+        dueDate: today,
+        currency: 'EUR',
+        exchangeRate: 1,
+  
+        discountPercent: 0,
+        discountTotalPriceInclVat: 0,
+  
+        tags: ['eshop'],
+        issueDate: today,
+        orderNumber: String(order.id),
+  
+        paymentType:
+          order.paymentMethod === 'card'
+            ? 'Kartou'
+            : order.paymentMethod === 'cod'
+              ? 'Dobierka'
+              : order.paymentMethod === 'bank'
+                ? 'Bankový prevod'
+                : order.paymentMethod === 'onsite'
+                  ? 'Hotovosť'
+                  : order.paymentMethod === 'post'
+                    ? 'Poštový poukaz'
+                    : 'Bankový prevod',
+  
+        variableSymbol: String(order.id),
+  
+        bankAccount: {
+          iban: '',
+          accountNumber: '',
+          isForeign: false,
+          swift: '',
         },
-      ],
+  
+        deliveryDate: today,
+        advancePaymentDeduction: 0,
+  
+        numberingSequence: 'OF',
+        documentNumber: '',
+        invoiceType: 0,
+        creditedInvoiceNumber: '',
+  
+        mandatoryText: '',
+        mandatoryTextType: 0,
+        ossTaxState: 0,
+  
+        customFields: [
+          {
+            label: 'Objednávka z e-shopu',
+            value: String(order.id),
+          },
+        ],
+  
+        accountingDetails: {
+          syntheticAccount: '',
+          analyticalAccount: '',
+          descriptionAccounting: '',
+        },
+      },
     };
   }
 
@@ -278,6 +380,8 @@ export async function sendOrderToKros(orderId: number) {
 
   if (!res.ok) {
     throw new Error(`KROS send failed: HTTP ${res.status} ${text}`);
+  }else{
+    strapi.log.info(`[KROS][SEND] order #${orderId} response=${text}`);
   }
 
   const requestId = data?.requestId || null;
