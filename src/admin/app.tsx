@@ -99,6 +99,14 @@ function mountIdleLogout() {
 }
 
 export default {
+
+  config: {
+    tutorials: false,
+    notifications: {
+      releases: false,
+    },
+  },
+  
   register(_app: StrapiApp) {},
 
   bootstrap(app: StrapiApp) {
