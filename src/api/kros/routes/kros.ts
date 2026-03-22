@@ -12,5 +12,11 @@ export default {
         handler: 'kros.sendOrder',
         config: { auth: false },
       },
+      {
+        method: 'POST',
+        path: '/kros/process-queue',
+        handler: 'kros.processQueue',
+        config: { auth: false },
+      },
     ],
   };
