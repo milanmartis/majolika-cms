@@ -102,23 +102,29 @@ function buildPartner(order: OrderRecord) {
     const useBilling = !!order.billingIsCompany;
     const addr = (useBilling ? order.billingAddress : order.shippingAddress) || {};
   
+    const personName = order.customerName || '';
+    const companyName = order.billingCompanyName || '';
+    const displayName = useBilling
+      ? (companyName || personName)
+      : personName;
+  
     return {
       address: {
-        businessName: useBilling ? (order.billingCompanyName || order.customerName || '') : '',
-        contactName: order.customerName || '',
+        businessName: displayName,
+        contactName: personName,
         street: addr.street || '',
         postCode: addr.zip || '',
         city: addr.city || '',
         country: addr.country || 'SK',
       },
-      registrationId: order.billingIco || '',
-      taxId: order.billingDic || '',
-      vatId: order.billingIcDph || '',
+      registrationId: useBilling ? (order.billingIco || '') : '',
+      taxId: useBilling ? (order.billingDic || '') : '',
+      vatId: useBilling ? (order.billingIcDph || '') : '',
       phoneNumber: order.customerPhone || '',
       email: order.customerEmail || '',
       postalAddress: {
-        businessName: useBilling ? (order.billingCompanyName || order.customerName || '') : '',
-        contactName: order.customerName || '',
+        businessName: displayName,
+        contactName: personName,
         street: addr.street || '',
         postCode: addr.zip || '',
         city: addr.city || '',
@@ -126,7 +132,6 @@ function buildPartner(order: OrderRecord) {
       },
     };
   }
-
 
 /**
  * DOKUMENTOVANÉ názvy, o ktoré sa opierame:
@@ -540,13 +545,15 @@ export async function applyKrosWebhook(payload: any) {
   const documentId =
     related?.documentId ??
     entity?.data?.documentId ??
+    entity?.data?.id ??
     null;
 
-  const invoiceNumber =
+    const invoiceNumber =
     related?.documentNumber ??
+    entity?.data?.documentNumber ??
     null;
 
-  const variableSymbol =
+    const variableSymbol =
     related?.variableSymbol ??
     entity?.data?.variableSymbol ??
     null;
@@ -587,7 +594,11 @@ export async function applyKrosWebhook(payload: any) {
 
   if (documentId) updateData.krosDocumentId = String(documentId);
   if (invoiceNumber) updateData.invoiceNumber = String(invoiceNumber);
-  if (apiUrl) updateData.invoiceUrl = String(apiUrl);
+  if (apiUrl && documentId) {
+    updateData.invoiceUrl = String(apiUrl).replace('{id}', String(documentId));
+  } else if (apiUrl) {
+    updateData.invoiceUrl = String(apiUrl);
+  }
   if (invoiceNumber) updateData.invoiceIssuedAt = new Date().toISOString();
 
   // ak zapneš notifikácie o úhradách v KROS, paymentStatus príde vo webhooku
