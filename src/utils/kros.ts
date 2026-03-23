@@ -73,6 +73,12 @@ type OrderRecord = {
   krosLastWebhook?: any;
 };
 
+function addDays(date: Date, days: number): string {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
 function n(v: unknown): number {
   const x = Number(v ?? 0);
   return Number.isFinite(x) ? Number(x.toFixed(2)) : 0;
@@ -148,6 +154,8 @@ export function buildKrosPayload(order: OrderRecord) {
     const items = Array.isArray(order.items) ? order.items : [];
   
     const today = new Date().toISOString().slice(0, 10);
+
+    const dueDate = addDays(new Date(), 14);
   
     const payloadItems = items.map((it) => {
         const qty = Number(it.quantity || 1);
@@ -218,7 +226,7 @@ export function buildKrosPayload(order: OrderRecord) {
         closingText: '',
         registrationCourtText: '',
   
-        dueDate: today,
+        dueDate: dueDate,
         currency: 'EUR',
         exchangeRate: 1,
   
@@ -227,7 +235,7 @@ export function buildKrosPayload(order: OrderRecord) {
   
         tags: ['eshop'],
         issueDate: today,
-        orderNumber: String(order.id),
+        orderNumber: String(order.invoiceNumber || order.id),
   
         paymentType:
           order.paymentMethod === 'card'
@@ -263,12 +271,12 @@ export function buildKrosPayload(order: OrderRecord) {
         mandatoryTextType: 0,
         ossTaxState: 0,
   
-        customFields: [
-          {
-            label: 'Objednávka z e-shopu',
-            value: String(order.id),
-          },
-        ],
+        // customFields: [
+        //   {
+        //     label: 'Objednávka z e-shopu',
+        //     value: String(order.invoiceNumber),
+        //   },
+        // ],
   
         accountingDetails: {
           syntheticAccount: '',
