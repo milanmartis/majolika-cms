@@ -2,19 +2,37 @@ import path from 'path';
 
 export default {
   async run(ctx) {
+    const token = ctx.request.headers['x-import-token'];
+    const expectedToken = process.env.MODRANSKA_IMPORT_TOKEN;
+
+    if (!expectedToken || token !== expectedToken) {
+      ctx.status = 403;
+      ctx.body = {
+        ok: false,
+        error: 'Forbidden',
+      };
+      return;
+    }
+
+    const start = Number(ctx.request.query.start ?? 0);
+    const limit = Number(ctx.request.query.limit ?? 1);
+
     try {
-      strapi.log.info('=== MANUAL MODRANSKA IMPORT START ===');
+      strapi.log.info(`=== MANUAL MODRANSKA IMPORT START start=${start} limit=${limit} ===`);
 
       const importerPath = path.join(process.cwd(), 'scripts', 'import-modranska.js');
+      delete require.cache[require.resolve(importerPath)];
       const runImporter = require(importerPath);
 
-      await runImporter(strapi);
+      const result = await runImporter(strapi, { start, limit });
 
-      strapi.log.info('=== MANUAL MODRANSKA IMPORT FINISHED ===');
+      strapi.log.info(`=== MANUAL MODRANSKA IMPORT FINISHED start=${start} limit=${limit} ===`);
 
       ctx.body = {
         ok: true,
-        message: 'Import finished',
+        start,
+        limit,
+        result,
       };
     } catch (error) {
       strapi.log.error('=== MANUAL MODRANSKA IMPORT FAILED ===');
