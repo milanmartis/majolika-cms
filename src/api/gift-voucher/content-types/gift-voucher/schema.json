@@ -1,0 +1,143 @@
+{
+  "kind": "collectionType",
+  "collectionName": "gift_vouchers",
+  "info": {
+    "singularName": "gift-voucher",
+    "pluralName": "gift-vouchers",
+    "displayName": "Darčekové poukážky",
+    "description": "Elektronické darčekové poukážky"
+  },
+  "options": {
+    "draftAndPublish": false,
+    "timestamps": true
+  },
+  "attributes": {
+    "code": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["active", "reserved", "used", "expired", "cancelled"],
+      "default": "active",
+      "required": true
+    },
+    "voucherType": {
+      "type": "enumeration",
+      "enum": ["service", "value"],
+      "default": "service",
+      "required": true
+    },
+
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "productName": {
+      "type": "string"
+    },
+    "productSlug": {
+      "type": "string"
+    },
+
+    "amount": {
+      "type": "decimal",
+      "precision": 12,
+      "scale": 2
+    },
+    "remainingValue": {
+      "type": "decimal",
+      "precision": 12,
+      "scale": 2
+    },
+    "currency": {
+      "type": "string",
+      "default": "EUR"
+    },
+
+    "customerName": {
+      "type": "string"
+    },
+    "customerEmail": {
+      "type": "email"
+    },
+    "recipientName": {
+      "type": "string"
+    },
+    "recipientEmail": {
+      "type": "email"
+    },
+    "message": {
+      "type": "text"
+    },
+
+    "validFrom": {
+      "type": "datetime"
+    },
+    "validTo": {
+      "type": "datetime"
+    },
+
+    "pdf": {
+      "type": "media",
+      "multiple": false,
+      "allowedTypes": ["files"]
+    },
+
+    "usedAt": {
+      "type": "datetime"
+    },
+    "reservedAt": {
+      "type": "datetime"
+    },
+    "cancelledAt": {
+      "type": "datetime"
+    },
+
+    "orderItemId": {
+      "type": "string"
+    },
+    "sourceOrderInvoiceNumber": {
+      "type": "string"
+    },
+    "usedByOrderInvoiceNumber": {
+      "type": "string"
+    },
+
+    "allowedProductSlug": {
+      "type": "string"
+    },
+    "allowedProductType": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "text"
+    },
+    "meta": {
+      "type": "json"
+    },
+    "generationSource": {
+      "type": "enumeration",
+      "enum": ["manual", "auto_paid_order"],
+      "default": "auto_paid_order"
+    },
+    "sourceOrder": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::order.order",
+      "inversedBy": "createdGiftVouchers"
+    },
+    "usedByOrder": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::order.order",
+      "inversedBy": "redeemedGiftVouchers"
+    },
+    "customer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::customer.customer"
+    }
+  }
+}

@@ -1,7 +1,8 @@
 // src/api/order/content-types/order/lifecycles.ts
 import { sendEmail } from '../../../../utils/email';
 import crypto from 'crypto';
-type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier';
+
+type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
 
 type EventInfo = {
   sessionId?: number;
@@ -12,19 +13,38 @@ type EventInfo = {
 };
 
 type OrderItem = {
+  id?: number | string;
+  product?: any;
   productId?: number;
+  slug?: string;
   productName: string;
   quantity: number;
   unitPrice: number;
-  event?: EventInfo;
   imageUrl?: string | null;
+  ean?: string | null;
+  event?: EventInfo;
+
+  type?: 'product' | 'gift_voucher' | 'event' | 'service';
+  isGiftVoucher?: boolean;
+  voucherType?: 'service' | 'value';
+  voucherValue?: number | string | null;
+  voucherValidTo?: string | null;
+  recipientName?: string | null;
+  recipientEmail?: string | null;
+  giftMessage?: string | null;
 };
 
 type OrderEntity = {
   id: number;
   documentId?: string | null;
+  invoiceNumber?: string | null;
+
   customerName?: string | null;
   customerEmail?: string | null;
+  customer?: {
+    id?: number;
+    documentId?: string | null;
+  } | null;
 
   items?: OrderItem[] | null;
 
@@ -52,6 +72,12 @@ type OrderEntity = {
 
   notes?: string | null;
   paymentStatus?: string | null;
+
+  createdGiftVouchers?: Array<{
+    id?: number;
+    documentId?: string | null;
+    code?: string | null;
+  }> | null;
 };
 
 const ADMIN_EMAIL =
@@ -187,6 +213,8 @@ function summarizeDelivery(order: OrderEntity): string {
       const a = order?.deliveryAddress || ({} as any);
       return `Kuriér na adresu: ${[a.street, a.city, a.zip, a.country].filter(Boolean).join(', ')}`;
     }
+    case 'digital_product':
+      return 'Digitálny produkt';
     default:
       return String(order?.deliveryMethod || '-');
   }
@@ -353,7 +381,12 @@ const fetchPrevOrder = async (event: any): Promise<OrderEntity | null> => {
 
     if (byId) {
       const prev = await strapi.entityService.findOne('api::order.order', byId, {
-        populate: ['deliveryAddress', 'deliveryDetails', 'items'],
+        populate: {
+          deliveryAddress: true,
+          deliveryDetails: true,
+          items: true,
+          createdGiftVouchers: true,
+        }
       });
       return (prev as any) || null;
     }
@@ -361,7 +394,12 @@ const fetchPrevOrder = async (event: any): Promise<OrderEntity | null> => {
     if (byDocId) {
       const prev = await strapi.db.query('api::order.order').findOne({
         where: { documentId: byDocId },
-        populate: ['deliveryAddress', 'deliveryDetails', 'items'],
+        populate: {
+          deliveryAddress: true,
+          deliveryDetails: true,
+          items: true,
+          createdGiftVouchers: true,
+        }
       });
       return (prev as any) || null;
     }
@@ -381,12 +419,29 @@ const fetchFullOrderForEmail = async (id: number): Promise<OrderEntity> => {
   return full as OrderEntity;
 };
 
+/* --------- Načítanie komplet objednávky pre voucher/create --------- */
+const fetchOrderForVoucher = async (documentId: string): Promise<OrderEntity | null> => {
+  try {
+    const full = await strapi.documents('api::order.order').findOne({
+      documentId,
+      populate: {
+        customer: true,
+        createdGiftVouchers: true,
+      },
+    });
+
+    return (full as any) || null;
+  } catch (e) {
+    strapi.log.error('[ORDER][LC][VOUCHER] fetchOrderForVoucher error', e);
+    return null;
+  }
+};
+
 /* --------- Dopĺňanie obrázkov do položiek (persist) --------- */
 const fillImages = async (items?: OrderItem[] | null) => {
   if (!Array.isArray(items) || !items.length) return;
   for (const it of items) {
     try {
-      // ak máme imageUrl, sprav z neho absolútne URL
       if (it.imageUrl) {
         it.imageUrl = absUrl(it.imageUrl);
         continue;
@@ -416,9 +471,7 @@ const buildEmailItems = async (order: OrderEntity) => {
   const items = order.items || [];
   return Promise.all(
     items.map(async (it) => {
-      // 1) preferuj uložené imageUrl z objednávky
       let image = absUrl(it.imageUrl || '');
-      // 2) fallback – skús načítať produkt
       if (!isHttpUrl(image) && it.productId) {
         try {
           const product = await strapi.entityService.findOne(
@@ -447,52 +500,149 @@ const buildEmailItems = async (order: OrderEntity) => {
   );
 };
 
+/* ---------------- Voucher helpery ---------------- */
+function toNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function isGiftVoucherItem(item: OrderItem): boolean {
+  return item?.isGiftVoucher === true || item?.type === 'gift_voucher';
+}
+
+async function createGiftVouchersForPaidOrder(orderDocumentId?: string | null) {
+  if (!orderDocumentId) return;
+
+  try {
+    const order = await fetchOrderForVoucher(orderDocumentId);
+
+    if (!order) {
+      strapi.log.warn(`[ORDER][LC][VOUCHER] order not found documentId=${orderDocumentId}`);
+      return;
+    }
+
+    if (order.paymentStatus !== 'paid') {
+      strapi.log.info(`[ORDER][LC][VOUCHER] skip order ${orderDocumentId}, paymentStatus=${order.paymentStatus}`);
+      return;
+    }
+
+    const existing = Array.isArray(order.createdGiftVouchers) ? order.createdGiftVouchers : [];
+    if (existing.length > 0) {
+      strapi.log.info(`[ORDER][LC][VOUCHER] vouchers already exist for order ${orderDocumentId}, count=${existing.length}`);
+      return;
+    }
+
+    const items = Array.isArray(order.items) ? order.items : [];
+    const voucherItems = items.filter(isGiftVoucherItem);
+
+    if (!voucherItems.length) {
+      strapi.log.info(`[ORDER][LC][VOUCHER] no voucher items for order ${orderDocumentId}`);
+      return;
+    }
+
+    let createdCount = 0;
+
+    for (const item of voucherItems) {
+      const qty = Math.max(1, toNumber(item.quantity, 1));
+
+      for (let i = 0; i < qty; i++) {
+        const code = await strapi
+          .service('api::gift-voucher.gift-voucher')
+          .generateUniqueCode();
+
+        const voucherType = item?.voucherType === 'value' ? 'value' : 'service';
+        const amount = item?.voucherValue ?? item?.unitPrice ?? null;
+
+        await strapi.documents('api::gift-voucher.gift-voucher' as any).create({
+          data: {
+            code,
+            status: 'active',
+            voucherType,
+            title: item?.productName || 'Darčeková poukážka',
+            productName: item?.productName || null,
+            productSlug: item?.slug || null,
+            allowedProductSlug: item?.slug || null,
+            amount,
+            remainingValue: voucherType === 'value' ? amount : null,
+            currency: 'EUR',
+            customerName: order.customerName || null,
+            customerEmail: order.customerEmail || null,
+            validFrom: new Date().toISOString(),
+            validTo: item?.voucherValidTo || null,
+            orderItemId: item?.id ? String(item.id) : null,
+            sourceOrderInvoiceNumber: order.invoiceNumber || null,
+            sourceOrder: order.documentId || null,
+            customer: order.customer?.documentId || null,
+            meta: {
+              sourceOrderId: order.id,
+              sourceOrderDocumentId: order.documentId,
+              sourceItem: item,
+              generatedFromLifecycle: true,
+            },
+          },
+        });
+
+        createdCount++;
+      }
+    }
+
+    strapi.log.info(`[ORDER][LC][VOUCHER] created ${createdCount} voucher(s) for order ${orderDocumentId}`);
+  } catch (e) {
+    strapi.log.error('[ORDER][LC][VOUCHER] createGiftVouchersForPaidOrder error', e);
+  }
+}
+
 /* ========================= Lifecycles ========================= */
 export default {
-  async beforeCreate(event) {
-
-    
+  async beforeCreate(event: any) {
     const d = (event.params.data ??= {});
 
     if (!d.publicToken) {
-      d.publicToken = crypto.randomBytes(32).toString('hex'); // 64 znakov
+      d.publicToken = crypto.randomBytes(32).toString('hex');
     }
+
     stripStatus(d);
     d.fulfillmentStatus = mapFulfillment(d.fulfillmentStatus);
     d.deliveryStatus = mapDelivery(d.deliveryStatus);
 
-    // normalize notes
     if (typeof d.notes === 'string') d.notes = d.notes.trim() || null;
 
-    // doplň a normalizuj imageUrl v položkách (persistne)
     if (Array.isArray(d.items) && d.items.length) {
       await fillImages(d.items);
-      // krátky log náhľadu
       try {
-        strapi.log.info('[ORDER][LC][beforeCreate] items imageUrl preview',
-          (d.items || []).map((i: any) => ({ pid: i.productId, img: (i.imageUrl || '').slice(0, 120) })));
+        strapi.log.info(
+          '[ORDER][LC][beforeCreate] items imageUrl preview',
+          (d.items || []).map((i: any) => ({
+            pid: i.productId,
+            img: (i.imageUrl || '').slice(0, 120),
+          })),
+        );
       } catch {}
     }
   },
 
-  async beforeUpdate(event) {
+  async beforeUpdate(event: any) {
     const d = (event.params.data ??= {});
     stripStatus(d);
+
     if ('fulfillmentStatus' in d) d.fulfillmentStatus = mapFulfillment(d.fulfillmentStatus);
     if ('deliveryStatus' in d) d.deliveryStatus = mapDelivery(d.deliveryStatus);
 
     if (!('fulfillmentStatus' in d) || d.fulfillmentStatus === '') d.fulfillmentStatus = 'new';
     if (!('deliveryStatus' in d) || d.deliveryStatus === '') d.deliveryStatus = 'label_created';
 
-    // normalize notes
     if ('notes' in d && typeof d.notes === 'string') d.notes = d.notes.trim() || null;
 
-    // doplň a normalizuj imageUrl v položkách aj pri update
     if (Array.isArray(d.items) && d.items.length) {
       await fillImages(d.items);
       try {
-        strapi.log.info('[ORDER][LC][beforeUpdate] items imageUrl preview',
-          (d.items || []).map((i: any) => ({ pid: i.productId, img: (i.imageUrl || '').slice(0, 120) })));
+        strapi.log.info(
+          '[ORDER][LC][beforeUpdate] items imageUrl preview',
+          (d.items || []).map((i: any) => ({
+            pid: i.productId,
+            img: (i.imageUrl || '').slice(0, 120),
+          })),
+        );
       } catch {}
     }
 
@@ -511,7 +661,16 @@ export default {
     );
   },
 
-  async afterUpdate(event) {
+  async afterCreate(event: any) {
+    try {
+      const createdOrder = event.result as OrderEntity;
+      await createGiftVouchersForPaidOrder(createdOrder?.documentId || null);
+    } catch (e) {
+      strapi.log.error('[ORDER][afterCreate] voucher create error', e);
+    }
+  },
+
+  async afterUpdate(event: any) {
     try {
       const prev: OrderEntity | null = (event.state as any)?.prevOrder || null;
       const next: OrderEntity = event.result as any;
@@ -519,8 +678,14 @@ export default {
       const prevStatus = prev?.deliveryStatus ?? null;
       const nextStatus = next?.deliveryStatus ?? null;
 
+      const prevPaymentStatus = prev?.paymentStatus ?? null;
+      const nextPaymentStatus = next?.paymentStatus ?? null;
+
+      if (nextPaymentStatus === 'paid' && prevPaymentStatus !== 'paid') {
+        await createGiftVouchersForPaidOrder(next?.documentId || null);
+      }
+
       if (nextStatus && prevStatus !== nextStatus) {
-        // načítaj plné dáta objednávky (vrátane položiek) po update
         const full = await fetchFullOrderForEmail(next.id);
         const emailItems = await buildEmailItems(full);
 

@@ -35,15 +35,23 @@
     },
 
     "deliveryUrgency": {
-        "type": "enumeration",
-        "enum": ["standard", "rush"],
-        "default": "standard"
-      },
-    "notes": { "type": "text" },  
+      "type": "enumeration",
+      "enum": ["standard", "rush"],
+      "default": "standard"
+    },
+    "notes": { "type": "text" },
 
     "total": { "type": "decimal", "required": true },
     "shippingFee": { "type": "decimal", "default": 0 },
     "totalWithShipping": { "type": "decimal", "default": 0 },
+
+    "giftVoucherCode": { "type": "string" },
+    "giftVoucherDiscount": {
+      "type": "decimal",
+      "precision": 12,
+      "scale": 2,
+      "default": 0
+    },
 
     "orderStatus": {
       "type": "enumeration",
@@ -127,7 +135,7 @@
     },
 
     "temporaryId": { "type": "string" },
-    
+
     "giftWrap": { "type": "json" },
     "giftWrapMode": { "type": "string" },
     "giftWrapNote": { "type": "text" },
@@ -139,6 +147,19 @@
     "invoiceUrl": { "type": "text" },
     "sentToKrosAt": { "type": "datetime" },
     "krosLastPayload": { "type": "json" },
-    "krosLastWebhook": { "type": "json" }
+    "krosLastWebhook": { "type": "json" },
+
+    "createdGiftVouchers": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::gift-voucher.gift-voucher",
+      "mappedBy": "sourceOrder"
+    },
+    "redeemedGiftVouchers": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::gift-voucher.gift-voucher",
+      "mappedBy": "usedByOrder"
+    }
   }
 }
