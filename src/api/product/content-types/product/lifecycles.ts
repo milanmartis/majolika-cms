@@ -122,7 +122,7 @@ async function findLocale(documentId: string, locale: string) {
   return await strapi.documents(UID).findOne({
     documentId,
     locale,
-    fields: ['documentId', 'locale'],
+    fields: ['documentId', 'locale'] as any,
   });
 }
 
@@ -133,7 +133,7 @@ async function ensureLocaleExists(documentId: string, locale: string) {
   const source = await strapi.documents(UID).findOne({
     documentId,
     locale: SOURCE_LOCALE,
-    fields: ['documentId', 'name', 'slug', 'short', 'describe'],
+    fields: ['documentId', 'name', 'slug', 'short', 'describe'] as any,
     populate: {
       seo: true,
     },
@@ -146,7 +146,7 @@ async function ensureLocaleExists(documentId: string, locale: string) {
     data: {
       documentId,
       ...buildLocalizedOnlyPayload(source),
-    },
+    } as any,
   });
 }
 
