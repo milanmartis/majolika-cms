@@ -4,10 +4,9 @@ const UID = 'api::product.product';
 const SOURCE_LOCALE = 'sk';
 const TARGET_LOCALES = ['en', 'de'] as const;
 
-// aby sme nespustili rekurziu pri create/update en,de
-const syncInProgress = new Set<string>();
-
 type AnyRecord = Record<string, any>;
+
+const syncInProgress = new Set<string>();
 
 function makeSlug(value?: string | null) {
   return slugify(String(value || ''), {
@@ -17,6 +16,10 @@ function makeSlug(value?: string | null) {
   });
 }
 
+function deepClone<T>(value: T): T {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
 function relationRef(value: any) {
   if (!value) return null;
   return value.documentId ?? value.id ?? null;
@@ -24,9 +27,7 @@ function relationRef(value: any) {
 
 function relationRefArray(values: any): any[] {
   if (!Array.isArray(values)) return [];
-  return values
-    .map((v) => relationRef(v))
-    .filter(Boolean);
+  return values.map((v) => relationRef(v)).filter(Boolean);
 }
 
 function fileId(value: any) {
@@ -39,16 +40,26 @@ function fileIds(values: any): number[] {
   return values.map((v) => v?.id).filter(Boolean);
 }
 
-function buildLocalePayload(source: AnyRecord) {
+function buildLocalizedOnlyPayload(source: AnyRecord) {
   return {
-    // localized fields
     name: source.name ?? null,
     slug: source.slug || makeSlug(source.name),
     short: source.short ?? null,
     describe: source.describe ?? null,
-    seo: source.seo ?? null,
+    seo: source.seo ? deepClone(source.seo) : null,
+  };
+}
 
-    // shared/scalar fields
+function buildFullPayload(source: AnyRecord) {
+  return {
+    // localized
+    name: source.name ?? null,
+    slug: source.slug || makeSlug(source.name),
+    short: source.short ?? null,
+    describe: source.describe ?? null,
+    seo: source.seo ? deepClone(source.seo) : null,
+
+    // scalar/shared
     externalId: source.externalId ?? null,
     type: source.type ?? 'simple',
     ean: source.ean ?? null,
@@ -76,23 +87,14 @@ function buildLocalePayload(source: AnyRecord) {
     productEventType: source.productEventType ?? 'none',
 
     // relations
-    categories: {
-      set: relationRefArray(source.categories),
-    },
-    dekory: {
-      set: relationRefArray(source.dekory),
-    },
-
-    // single relations
+    categories: { set: relationRefArray(source.categories) },
+    dekory: { set: relationRefArray(source.dekory) },
     parent: relationRef(source.parent),
     autor: relationRef(source.autor),
     tvar: relationRef(source.tvar),
-
-    // users-permissions user relation môže byť číselné id
     author: source.author?.id ?? source.author ?? null,
 
     // media
-    // pozn.: pri media je Strapi opatrný, ale toto býva v praxi OK
     picture_new: fileId(source.picture_new),
     pictures_new: fileIds(source.pictures_new),
   };
@@ -116,44 +118,63 @@ async function loadSourceDocument(documentId: string) {
   });
 }
 
-async function localeExists(documentId: string, locale: string) {
-  const existing = await strapi.documents(UID).findOne({
+async function findLocale(documentId: string, locale: string) {
+  return await strapi.documents(UID).findOne({
     documentId,
     locale,
-    fields: ['documentId', 'locale'] as any,
+    fields: ['documentId', 'locale'],
   });
-
-  return !!existing;
 }
 
-async function syncLocale(documentId: string, locale: string) {
+async function ensureLocaleExists(documentId: string, locale: string) {
+  const existing = await findLocale(documentId, locale);
+  if (existing) return existing;
+
+  const source = await strapi.documents(UID).findOne({
+    documentId,
+    locale: SOURCE_LOCALE,
+    fields: ['documentId', 'name', 'slug', 'short', 'describe'],
+    populate: {
+      seo: true,
+    },
+  });
+
+  if (!source) return null;
+
+  return await strapi.documents(UID).create({
+    locale,
+    data: {
+      documentId,
+      ...buildLocalizedOnlyPayload(source),
+    },
+  });
+}
+
+async function syncLocaleFull(documentId: string, locale: string) {
   const source = await loadSourceDocument(documentId);
   if (!source) return;
 
-  const data = buildLocalePayload(source);
-  const exists = await localeExists(documentId, locale);
+  const existing = await findLocale(documentId, locale);
 
-  if (!exists) {
-    // create locale version
+  if (!existing) {
     await strapi.documents(UID).create({
       locale,
       data: {
         documentId,
-        ...data,
+        ...buildFullPayload(source),
       },
     });
     return;
   }
 
-  // update existing locale version
   await strapi.documents(UID).update({
     documentId,
     locale,
-    data,
+    data: buildFullPayload(source),
   });
 }
 
-async function syncAllTargetLocales(documentId: string) {
+async function syncAllLocalesFull(documentId: string) {
   if (!documentId) return;
   if (syncInProgress.has(documentId)) return;
 
@@ -161,7 +182,7 @@ async function syncAllTargetLocales(documentId: string) {
 
   try {
     for (const locale of TARGET_LOCALES) {
-      await syncLocale(documentId, locale);
+      await syncLocaleFull(documentId, locale);
     }
   } finally {
     syncInProgress.delete(documentId);
@@ -193,10 +214,12 @@ export default {
     if (locale !== SOURCE_LOCALE) return;
 
     try {
-      await syncAllTargetLocales(result.documentId);
+      for (const targetLocale of TARGET_LOCALES) {
+        await ensureLocaleExists(result.documentId, targetLocale);
+      }
     } catch (err: any) {
       strapi.log.error(
-        `[product lifecycle] afterCreate locale sync failed for ${result.documentId}: ${err?.message || err}`
+        `[product lifecycle] afterCreate locale create failed for ${result.documentId}: ${err?.message || err}`
       );
     }
   },
@@ -209,10 +232,10 @@ export default {
     if (locale !== SOURCE_LOCALE) return;
 
     try {
-      await syncAllTargetLocales(result.documentId);
+      await syncAllLocalesFull(result.documentId);
     } catch (err: any) {
       strapi.log.error(
-        `[product lifecycle] afterUpdate locale sync failed for ${result.documentId}: ${err?.message || err}`
+        `[product lifecycle] afterUpdate full sync failed for ${result.documentId}: ${err?.message || err}`
       );
     }
   },
