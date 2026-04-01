@@ -4,7 +4,6 @@ import type { Context } from 'koa';
 
 export default {
   register({ strapi }: any) {
-    // Rozšíření User CT o vztahy
     const userCt = strapi.contentType('plugin::users-permissions.user');
     userCt.attributes = {
       ...userCt.attributes,
@@ -22,7 +21,6 @@ export default {
       },
     };
 
-    // Endpoint returning JSON list of all picture URLs from products
     strapi.server.routes([
       {
         method: 'GET',
@@ -34,7 +32,10 @@ export default {
 
           const urls = products.flatMap((p: any) =>
             p.picture
-              ? (p.picture as string).split(',').map((u) => u.trim()).filter((u) => u)
+              ? String(p.picture)
+                  .split(',')
+                  .map((u) => u.trim())
+                  .filter((u) => u)
               : []
           );
 
@@ -93,6 +94,7 @@ export default {
   async bootstrap({ strapi }: any) {
     const s = strapi.config.get('admin.auth.sessions');
     strapi.log.info('ADMIN SESSIONS EFFECTIVE = ' + JSON.stringify(s));
+
     await strapi.admin.services.role.createRolesIfNoneExist();
 
     const defaultPermissions = [
@@ -126,37 +128,8 @@ export default {
     strapi.db.lifecycles.subscribe({
       models: ['plugin::upload.file'],
       async afterCreate(event: any) {
-        const { id, url, formats } = event.result as any;
-        if (!formats || !url) return;
-
-        const provider = strapi.plugin('upload').provider as any;
-        let key: string;
-
-        try {
-          const parsed = new URL(url);
-          key = parsed.pathname.replace(/^\//, '');
-        } catch {
-          key = url.replace(/^\//, '');
-        }
-
-        try {
-          await provider.delete({ key });
-          strapi.log.info(`Deleted original: ${key}`);
-        } catch (e: any) {
-          strapi.log.error('Delete original failed:', e);
-        }
-
-        const firstUrl = (Object.values(formats)[0] as any).url || null;
-
-        try {
-          await strapi.db.query('plugin::upload.file').update({
-            where: { id },
-            data: { url: firstUrl },
-          });
-          strapi.log.info(`DB url set to ${firstUrl}`);
-        } catch (e: any) {
-          strapi.log.error('Update DB url failed:', e);
-        }
+        const { id, url } = event.result as any;
+        strapi.log.info(`[upload afterCreate] file ${id} created with url: ${url}`);
       },
     });
 
@@ -165,7 +138,6 @@ export default {
       return;
     }
 
-    // SQLite import logic
     const dbPath = resolve(process.cwd(), '.tmp/data.db');
     const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
       if (err) strapi.log.error('SQLite open error:', err.message);
@@ -175,115 +147,8 @@ export default {
     const allAsync = (sql: string) =>
       new Promise<any[]>((res, rej) => db.all(sql, (e, r) => (e ? rej(e) : res(r))));
 
-    // try {
-    //   Import categories
-    //   const legacyCategories: Array<{
-    //     term_id: number;
-    //     category_name: string;
-    //     category_slug: string;
-    //     parent_term_id: number | null;
-    //   }> = await allAsync(
-    //     'SELECT term_id, category_name, category_slug, parent_term_id FROM categories'
-    //   ) as any[];
+    void allAsync;
 
-    //   const termToCategoryId = new Map<number, number>();
-
-    //   for (const { term_id, category_name, category_slug } of legacyCategories) {
-    //     if (termToCategoryId.has(term_id)) continue;
-    //     const created = await strapi.entityService.create('api::category.category', {
-    //       data: {
-    //         term_id,
-    //         category_name,
-    //         category_slug,
-    //       },
-    //     });
-    //     termToCategoryId.set(term_id, created.id);
-    //   }
-
-    //   for (const { term_id, parent_term_id } of legacyCategories) {
-    //     if (!parent_term_id) continue;
-    //     const id = termToCategoryId.get(term_id);
-    //     const parentId = termToCategoryId.get(parent_term_id);
-    //     if (id && parentId) {
-    //       await strapi.entityService.update('api::category.category', id, {
-    //         data: { parent: parentId },
-    //       });
-    //     }
-    //   }
-    //   strapi.log.info('Category import done');
-
-    //   const pivotRows: Array<{ product_id: number; term_ids: string }> =
-    //     await allAsync('SELECT product_id, term_ids FROM products_in_categories') as any[];
-
-    //   for (const { product_id, term_ids } of pivotRows) {
-    //     const prod = await strapi.db
-    //       .query('api::product.product')
-    //       .findOne({ where: { externalId: product_id } });
-
-    //     if (!prod || !term_ids) {
-    //       continue;
-    //     }
-
-    //     const termIds = term_ids
-    //       .split(',')
-    //       .map((s) => parseInt(s.trim(), 10))
-    //       .filter((n) => !isNaN(n));
-
-    //     const categoryRelations: { id: number }[] = [];
-    //     for (const termId of termIds) {
-    //       const cat = await strapi.db
-    //         .query('api::category.category')
-    //         .findOne({ where: { term_id: termId } });
-    //       if (cat) {
-    //         categoryRelations.push({ id: cat.id });
-    //       }
-    //     }
-
-    //     if (categoryRelations.length === 0) {
-    //       continue;
-    //     }
-
-    //     await strapi.entityService.update('api::product.product', prod.id, {
-    //       data: {
-    //         categories: {
-    //           set: categoryRelations,
-    //         },
-    //       },
-    //     });
-    //   }
-    //   strapi.log.info('Product-category relations imported');
-
-    //   const products = await strapi.db.query('api::product.product').findMany({ select: ['id','picture'] });
-    //   strapi.log.info(`Sync images for ${products.length} products`);
-    //   for (const prod of products) {
-    //     if (!prod.picture) continue;
-    //     const urls = prod.picture.split(',').map((u: string) => u.trim()).filter(Boolean);
-    //     if (!urls.length) continue;
-
-    //     const fileIds: number[] = [];
-    //     for (const u of urls) {
-    //       const name = (() => {
-    //         try { return decodeURIComponent(new URL(u).pathname.split('/').pop()!); }
-    //         catch { return u.split('/').pop()!; }
-    //       })();
-    //       const base = name.includes('_') ? name.split('_').pop()! : name;
-    //       const file = await strapi.db.query('plugin::upload.file').findOne({ where: { name: { $endsWith: base } } });
-    //       if (file) fileIds.push(file.id);
-    //     }
-    //     if (!fileIds.length) continue;
-
-    //     await strapi.entityService.update('api::product.product', prod.id, {
-    //       data: {
-    //         picture_new: fileIds[0],
-    //         pictures_new: fileIds.slice(1).map(id => ({ id })),
-    //       },
-    //     });
-    //   }
-    //   strapi.log.info('Image sync done');
-    // } catch (err) {
-    //   strapi.log.error('Error:', err);
-    // } finally {
-    //   db.close((e) => e ? strapi.log.error('DB close error', e) : strapi.log.info('SQLite closed'));
-    // }
+    // stará sqlite logika môže ostať zakomentovaná alebo ju sem doplníš neskôr
   },
 };
