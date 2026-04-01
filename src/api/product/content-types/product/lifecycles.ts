@@ -24,9 +24,7 @@ function relationRef(value: any) {
 
 function relationRefArray(values: any): any[] {
   if (!Array.isArray(values)) return [];
-  return values
-    .map((v) => relationRef(v))
-    .filter(Boolean);
+  return values.map((v) => relationRef(v)).filter(Boolean);
 }
 
 function fileId(value: any) {
@@ -37,6 +35,10 @@ function fileId(value: any) {
 function fileIds(values: any): number[] {
   if (!Array.isArray(values)) return [];
   return values.map((v) => v?.id).filter(Boolean);
+}
+
+function shouldSkipLocaleSync() {
+  return process.env.DISABLE_PRODUCT_LOCALE_SYNC === 'true';
 }
 
 function buildLocalePayload(source: AnyRecord) {
@@ -92,7 +94,6 @@ function buildLocalePayload(source: AnyRecord) {
     author: source.author?.id ?? source.author ?? null,
 
     // media
-    // pozn.: pri media je Strapi opatrný, ale toto býva v praxi OK
     picture_new: fileId(source.picture_new),
     pictures_new: fileIds(source.pictures_new),
   };
@@ -134,7 +135,6 @@ async function syncLocale(documentId: string, locale: string) {
   const exists = await localeExists(documentId, locale);
 
   if (!exists) {
-    // create locale version
     await strapi.documents(UID).create({
       locale,
       data: {
@@ -145,7 +145,6 @@ async function syncLocale(documentId: string, locale: string) {
     return;
   }
 
-  // update existing locale version
   await strapi.documents(UID).update({
     documentId,
     locale,
@@ -186,6 +185,11 @@ export default {
   },
 
   async afterCreate(event: { result?: AnyRecord; params?: { data?: AnyRecord } }) {
+    if (shouldSkipLocaleSync()) {
+      strapi.log.info('[product lifecycle] locale sync skipped because DISABLE_PRODUCT_LOCALE_SYNC=true');
+      return;
+    }
+
     const result = event.result;
     if (!result?.documentId) return;
 
@@ -202,6 +206,11 @@ export default {
   },
 
   async afterUpdate(event: { result?: AnyRecord; params?: { data?: AnyRecord } }) {
+    if (shouldSkipLocaleSync()) {
+      strapi.log.info('[product lifecycle] locale sync skipped because DISABLE_PRODUCT_LOCALE_SYNC=true');
+      return;
+    }
+
     const result = event.result;
     if (!result?.documentId) return;
 
