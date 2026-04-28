@@ -37,6 +37,37 @@
     },
     "event": {
       "type": "json"
+    },
+
+    "type": {
+      "type": "enumeration",
+      "enum": ["product", "gift_voucher", "event", "service"],
+      "default": "product"
+    },
+    "isGiftVoucher": {
+      "type": "boolean",
+      "default": false
+    },
+    "voucherType": {
+      "type": "enumeration",
+      "enum": ["service", "value"]
+    },
+    "voucherValue": {
+      "type": "decimal",
+      "precision": 12,
+      "scale": 2
+    },
+    "voucherValidTo": {
+      "type": "datetime"
+    },
+    "recipientName": {
+      "type": "string"
+    },
+    "recipientEmail": {
+      "type": "email"
+    },
+    "giftMessage": {
+      "type": "text"
     }
   }
 }
