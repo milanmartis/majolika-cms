@@ -69,6 +69,8 @@ export default factories.createCoreController(
         const created: any[] = [];
         const items = Array.isArray(fullOrder.items) ? fullOrder.items : [];
 
+        console.log('DEBUG ORDER ITEMS:', JSON.stringify(items, null, 2));
+
         for (const item of items) {
           const isGiftVoucher =
             item?.isGiftVoucher === true || item?.type === 'gift_voucher';
