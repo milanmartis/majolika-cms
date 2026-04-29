@@ -551,6 +551,9 @@ async publicGet(ctx: any) {
         'totalWithShipping',
         'shippingFee',
         'paymentFee',
+        'giftVoucherCode',
+        'giftVoucherDiscount',
+        'giftVoucherStatus',
         'publicToken',
         'createdAt',
       ] as any,
@@ -584,7 +587,9 @@ async publicGet(ctx: any) {
     total: order.total ?? 0,
     totalWithShipping: order.totalWithShipping ?? order.total ?? 0,
     shippingFee: order.shippingFee ?? 0,
-    paymentFee: order.paymentFee ?? 0,
+    giftVoucherCode: order.giftVoucherCode ?? null,
+    giftVoucherDiscount: order.giftVoucherDiscount ?? 0,
+    giftVoucherStatus: order.giftVoucherStatus ?? null,
 
     paymentStatus: order.paymentStatus ?? null,
     orderStatus: order.orderStatus ?? null,
@@ -726,6 +731,9 @@ async publicGet(ctx: any) {
         deliveryDetails: order.deliveryDetails,
         shippingFee: order.shippingFee,
         paymentFee: order.paymentFee,
+        giftVoucherCode: order.giftVoucherCode ?? null,
+        giftVoucherDiscount: order.giftVoucherDiscount ?? 0,
+        giftVoucherStatus: order.giftVoucherStatus ?? null,
 
         // 👇 vráť aj giftWrap, nech to vie FE/účty ukázať
         giftWrap: order.giftWrap ?? null,

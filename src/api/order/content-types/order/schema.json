@@ -52,6 +52,11 @@
       "scale": 2,
       "default": 0
     },
+    "giftVoucherStatus": {
+      "type": "enumeration",
+      "enum": ["reserved", "applied", "released"],
+      "default": "released"
+    },
 
     "orderStatus": {
       "type": "enumeration",

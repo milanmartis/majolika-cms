@@ -775,7 +775,9 @@ async function markOrderCancelled(orderId: number) {
     const needFull = current?.fulfillmentStatus !== 'cancelled';
     const needPay = current?.paymentStatus !== 'unpaid';
 
+    
     if (needOrder || needFull || needPay) {
+      await releaseOrderGiftVoucher(orderId);
       await strapi.db.query('api::order.order').update({
         where: { id: orderId },
         data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },
@@ -840,6 +842,93 @@ function clampLabel(s: string | undefined, def = 'Order') {
   return v.length <= 16 ? v : v.slice(0, 16);
 }
 
+
+async function applyOrderGiftVoucher(orderId: number) {
+  const order = await strapi.db.query('api::order.order').findOne({
+    where: { id: orderId },
+    select: [
+      'id',
+      'invoiceNumber',
+      'giftVoucherCode',
+      'giftVoucherDiscount',
+      'giftVoucherStatus',
+    ],
+  }) as any;
+
+  if (!order?.giftVoucherCode) return;
+  if (order.giftVoucherStatus === 'applied') return;
+
+  const discount = Number(order.giftVoucherDiscount || 0);
+  if (!Number.isFinite(discount) || discount <= 0) return;
+
+  const voucher = await strapi.db.query('api::gift-voucher.gift-voucher').findOne({
+    where: { code: order.giftVoucherCode },
+  }) as any;
+
+  if (!voucher) return;
+
+  const remaining = Number(voucher.remainingValue ?? voucher.amount ?? 0);
+  const newRemaining = Number(Math.max(0, remaining - discount).toFixed(2));
+
+  await strapi.db.query('api::gift-voucher.gift-voucher').update({
+    where: { id: voucher.id },
+    data: {
+      remainingValue: newRemaining,
+      status: newRemaining > 0 ? 'active' : 'used',
+      usedAt: newRemaining > 0 ? null : new Date(),
+      usedByOrder: order.id,
+      usedByOrderInvoiceNumber: order.invoiceNumber ?? null,
+      reservedAt: null,
+    },
+  });
+
+  await strapi.db.query('api::order.order').update({
+    where: { id: order.id },
+    data: {
+      giftVoucherStatus: 'applied',
+    },
+  });
+
+  strapi.log.info(`[GIFT_VOUCHER] applied code=${order.giftVoucherCode} order=${order.id} discount=${discount}`);
+}
+
+async function releaseOrderGiftVoucher(orderId: number) {
+  const order = await strapi.db.query('api::order.order').findOne({
+    where: { id: orderId },
+    select: [
+      'id',
+      'giftVoucherCode',
+      'giftVoucherStatus',
+    ],
+  }) as any;
+
+  if (!order?.giftVoucherCode) return;
+  if (order.giftVoucherStatus !== 'reserved') return;
+
+  const voucher = await strapi.db.query('api::gift-voucher.gift-voucher').findOne({
+    where: { code: order.giftVoucherCode },
+  }) as any;
+
+  if (voucher && voucher.status === 'reserved') {
+    await strapi.db.query('api::gift-voucher.gift-voucher').update({
+      where: { id: voucher.id },
+      data: {
+        status: 'active',
+        reservedAt: null,
+      },
+    });
+  }
+
+  await strapi.db.query('api::order.order').update({
+    where: { id: order.id },
+    data: {
+      giftVoucherStatus: 'released',
+    },
+  });
+
+  strapi.log.info(`[GIFT_VOUCHER] released code=${order.giftVoucherCode} order=${order.id}`);
+}
+
 function mapComgateToOrder(s: string): PaymentStatus {
   const st = String(s || '').toUpperCase();
   if (st === 'PAID') return 'paid';
@@ -898,6 +987,8 @@ async function runPostPaidFlow(orderId: number) {
 
   const orderNotes = freshOrder?.notes ? String(freshOrder.notes) : null;
   const giftWrap = normalizeGiftWrap((freshOrder as any).giftWrap);
+
+  await applyOrderGiftVoucher(freshOrder.id);
 
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
   strapi.log.info(`[EMAIL][PAID] giftWrap=${giftWrap ? 'YES' : 'NO'}`);
@@ -1630,6 +1721,8 @@ export default {
     // CANCELLED-like — označ a skonči
     if (isCancelledLike((status as any).status)) {
       try {
+        await releaseOrderGiftVoucher(order.id);
+    
         await strapi.db.query('api::order.order').update({
           where: { id: order.id },
           data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid', comgateTransId: String(transId) },
@@ -1816,6 +1909,8 @@ export default {
 
       if (['CANCELLED', 'CANCELED', 'REJECTED', 'TIMEOUT', 'EXPIRED'].includes(statusParam)) {
         try {
+          await releaseOrderGiftVoucher(order!.id);
+      
           await strapi.db.query('api::order.order').update({
             where: { id: order!.id },
             data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },
@@ -1830,6 +1925,8 @@ export default {
 
       if (isCancelledLike((s as any).status)) {
         try {
+          await releaseOrderGiftVoucher(order!.id);
+      
           await strapi.db.query('api::order.order').update({
             where: { id: order!.id },
             data: { orderStatus: 'cancelled', fulfillmentStatus: 'cancelled', paymentStatus: 'unpaid' },

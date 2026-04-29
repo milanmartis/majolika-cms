@@ -790,6 +790,12 @@ interface CheckoutPayload {
 
   // ✅ nové: darčekové balenie (inštrukcie pre balenie + poznámka)
   giftWrap?: GiftWrapPayload | null;
+
+  giftVoucher?: {
+    code?: string | null;
+    discount?: number | null;
+    newRemainingValue?: number | null;
+  } | null;
 }
 
 /* ========================= Konštanty ========================= */
@@ -922,6 +928,7 @@ export default () => ({
       deliveryUrgency = 'standard',
       billing,
       giftWrap: giftWrapRaw,
+      giftVoucher: giftVoucherRaw,
     } = payload;
 
     const orderNotes = (payload.notes || '').trim();
@@ -1094,8 +1101,57 @@ export default () => ({
     const shippingFee = itemsTotal >= FREE_SHIPPING_THRESHOLD ? 0 : baseShipping;
 
     const paymentFee = Number((payload as any).paymentFee ?? 0);
-    const totalWithShipping = Number((itemsTotal + shippingFee + paymentFee).toFixed(2));
     const isCard = paymentMethod === 'card';
+
+    // ===== GIFT VOUCHER / CREDIT VOUCHER =====
+    const giftVoucherInput = giftVoucherRaw || null;
+
+    let voucherDiscount = 0;
+    let voucherEntity: any = null;
+
+    const totalBeforeVoucher = Number((itemsTotal + shippingFee + paymentFee).toFixed(2));
+
+    if (giftVoucherInput?.code) {
+      const code = String(giftVoucherInput.code).trim();
+
+      voucherEntity = await strapi.db.query('api::gift-voucher.gift-voucher').findOne({
+        where: {
+          code,
+          status: 'active',
+        },
+      });
+
+      if (!voucherEntity) {
+        throw new Error('Darčeková poukážka neexistuje alebo nie je aktívna.');
+      }
+
+      if (voucherEntity.voucherType !== 'value') {
+        throw new Error('Táto darčeková poukážka nie je kreditová poukážka.');
+      }
+
+      const remaining = Number(voucherEntity.remainingValue ?? voucherEntity.amount ?? 0);
+
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        throw new Error('Darčeková poukážka už nemá žiadny zostatok.');
+      }
+
+      voucherDiscount = Number(Math.min(remaining, totalBeforeVoucher).toFixed(2));
+
+      if (isCard) {
+        await strapi.db.query('api::gift-voucher.gift-voucher').update({
+          where: { id: voucherEntity.id },
+          data: {
+            status: 'reserved',
+            reservedAt: new Date(),
+          },
+        });
+      }
+    }
+
+    const totalWithShipping = Number(
+      Math.max(0, totalBeforeVoucher - voucherDiscount).toFixed(2)
+    );
+
 
     // Enumy podľa schémy
     const fulfillmentStatus = 'new';
@@ -1153,6 +1209,10 @@ export default () => ({
         total: itemsTotal,
         totalWithShipping,
 
+        giftVoucherCode: voucherEntity?.code ?? null,
+        giftVoucherDiscount: voucherDiscount,
+        giftVoucherStatus: voucherEntity ? (isCard ? 'reserved' : 'applied') : 'released',
+
         giftWrap: giftWrap ? JSON.parse(JSON.stringify(giftWrap)) : null,
         giftWrapMode: giftWrap?.mode ?? null,
         giftWrapNote: giftWrap?.note ?? null,
@@ -1177,11 +1237,29 @@ export default () => ({
         orderLocale: locale,
 
         ...billingDbData,
+
       } as any,
     });
 
     // 4A) NE-KARTA – prelinkuj bookingy + pošli emaily + redirect na success
     if (!isCard) {
+      if (voucherEntity && voucherDiscount > 0) {
+        const remaining = Number(voucherEntity.remainingValue ?? voucherEntity.amount ?? 0);
+        const newRemaining = Number(Math.max(0, remaining - voucherDiscount).toFixed(2));
+    
+        await strapi.db.query('api::gift-voucher.gift-voucher').update({
+          where: { id: voucherEntity.id },
+          data: {
+            remainingValue: newRemaining,
+            status: newRemaining > 0 ? 'active' : 'used',
+            usedAt: newRemaining > 0 ? null : new Date(),
+            usedByOrder: (order as any).id,
+            usedByOrderInvoiceNumber: (order as any).invoiceNumber ?? null,
+            reservedAt: null,
+          },
+        });
+      }
+    
       try {
         if ((order as any).temporaryId) {
           const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
@@ -1482,6 +1560,24 @@ export default () => ({
 
       if ((parsed as any).code !== '0') {
         strapi.log.error('[COMGATE][CREATE] error:', parsed);
+      
+        if (voucherEntity && voucherDiscount > 0) {
+          await strapi.db.query('api::gift-voucher.gift-voucher').update({
+            where: { id: voucherEntity.id },
+            data: {
+              status: 'active',
+              reservedAt: null,
+            },
+          });
+      
+          await strapi.db.query('api::order.order').update({
+            where: { id: (order as any).id },
+            data: {
+              giftVoucherStatus: 'released',
+            },
+          });
+        }
+      
         throw new Error((parsed as any).message || 'Comgate create error');
       }
 
