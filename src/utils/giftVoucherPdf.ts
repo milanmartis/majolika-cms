@@ -11,7 +11,13 @@ function getFontPath() {
     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
   ];
 
-  return candidates.find((p) => fs.existsSync(p)) || null;
+  const found = candidates.find((p) => fs.existsSync(p));
+
+  if (!found) {
+    throw new Error('DejaVuSans.ttf font not found. Install dejavu-sans-fonts.');
+  }
+
+  return found;
 }
 
 function safeText(value: any) {
@@ -22,7 +28,8 @@ export async function generateGiftVoucherPdfFile(voucher: any) {
   const filename = `gift-voucher-${voucher.code}.pdf`;
   const filePath = path.join(os.tmpdir(), filename);
   const fontPath = getFontPath();
-
+  console.log('[GIFT_VOUCHER][PDF] fontPath:', fontPath);
+  
   await new Promise<void>((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
