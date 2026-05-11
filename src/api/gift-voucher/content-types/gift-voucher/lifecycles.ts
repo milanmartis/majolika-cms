@@ -8,19 +8,18 @@ async function uploadPdfToStrapi(file: {
   type: string;
   size: number;
 }) {
+  strapi.log.info(`[GIFT_VOUCHER][PDF] Uploading file path=${file.path}, name=${file.name}, size=${file.size}`);
+
   const uploaded = await strapi.plugin('upload').service('upload').upload({
-    data: {
-      fileInfo: {
-        name: file.name,
-        alternativeText: file.name,
-        caption: file.name,
-      },
-    },
+    data: {},
     files: {
+      filepath: file.path,
       path: file.path,
       name: file.name,
       type: file.type,
+      mimetype: file.type,
       size: file.size,
+      originalFilename: file.name,
     },
   });
 
