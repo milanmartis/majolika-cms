@@ -16,7 +16,12 @@ async function uploadPdfToStrapi(file: {
         caption: file.name,
       },
     },
-    files: file,
+    files: {
+      path: file.path,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    },
   });
 
   return uploaded?.[0] || null;
