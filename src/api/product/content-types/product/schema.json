@@ -42,6 +42,26 @@
     },
 
     "isDigitalProduct": { "type": "boolean", "default": false },
+
+    "isGiftVoucher": {
+      "type": "boolean",
+      "default": false
+    },
+
+    "voucherType": {
+      "type": "enumeration",
+      "enum": ["value", "service"]
+    },
+
+    "voucherValue": {
+      "type": "decimal",
+      "precision": 12,
+      "scale": 2
+    },
+
+    "voucherValidDays": {
+      "type": "integer"
+    },
     
     "public": { "type": "boolean", "default": false },
     "price": { "type": "decimal" },
