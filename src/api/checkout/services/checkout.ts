@@ -32,11 +32,21 @@ interface EventInfo {
 interface CheckoutItem {
   productId: number;
   productName?: string;
+
+  slug?: string;
+
+  type?: 'product' | 'gift_voucher' | 'event';
+
   quantity: number;
   unitPrice: number;
+
   event?: EventInfo;
+
   isDigitalProduct?: boolean;
   isGiftVoucher?: boolean;
+
+  voucherType?: 'value' | 'service';
+  voucherValue?: number | null;
 
   // ✅ voliteľné – ak posiela FE pre giftwrap item
   isGiftWrapProduct?: boolean;
@@ -1071,18 +1081,41 @@ export default () => ({
 
         const isGiftWrapProduct = (item as any).isGiftWrapProduct === true;
 
+        const itemType =
+          item.type ??
+          (isGiftVoucher ? 'gift_voucher' : 'product');
+
+        const voucherType =
+          item.voucherType ??
+          (product as any).voucherType ??
+          null;
+
+        const voucherValue =
+          item.voucherValue ??
+          (product as any).voucherValue ??
+          null;
+
         return {
           productId: item.productId,
           productName: item.productName ?? (product as any).name,
-          slug: (product as any).slug,
+          slug: item.slug ?? (product as any).slug,
+          type: itemType,
+
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           event: item.event ?? undefined,
           _image: pickProductImage(product),
           ean,
+
           isDigitalProduct,
           isGiftVoucher,
           isGiftWrapProduct,
+
+          voucherType: isGiftVoucher ? voucherType : null,
+          voucherValue:
+            isGiftVoucher && voucherType === 'value'
+              ? (voucherValue ?? item.unitPrice)
+              : null,
         };
       })
     );
