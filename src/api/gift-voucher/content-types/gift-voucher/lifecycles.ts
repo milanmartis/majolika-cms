@@ -2,6 +2,35 @@ import fs from 'fs';
 import { sendEmail } from '../../../../utils/email';
 import { generateGiftVoucherPdfFile } from '../../../../utils/giftVoucherPdf';
 
+
+async function getVoucherProductShort(voucher: any) {
+  try {
+    const slug =
+      voucher.productSlug ||
+      voucher.allowedProductSlug ||
+      voucher.meta?.sourceItem?.slug;
+
+    if (!slug) return '';
+
+    const products = await strapi.entityService.findMany('api::product.product', {
+      filters: {
+        slug: {
+          $eq: slug,
+        },
+      },
+      fields: ['short'],
+      limit: 1,
+    } as any);
+
+    const product = Array.isArray(products) ? products[0] : null;
+
+    return product?.short || '';
+  } catch (e) {
+    strapi.log.warn(`[GIFT_VOUCHER][EMAIL] product short fetch failed: ${String(e)}`);
+    return '';
+  }
+}
+
 async function uploadPdfToStrapi(file: {
   path: string;
   name: string;
@@ -67,6 +96,10 @@ function escapeHtml(value?: any) {
            <a class="button" href="${escapeHtml(pdfUrl)}" target="_blank">Stiahnuť darčekovú poukážku</a>
          </p>`
       : '';
+
+    const productShortHtml = voucher.productShort
+      ? `<div style="margin-top:16px;">${voucher.productShort}</div>`
+      : '';
   
     return `<!DOCTYPE html>
   <html lang="sk">
@@ -117,11 +150,17 @@ function escapeHtml(value?: any) {
           ${recipientHtml}
           ${messageHtml}
           ${validToHtml}
-        </div>
-  
-        ${linkHtml}
-  
-        <p>${escapeHtml(usageText)}</p>
+
+            </div>
+      
+            ${linkHtml}
+
+    ${productShortHtml}
+
+    <p>
+      <b>Darčekový poukaz je platný 1 rok od dátumu zakúpenia.</b><br>
+    </p>
+
   
         <p>S pozdravom,<br>Slovenská ľudová majolika</p>
       </div>
@@ -203,6 +242,9 @@ export default {
       const to = voucher.recipientEmail || voucher.customerEmail;
 
       if (to) {
+        const productShort = await getVoucherProductShort(voucher);
+        voucher.productShort = productShort;
+
         await sendEmail({
           to,
           subject: `Darčeková poukážka ${voucher.code}`,
