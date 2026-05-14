@@ -1323,6 +1323,7 @@ export default () => ({
       
       try {
         const shouldSendToKros =
+          paymentMethod !== 'onsite' &&
           String(process.env.KROS_SEND_ON_NONCARD || 'true').toLowerCase() === 'true';
       
         if (shouldSendToKros) {
