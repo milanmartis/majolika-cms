@@ -681,7 +681,7 @@ export default {
       const prevPaymentStatus = prev?.paymentStatus ?? null;
       const nextPaymentStatus = next?.paymentStatus ?? null;
 
-      if (nextPaymentStatus === 'paid' && prevPaymentStatus !== 'paid') {
+      if (nextPaymentStatus === 'paid') {
         await createGiftVouchersForPaidOrder(next?.documentId || null);
       }
 
