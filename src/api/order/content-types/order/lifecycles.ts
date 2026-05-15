@@ -427,6 +427,7 @@ const fetchOrderForVoucher = async (documentId: string): Promise<OrderEntity | n
       populate: {
         customer: true,
         createdGiftVouchers: true,
+        items: true,
       },
     });
 
