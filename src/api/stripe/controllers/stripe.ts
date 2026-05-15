@@ -59,6 +59,7 @@ type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' 
 
 type OrderRecord = {
   id: number;
+  documentId: string;
   notes?: string | null;
   publicToken?: string | null;
 
@@ -941,6 +942,7 @@ async function runPostPaidFlow(orderId: number) {
   const freshOrder = await strapi.entityService.findOne('api::order.order', orderId, {
     fields: [
       'id',
+      'documentId',
       'orderLocale',
       'locale',          // ✅ dôležité pre jazyk emailu
       'notes',
@@ -989,6 +991,16 @@ async function runPostPaidFlow(orderId: number) {
   const giftWrap = normalizeGiftWrap((freshOrder as any).giftWrap);
 
   await applyOrderGiftVoucher(freshOrder.id);
+
+  try {
+    await strapi
+      .service('api::gift-voucher.gift-voucher')
+      .createForPaidOrder(freshOrder.documentId || freshOrder.id);
+  
+    strapi.log.info(`[GIFT_VOUCHER][PAID_FLOW] checked/created for order #${freshOrder.id}`);
+  } catch (e) {
+    strapi.log.error(`[GIFT_VOUCHER][PAID_FLOW] create failed for order #${freshOrder.id}:`, e);
+  }
 
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
   strapi.log.info(`[EMAIL][PAID] giftWrap=${giftWrap ? 'YES' : 'NO'}`);
