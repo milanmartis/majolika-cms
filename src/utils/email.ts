@@ -7,6 +7,7 @@ type SendEmailArgs = {
   html?: string;
   from?: string;      // voliteľné – ak nepošleš, vezmeme z ENV
   replyTo?: string;   // voliteľné – napr. info@majolika.sk
+  attachments?: any[];
 };
 
 export async function sendEmail({ to, subject, text, html, from, replyTo }: SendEmailArgs) {

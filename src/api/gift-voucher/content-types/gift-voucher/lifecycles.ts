@@ -1,4 +1,169 @@
 import { sendEmail } from '../../../../utils/email';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+declare const strapi: any;
+
+const S3_POUKAZY_BASE_URL =
+  'https://medusa-majolika-s3-us-east.s3.amazonaws.com/poukazy';
+
+const PDF_BY_PRODUCT_SLUG: Record<
+  string,
+  {
+    file: string;
+    code: { x: number; y: number };
+    validUntil: { x: number; y: number };
+    fontSize?: number;
+  }
+> = {
+  'darcekova-poukazka-30e': {
+    file: 'darcekovy poukaz v hodnote 30e.pdf',
+    code: { x: 115, y: 165 },
+    validUntil: { x: 115, y: 130 },
+    fontSize: 16,
+  },
+
+  'darcekova-poukazka-50e': {
+    file: 'Darcekova poukazka Majolika 50e_nakup.pdf',
+    code: { x: 115, y: 165 },
+    validUntil: { x: 115, y: 130 },
+    fontSize: 16,
+  },
+
+  'darcekova-poukazka-100e': {
+    file: 'Darcekova poukazka Majolika100e_nakup.pdf',
+    code: { x: 115, y: 165 },
+    validUntil: { x: 115, y: 130 },
+    fontSize: 16,
+  },
+
+  'darcekovy-poukaz-malovanie-dvoch-salok': {
+    file: 'Dva hrnčeky.pdf',
+    code: { x: 575, y: 115 },
+    validUntil: { x: 575, y: 90 },
+    fontSize: 13,
+  },
+
+  'darcekovy-poukaz-tvorenie-z-hliny-a-malovanie-vlastnorucne-vyrobenej-keramiky': {
+    file: 'Hlina a malovanie, dvojdielny tvor poukaz.pdf',
+    code: { x: 540, y: 110 },
+    validUntil: { x: 540, y: 85 },
+    fontSize: 13,
+  },
+
+  'darcekovy-poukaz-tvorenie-s-hlinou-tlacena-verzia': {
+    file: 'Hlina poukaz.pdf',
+    code: { x: 520, y: 110 },
+    validUntil: { x: 520, y: 85 },
+    fontSize: 13,
+  },
+  'darcekovy-poukaz-tvorenie-s-hlinou-elektronicky': {
+    file: 'Hlina poukaz.pdf',
+    code: { x: 520, y: 110 },
+    validUntil: { x: 520, y: 85 },
+    fontSize: 13,
+  },
+
+  'darcekovy-poukaz-malovanie-hrnceka-a-misky': {
+    file: 'Miska_a_hrncek_darcekovy_poukaz.pdf',
+    code: { x: 250, y: 115 },
+    validUntil: { x: 250, y: 90 },
+    fontSize: 13,
+  },
+
+  'prehliadka-vyroby-a-malovanie-keramiky': {
+    file: 'Prehliadky a malovanie keramiky darcekovy poukaz.pdf',
+    code: { x: 315, y: 92 },
+    validUntil: { x: 315, y: 117 },
+    fontSize: 13,
+  },
+
+  'prehliadka-vyroby': {
+    file: 'Prehliadky vyroby.pdf',
+    code: { x: 315, y: 92 },
+    validUntil: { x: 315, y: 117 },
+    fontSize: 13,
+  },
+
+  'darcekovy-poukaz-malovanie-salky-s-podsalkou': {
+    file: 'Šálka s podsalkou.pdf',
+    code: { x: 565, y: 112 },
+    validUntil: { x: 565, y: 87 },
+    fontSize: 13,
+  },
+
+  'vaza-a-pohar-elektronicky': {
+    file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
+    code: { x: 330, y: 92 },
+    validUntil: { x: 330, y: 117 },
+    fontSize: 13,
+  },
+  'darcekovy-poukaz-vaza-a-pohar-fyzicky': {
+    file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
+    code: { x: 330, y: 92 },
+    validUntil: { x: 330, y: 117 },
+    fontSize: 13,
+  },
+};
+
+async function createFilledVoucherPdf(voucher: any) {
+  const slug =
+    voucher.productSlug ||
+    voucher.allowedProductSlug ||
+    voucher.meta?.sourceItem?.slug;
+
+  const cfg = PDF_BY_PRODUCT_SLUG[slug];
+
+  if (!cfg) {
+    strapi.log.warn(`[PDF] Missing config for slug ${slug}`);
+    return null;
+  }
+
+  const templateUrl =
+    `${S3_POUKAZY_BASE_URL}/${encodeURIComponent(cfg.file)}`;
+
+  const response = await fetch(templateUrl);
+
+  if (!response.ok) {
+    throw new Error(`Unable to fetch PDF template: ${templateUrl}`);
+  }
+
+  const templateBytes = await response.arrayBuffer();
+
+  const pdfDoc = await PDFDocument.load(templateBytes);
+
+  const page = pdfDoc.getPages()[0];
+
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const validUntil = new Date();
+
+  validUntil.setFullYear(validUntil.getFullYear() + 1);
+
+  const validUntilText = validUntil.toLocaleDateString('sk-SK');
+
+  page.drawText(voucher.code || '', {
+    x: cfg.code.x,
+    y: cfg.code.y,
+    size: cfg.fontSize || 12,
+    font,
+    color: rgb(0, 0, 0),
+  });
+
+  page.drawText(validUntilText, {
+    x: cfg.validUntil.x,
+    y: cfg.validUntil.y,
+    size: cfg.fontSize || 12,
+    font,
+    color: rgb(0, 0, 0),
+  });
+
+  const pdfBytes = await pdfDoc.save();
+
+  return {
+    filename: `darcekovy-poukaz-${voucher.code}.pdf`,
+    content: Buffer.from(pdfBytes),
+    contentType: 'application/pdf',
+  };
+}
 
 async function getVoucherProductShort(voucher: any) {
   try {
@@ -180,14 +345,16 @@ export default {
       const productShort = await getVoucherProductShort(voucher);
       voucher.productShort = productShort;
 
+      const generatedPdf = await createFilledVoucherPdf(voucher);
+
       await sendEmail({
         to,
         subject: `Darčeková poukážka ${voucher.code}`,
         html: buildVoucherEmailHtml(voucher),
+        attachments: generatedPdf ? [generatedPdf] : undefined,
       });
-
       strapi.log.info(`[GIFT_VOUCHER][EMAIL] Sent voucher ${voucher.code} to ${to}`);
-      strapi.log.info(`[GIFT_VOUCHER][PDF] Skipped PDF generation for ${voucher.code}`);
+
     } catch (e) {
       strapi.log.error('[GIFT_VOUCHER][afterCreate] error', e);
     }

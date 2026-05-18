@@ -1,6 +1,7 @@
 // src/api/order/content-types/order/lifecycles.ts
 import { sendEmail } from '../../../../utils/email';
 import crypto from 'crypto';
+declare const strapi: any;
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
 
