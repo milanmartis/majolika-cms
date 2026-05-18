@@ -36,32 +36,32 @@ const PDF_BY_PRODUCT_SLUG: Record<
 > = {
   'darcekova-poukazka-30e': {
     file: 'darcekovy poukaz v hodnote 30e.pdf',
-    labelCode: { x: 42, y: 205 },
-    valueCode: { x: 42, y: 190 },
-    labelValidUntil: { x: 42, y: 170 },
-    valueValidUntil: { x: 42, y: 155 },
+    labelCode: { x: 52, y: 305 },
+    valueCode: { x: 52, y: 270 },
+    labelValidUntil: { x: 52, y: 250 },
+    valueValidUntil: { x: 52, y: 235 },
     labelFontSize: 14,
-    valueFontSize: 20,
+    valueFontSize: 29,
   },
 
   'darcekova-poukazka-50e': {
     file: 'Darcekova poukazka Majolika 50e_nakup.pdf',
-    labelCode: { x: 42, y: 205 },
-    valueCode: { x: 42, y: 190 },
-    labelValidUntil: { x: 42, y: 170 },
-    valueValidUntil: { x: 42, y: 155 },
+    labelCode: { x: 52, y: 305 },
+    valueCode: { x: 52, y: 270 },
+    labelValidUntil: { x: 52, y: 250 },
+    valueValidUntil: { x: 52, y: 235 },
     labelFontSize: 14,
-    valueFontSize: 20,
+    valueFontSize: 29,
   },
 
   'darcekova-poukazka-100e': {
     file: 'Darcekova poukazka Majolika100e_nakup.pdf',
-    labelCode: { x: 42, y: 205 },
-    valueCode: { x: 42, y: 190 },
-    labelValidUntil: { x: 42, y: 170 },
-    valueValidUntil: { x: 42, y: 155 },
+    labelCode: { x: 52, y: 305 },
+    valueCode: { x: 52, y: 270 },
+    labelValidUntil: { x: 52, y: 250 },
+    valueValidUntil: { x: 52, y: 235 },
     labelFontSize: 14,
-    valueFontSize: 20,
+    valueFontSize: 29,
   },
 
   'darcekovy-poukaz-malovanie-dvoch-salok': {
