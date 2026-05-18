@@ -327,6 +327,7 @@ export default {
 
       const voucher = await strapi.documents('api::gift-voucher.gift-voucher' as any).findOne({
         documentId: created.documentId,
+        locale: 'sk',
         populate: {
           sourceOrder: true,
           customer: true,
