@@ -9,7 +9,7 @@ declare const strapi: any;
 const POUKAZY_DIR = process.env.POUKAZY_DIR || path.join(process.cwd(), 'poukazy');
 const PDF_LABELS: Record<string, { code: string; validUntil: string }> = {
   sk: {
-    code: 'Číslo poukazu:',
+    code: 'Kód poukážky:',
     validUntil: 'Platnosť poukazu:',
   },
   en: {
@@ -36,42 +36,42 @@ const PDF_BY_PRODUCT_SLUG: Record<
 > = {
   'darcekova-poukazka-30e': {
     file: 'darcekovy poukaz v hodnote 30e.pdf',
-    labelCode: { x: 82, y: 395 },
-    valueCode: { x: 82, y: 320 },
-    labelValidUntil: { x: 600, y: 395 },
-    valueValidUntil: { x: 600, y: 320 },
+    labelCode: { x: 82, y: 355 },
+    valueCode: { x: 82, y: 280 },
+    labelValidUntil: { x: 600, y: 355 },
+    valueValidUntil: { x: 600, y: 280 },
     labelFontSize: 27,
-    valueFontSize: 44,
+    valueFontSize: 48,
   },
 
   'darcekova-poukazka-50e': {
     file: 'Darcekova poukazka Majolika 50e_nakup.pdf',
-    labelCode: { x: 82, y: 395 },
-    valueCode: { x: 82, y: 320 },
-    labelValidUntil: { x: 600, y: 395 },
-    valueValidUntil: { x: 600, y: 320 },
+    labelCode: { x: 82, y: 355 },
+    valueCode: { x: 82, y: 280 },
+    labelValidUntil: { x: 600, y: 355 },
+    valueValidUntil: { x: 600, y: 280 },
     labelFontSize: 27,
-    valueFontSize: 44,
+    valueFontSize: 48,
   },
 
   'darcekova-poukazka-100e': {
     file: 'Darcekova poukazka Majolika100e_nakup.pdf',
-    labelCode: { x: 82, y: 395 },
-    valueCode: { x: 82, y: 320 },
-    labelValidUntil: { x: 600, y: 395 },
-    valueValidUntil: { x: 600, y: 320 },
+    labelCode: { x: 82, y: 355 },
+    valueCode: { x: 82, y: 280 },
+    labelValidUntil: { x: 600, y: 355 },
+    valueValidUntil: { x: 600, y: 280 },
     labelFontSize: 27,
-    valueFontSize: 44,
+    valueFontSize: 48,
   },
 
   'darcekovy-poukaz-malovanie-dvoch-salok': {
     file: 'Dva hrnčeky.pdf',
-    labelCode: { x: 575, y: 112 },
-    valueCode: { x: 575, y: 96 },
-    labelValidUntil: { x: 575, y: 76 },
-    valueValidUntil: { x: 575, y: 60 },
-    labelFontSize: 14,
-    valueFontSize: 17,
+    labelCode: { x: 575, y: 220 },
+    valueCode: { x: 575, y: 150 },
+    labelValidUntil: { x: 1093, y: 220 },
+    valueValidUntil: { x: 1093, y: 150 },
+    labelFontSize: 27,
+    valueFontSize: 48,
   },
 
   'darcekovy-poukaz-tvorenie-z-hliny-a-malovanie-vlastnorucne-vyrobenej-keramiky': {
