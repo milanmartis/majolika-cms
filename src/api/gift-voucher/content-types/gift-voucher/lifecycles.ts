@@ -1,9 +1,11 @@
+import fs from 'fs/promises';
+import path from 'path';
 import { sendEmail } from '../../../../utils/email';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+
 declare const strapi: any;
 
-const S3_POUKAZY_BASE_URL =
-  'https://medusa-majolika-s3-us-east.s3.amazonaws.com/poukazy';
+const POUKAZY_DIR = process.env.POUKAZY_DIR || path.join(process.cwd(), 'poukazy');
 
 const PDF_BY_PRODUCT_SLUG: Record<
   string,
@@ -55,6 +57,7 @@ const PDF_BY_PRODUCT_SLUG: Record<
     validUntil: { x: 520, y: 85 },
     fontSize: 13,
   },
+
   'darcekovy-poukaz-tvorenie-s-hlinou-elektronicky': {
     file: 'Hlina poukaz.pdf',
     code: { x: 520, y: 110 },
@@ -96,6 +99,7 @@ const PDF_BY_PRODUCT_SLUG: Record<
     validUntil: { x: 330, y: 117 },
     fontSize: 13,
   },
+
   'darcekovy-poukaz-vaza-a-pohar-fyzicky': {
     file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
     code: { x: 330, y: 92 },
@@ -113,32 +117,34 @@ async function createFilledVoucherPdf(voucher: any) {
   const cfg = PDF_BY_PRODUCT_SLUG[slug];
 
   if (!cfg) {
-    strapi.log.warn(`[PDF] Missing config for slug ${slug}`);
+    strapi.log.warn(`[GIFT_VOUCHER][PDF] Missing config for slug: ${slug}`);
     return null;
   }
 
-  const templateUrl =
-    `${S3_POUKAZY_BASE_URL}/${encodeURIComponent(cfg.file)}`;
+  const templatePath = path.join(POUKAZY_DIR, cfg.file);
 
-  const response = await fetch(templateUrl);
+  let templateBytes: Buffer;
 
-  if (!response.ok) {
-    throw new Error(`Unable to fetch PDF template: ${templateUrl}`);
+  try {
+    templateBytes = await fs.readFile(templatePath);
+  } catch (e) {
+    strapi.log.error(`[GIFT_VOUCHER][PDF] Template not found: ${templatePath}`);
+    throw e;
   }
 
-  const templateBytes = await response.arrayBuffer();
-
   const pdfDoc = await PDFDocument.load(templateBytes);
-
   const page = pdfDoc.getPages()[0];
-
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   const validUntil = new Date();
-
   validUntil.setFullYear(validUntil.getFullYear() + 1);
 
-  const validUntilText = validUntil.toLocaleDateString('sk-SK');
+  const validUntilText = validUntil.toLocaleDateString('sk-SK', {
+    timeZone: 'Europe/Bratislava',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 
   page.drawText(voucher.code || '', {
     x: cfg.code.x,
@@ -203,8 +209,11 @@ function escapeHtml(value?: any) {
 
 function formatDateSK(value?: string | null) {
   if (!value) return '';
+
   const d = new Date(value);
+
   if (Number.isNaN(d.getTime())) return '';
+
   return d.toLocaleDateString('sk-SK', {
     timeZone: 'Europe/Bratislava',
     day: '2-digit',
@@ -221,6 +230,7 @@ function buildVoucherEmailHtml(voucher: any) {
     : '';
 
   const validToFormatted = formatDateSK(voucher.validTo);
+
   const validToHtml = validToFormatted
     ? `<p><b>Platnosť do:</b> ${escapeHtml(validToFormatted)}</p>`
     : `<p><b>Platnosť:</b> 1 rok od dátumu zakúpenia.</p>`;
@@ -258,16 +268,16 @@ function buildVoucherEmailHtml(voucher: any) {
     .content h2 { margin-top: 0; color: #333; }
     .content p { font-size: 16px; line-height: 1.6; color: #444; }
     .voucher-box {
-      margin-top: 20px; padding: 18px; border: 1px solid #eaeaea; border-radius: 0px; background: #fcfcfc;
+      background:#f8f8f8; border:1px solid #ddd; padding:20px; margin:20px 0;
     }
     .voucher-code {
-      font-size: 22px; font-weight: bold; letter-spacing: 1px; color: #0e29a0;
+      display:inline-block; font-size:24px; font-weight:bold; letter-spacing:1px; color:#0e29a0; margin-top:6px;
     }
-    .footer { background-color: #fafafa; color: #777; font-size: 13px; padding: 24px; text-align: center; line-height: 1.5; }
-    .footer a { color: #0e29a0; text-decoration: none; }
-    .footer-logo { margin-top: 16px; }
-    .footer-logo img { max-width: 200px; opacity: 0.9; }
-    @media (max-width: 620px) { .content { padding: 20px; } .header { padding: 18px; } }
+    .footer {
+      background-color:#eee; padding:20px; text-align:center; font-size:13px; color:#666;
+    }
+    .footer a { color:#0e29a0; text-decoration:none; }
+    .footer-logo { margin-top:16px; }
   </style>
 </head>
 <body>
@@ -354,8 +364,14 @@ export default {
         html: buildVoucherEmailHtml(voucher),
         attachments: generatedPdf ? [generatedPdf] : undefined,
       });
+
       strapi.log.info(`[GIFT_VOUCHER][EMAIL] Sent voucher ${voucher.code} to ${to}`);
 
+      if (generatedPdf) {
+        strapi.log.info(`[GIFT_VOUCHER][PDF] Attached generated PDF for voucher ${voucher.code}`);
+      } else {
+        strapi.log.warn(`[GIFT_VOUCHER][PDF] No PDF attached for voucher ${voucher.code}`);
+      }
     } catch (e) {
       strapi.log.error('[GIFT_VOUCHER][afterCreate] error', e);
     }
