@@ -7,112 +7,188 @@ declare const strapi: any;
 
 const POUKAZY_DIR = process.env.POUKAZY_DIR || path.join(process.cwd(), 'poukazy');
 
+const PDF_LABELS: Record<string, { code: string; validUntil: string }> = {
+  sk: {
+    code: 'Číslo poukazu:',
+    validUntil: 'Platnosť poukazu:',
+  },
+  en: {
+    code: 'Voucher number:',
+    validUntil: 'Valid until:',
+  },
+  de: {
+    code: 'Gutscheinnummer:',
+    validUntil: 'Gültig bis:',
+  },
+};
+
 const PDF_BY_PRODUCT_SLUG: Record<
   string,
   {
     file: string;
-    code: { x: number; y: number };
-    validUntil: { x: number; y: number };
-    fontSize?: number;
+    labelCode: { x: number; y: number };
+    valueCode: { x: number; y: number };
+    labelValidUntil: { x: number; y: number };
+    valueValidUntil: { x: number; y: number };
+    labelFontSize?: number;
+    valueFontSize?: number;
   }
 > = {
   'darcekova-poukazka-30e': {
     file: 'darcekovy poukaz v hodnote 30e.pdf',
-    code: { x: 115, y: 165 },
-    validUntil: { x: 115, y: 130 },
-    fontSize: 16,
+    labelCode: { x: 42, y: 176 },
+    valueCode: { x: 42, y: 158 },
+    labelValidUntil: { x: 42, y: 128 },
+    valueValidUntil: { x: 42, y: 110 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'darcekova-poukazka-50e': {
     file: 'Darcekova poukazka Majolika 50e_nakup.pdf',
-    code: { x: 115, y: 165 },
-    validUntil: { x: 115, y: 130 },
-    fontSize: 16,
+    labelCode: { x: 42, y: 176 },
+    valueCode: { x: 42, y: 158 },
+    labelValidUntil: { x: 42, y: 128 },
+    valueValidUntil: { x: 42, y: 110 },
+    labelFontSize: 14,
+    valueFontSize: 14,
   },
 
   'darcekova-poukazka-100e': {
     file: 'Darcekova poukazka Majolika100e_nakup.pdf',
-    code: { x: 115, y: 165 },
-    validUntil: { x: 115, y: 130 },
-    fontSize: 16,
+    labelCode: { x: 42, y: 176 },
+    valueCode: { x: 42, y: 158 },
+    labelValidUntil: { x: 42, y: 128 },
+    valueValidUntil: { x: 42, y: 110 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'darcekovy-poukaz-malovanie-dvoch-salok': {
     file: 'Dva hrnčeky.pdf',
-    code: { x: 575, y: 115 },
-    validUntil: { x: 575, y: 90 },
-    fontSize: 13,
+    labelCode: { x: 575, y: 112 },
+    valueCode: { x: 575, y: 96 },
+    labelValidUntil: { x: 575, y: 76 },
+    valueValidUntil: { x: 575, y: 60 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'darcekovy-poukaz-tvorenie-z-hliny-a-malovanie-vlastnorucne-vyrobenej-keramiky': {
     file: 'Hlina a malovanie, dvojdielny tvor poukaz.pdf',
-    code: { x: 540, y: 110 },
-    validUntil: { x: 540, y: 85 },
-    fontSize: 13,
+    labelCode: { x: 540, y: 110 },
+    valueCode: { x: 540, y: 96 },
+    labelValidUntil: { x: 540, y: 78 },
+    valueValidUntil: { x: 540, y: 64 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'darcekovy-poukaz-tvorenie-s-hlinou-tlacena-verzia': {
     file: 'Hlina poukaz.pdf',
-    code: { x: 520, y: 110 },
-    validUntil: { x: 520, y: 85 },
-    fontSize: 13,
+    labelCode: { x: 520, y: 110 },
+    valueCode: { x: 520, y: 94 },
+    labelValidUntil: { x: 520, y: 74 },
+    valueValidUntil: { x: 520, y: 58 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'darcekovy-poukaz-tvorenie-s-hlinou-elektronicky': {
     file: 'Hlina poukaz.pdf',
-    code: { x: 520, y: 110 },
-    validUntil: { x: 520, y: 85 },
-    fontSize: 13,
+    labelCode: { x: 520, y: 110 },
+    valueCode: { x: 520, y: 94 },
+    labelValidUntil: { x: 520, y: 74 },
+    valueValidUntil: { x: 520, y: 58 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'darcekovy-poukaz-malovanie-hrnceka-a-misky': {
     file: 'Miska_a_hrncek_darcekovy_poukaz.pdf',
-    code: { x: 250, y: 115 },
-    validUntil: { x: 250, y: 90 },
-    fontSize: 13,
+    labelCode: { x: 255, y: 112 },
+    valueCode: { x: 255, y: 96 },
+    labelValidUntil: { x: 255, y: 76 },
+    valueValidUntil: { x: 255, y: 60 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'prehliadka-vyroby-a-malovanie-keramiky': {
     file: 'Prehliadky a malovanie keramiky darcekovy poukaz.pdf',
-    code: { x: 315, y: 92 },
-    validUntil: { x: 315, y: 117 },
-    fontSize: 13,
+    labelCode: { x: 310, y: 118 },
+    valueCode: { x: 310, y: 102 },
+    labelValidUntil: { x: 310, y: 82 },
+    valueValidUntil: { x: 310, y: 66 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'prehliadka-vyroby': {
     file: 'Prehliadky vyroby.pdf',
-    code: { x: 315, y: 92 },
-    validUntil: { x: 315, y: 117 },
-    fontSize: 13,
+    labelCode: { x: 315, y: 118 },
+    valueCode: { x: 315, y: 102 },
+    labelValidUntil: { x: 315, y: 82 },
+    valueValidUntil: { x: 315, y: 66 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'darcekovy-poukaz-malovanie-salky-s-podsalkou': {
     file: 'Šálka s podsalkou.pdf',
-    code: { x: 565, y: 112 },
-    validUntil: { x: 565, y: 87 },
-    fontSize: 13,
+    labelCode: { x: 565, y: 112 },
+    valueCode: { x: 565, y: 96 },
+    labelValidUntil: { x: 565, y: 76 },
+    valueValidUntil: { x: 565, y: 60 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'vaza-a-pohar-elektronicky': {
     file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
-    code: { x: 330, y: 92 },
-    validUntil: { x: 330, y: 117 },
-    fontSize: 13,
+    labelCode: { x: 330, y: 118 },
+    valueCode: { x: 330, y: 102 },
+    labelValidUntil: { x: 330, y: 82 },
+    valueValidUntil: { x: 330, y: 66 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 
   'darcekovy-poukaz-vaza-a-pohar-fyzicky': {
     file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
-    code: { x: 330, y: 92 },
-    validUntil: { x: 330, y: 117 },
-    fontSize: 13,
+    labelCode: { x: 330, y: 118 },
+    valueCode: { x: 330, y: 102 },
+    labelValidUntil: { x: 330, y: 82 },
+    valueValidUntil: { x: 330, y: 66 },
+    labelFontSize: 14,
+    valueFontSize: 17,
   },
 };
+
+function normalizeLocale(locale?: string | null) {
+  const l = String(locale || 'sk').toLowerCase();
+
+  if (l.startsWith('en')) return 'en';
+  if (l.startsWith('de')) return 'de';
+
+  return 'sk';
+}
+
+function getDateLocale(locale: string) {
+  if (locale === 'en') return 'en-GB';
+  if (locale === 'de') return 'de-DE';
+
+  return 'sk-SK';
+}
 
 async function createFilledVoucherPdf(voucher: any) {
   const slug =
     voucher.productSlug ||
     voucher.allowedProductSlug ||
     voucher.meta?.sourceItem?.slug;
+
+  const locale = normalizeLocale(voucher.locale || voucher.orderLocale || voucher.sourceOrder?.orderLocale || 'sk');
+  const labels = PDF_LABELS[locale] || PDF_LABELS.sk;
 
   const cfg = PDF_BY_PRODUCT_SLUG[slug];
 
@@ -135,29 +211,49 @@ async function createFilledVoucherPdf(voucher: any) {
   const pdfDoc = await PDFDocument.load(templateBytes);
   const page = pdfDoc.getPages()[0];
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   const validUntil = new Date();
   validUntil.setFullYear(validUntil.getFullYear() + 1);
 
-  const validUntilText = validUntil.toLocaleDateString('sk-SK', {
+  const validUntilText = validUntil.toLocaleDateString(getDateLocale(locale), {
     timeZone: 'Europe/Bratislava',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
 
+  const labelFontSize = cfg.labelFontSize || 10;
+  const valueFontSize = cfg.valueFontSize || 10;
+
+  page.drawText(labels.code, {
+    x: cfg.labelCode.x,
+    y: cfg.labelCode.y,
+    size: labelFontSize,
+    font: boldFont,
+    color: rgb(0, 0, 0),
+  });
+
   page.drawText(voucher.code || '', {
-    x: cfg.code.x,
-    y: cfg.code.y,
-    size: cfg.fontSize || 12,
+    x: cfg.valueCode.x,
+    y: cfg.valueCode.y,
+    size: valueFontSize,
     font,
     color: rgb(0, 0, 0),
   });
 
+  page.drawText(labels.validUntil, {
+    x: cfg.labelValidUntil.x,
+    y: cfg.labelValidUntil.y,
+    size: labelFontSize,
+    font: boldFont,
+    color: rgb(0, 0, 0),
+  });
+
   page.drawText(validUntilText, {
-    x: cfg.validUntil.x,
-    y: cfg.validUntil.y,
-    size: cfg.fontSize || 12,
+    x: cfg.valueValidUntil.x,
+    y: cfg.valueValidUntil.y,
+    size: valueFontSize,
     font,
     color: rgb(0, 0, 0),
   });
@@ -191,6 +287,7 @@ async function getVoucherProductShort(voucher: any) {
     } as any);
 
     const product = Array.isArray(products) ? products[0] : null;
+
     return product?.short || '';
   } catch (e) {
     strapi.log.warn(`[GIFT_VOUCHER][EMAIL] product short fetch failed: ${String(e)}`);
@@ -249,12 +346,12 @@ function buildVoucherEmailHtml(voucher: any) {
       : 'Poukážku môžete uplatniť zadaním kódu v košíku alebo pri rezervácii podľa podmienok poukážky.';
 
   const productShortHtml = voucher.productShort
-      ? `<div style="margin-top:16px; font-size:14px; line-height:1.6; color:#444;">
-          ${escapeHtml(voucher.productShort)
-            .replace(/\\n/g, '<br>')
-            .replace(/\n/g, '<br>')}
-        </div>`
-      : '';
+    ? `<div style="margin-top:16px; font-size:14px; line-height:1.6; color:#444;">
+        ${escapeHtml(voucher.productShort)
+          .replace(/\\n/g, '<br>')
+          .replace(/\n/g, '<br>')}
+      </div>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="sk">
@@ -339,9 +436,11 @@ export default {
 
       if (!created?.documentId) return;
 
+      const locale = normalizeLocale(created.locale || created.orderLocale || 'sk');
+
       const voucher = await strapi.documents('api::gift-voucher.gift-voucher' as any).findOne({
         documentId: created.documentId,
-        locale: 'sk',
+        locale,
         populate: {
           sourceOrder: true,
           customer: true,
@@ -349,6 +448,9 @@ export default {
       } as any) as any;
 
       if (!voucher) return;
+
+      voucher.locale = locale;
+      voucher.orderLocale = voucher.orderLocale || created.orderLocale || locale;
 
       const to = voucher.recipientEmail || voucher.customerEmail;
 
