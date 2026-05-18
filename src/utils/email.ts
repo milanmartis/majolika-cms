@@ -10,7 +10,15 @@ type SendEmailArgs = {
   attachments?: any[];
 };
 
-export async function sendEmail({ to, subject, text, html, from, replyTo }: SendEmailArgs) {
+export async function sendEmail({
+  to,
+  subject,
+  text,
+  html,
+  from,
+  replyTo,
+  attachments,
+}: SendEmailArgs) {
   const host = process.env.SMTP_HOST || "mail.webhouse.sk";
   const port = Number(process.env.SMTP_PORT) || 587;
   const user = process.env.SMTP_USER || "";
@@ -43,6 +51,7 @@ export async function sendEmail({ to, subject, text, html, from, replyTo }: Send
     text,
     html,
     replyTo: replyTo || process.env.MAIL_REPLY_TO || undefined,
+    attachments,
     // envelope: { from: extractAddress(finalFrom), to }, // ak by provider vyžadoval zhodu MAIL FROM
   });
 

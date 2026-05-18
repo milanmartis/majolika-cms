@@ -249,8 +249,12 @@ function buildVoucherEmailHtml(voucher: any) {
       : 'Poukážku môžete uplatniť zadaním kódu v košíku alebo pri rezervácii podľa podmienok poukážky.';
 
   const productShortHtml = voucher.productShort
-    ? `<div style="margin-top:16px;">${voucher.productShort}</div>`
-    : '';
+      ? `<div style="margin-top:16px; font-size:14px; line-height:1.6; color:#444;">
+          ${escapeHtml(voucher.productShort)
+            .replace(/\\n/g, '<br>')
+            .replace(/\n/g, '<br>')}
+        </div>`
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="sk">
