@@ -66,12 +66,12 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'darcekovy-poukaz-malovanie-dvoch-salok': {
     file: 'Dva hrnčeky.pdf',
-    labelCode: { x: 575, y: 220 },
-    valueCode: { x: 575, y: 150 },
-    labelValidUntil: { x: 1093, y: 220 },
-    valueValidUntil: { x: 1093, y: 150 },
-    labelFontSize: 27,
-    valueFontSize: 48,
+    labelCode: { x: 575, y: 120 },
+    valueCode: { x: 575, y: 90 },
+    labelValidUntil: { x: 1093, y: 120 },
+    valueValidUntil: { x: 1093, y: 90 },
+    labelFontSize: 14,
+    valueFontSize: 33,
   },
 
   'darcekovy-poukaz-tvorenie-z-hliny-a-malovanie-vlastnorucne-vyrobenej-keramiky': {
