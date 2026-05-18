@@ -21,6 +21,7 @@
     "@aws-sdk/lib-storage": "^3.208.0",
     "@aws-sdk/middleware-flexible-checksums": "^3.208.0",
     "@koa/bodyparser": "^6.0.0",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@strapi/plugin-cloud": "5.31.2",
     "@strapi/plugin-users-permissions": "5.31.2",
     "@strapi/provider-email-nodemailer": "5.31.2",

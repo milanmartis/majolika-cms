@@ -1,12 +1,12 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { sendEmail } from '../../../../utils/email';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 
 declare const strapi: any;
 
 const POUKAZY_DIR = process.env.POUKAZY_DIR || path.join(process.cwd(), 'poukazy');
-
 const PDF_LABELS: Record<string, { code: string; validUntil: string }> = {
   sk: {
     code: 'Číslo poukazu:',
@@ -210,8 +210,15 @@ async function createFilledVoucherPdf(voucher: any) {
 
   const pdfDoc = await PDFDocument.load(templateBytes);
   const page = pdfDoc.getPages()[0];
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  pdfDoc.registerFontkit(fontkit);
+
+  const fontPath = path.join(process.cwd(), 'fonts', 'DejaVuSans-Bold.ttf');
+
+  const fontBytes = await fs.readFile(fontPath);
+
+  const font = await pdfDoc.embedFont(fontBytes);
+  const boldFont = font;
+
 
   const validUntil = new Date();
   validUntil.setFullYear(validUntil.getFullYear() + 1);
