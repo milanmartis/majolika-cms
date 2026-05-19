@@ -136,7 +136,7 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'darcekovy-poukaz-malovanie-salky-s-podsalkou': {
     file: 'Šálka s podsalkou.pdf',
-    labelCode: { x: 565, y: 128 },
+    labelCode: { x: 565, y: 130 },
     valueCode: { x: 565, y: 104 },
     labelValidUntil: { x: 565, y: 76 },
     valueValidUntil: { x: 565, y: 60 },
@@ -146,10 +146,10 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'vaza-a-pohar-elektronicky': {
     file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
-    labelCode: { x: 390, y: 130 },
-    valueCode: { x: 390, y: 107 },
-    labelValidUntil: { x: 390, y: 82 },
-    valueValidUntil: { x: 390, y: 66 },
+    labelCode: { x: 360, y: 130 },
+    valueCode: { x: 360, y: 107 },
+    labelValidUntil: { x: 360, y: 82 },
+    valueValidUntil: { x: 360, y: 66 },
     labelFontSize: 14,
     valueFontSize: 27,
   },
@@ -220,15 +220,24 @@ async function createFilledVoucherPdf(voucher: any) {
   const boldFont = font;
 
 
-  const validUntil = new Date();
-  validUntil.setFullYear(validUntil.getFullYear() + 1);
+  // const validUntil = new Date();
+  // validUntil.setFullYear(validUntil.getFullYear() + 1);
 
-  const validUntilText = validUntil.toLocaleDateString(getDateLocale(locale), {
-    timeZone: 'Europe/Bratislava',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  // const validUntilText = validUntil.toLocaleDateString(getDateLocale(locale), {
+  //   timeZone: 'Europe/Bratislava',
+  //   day: '2-digit',
+  //   month: '2-digit',
+  //   year: 'numeric',
+  // });
+
+  const validUntilText = voucher.validTo
+  ? new Date(voucher.validTo).toLocaleDateString(getDateLocale(locale), {
+      timeZone: 'Europe/Bratislava',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
+  : '';
 
   const labelFontSize = cfg.labelFontSize || 10;
   const valueFontSize = cfg.valueFontSize || 10;

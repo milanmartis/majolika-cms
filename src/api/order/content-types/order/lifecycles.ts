@@ -555,6 +555,11 @@ async function createGiftVouchersForPaidOrder(orderDocumentId?: string | null) {
         const voucherType = item?.voucherType === 'value' ? 'value' : 'service';
         const amount = item?.voucherValue ?? item?.unitPrice ?? null;
 
+        const validFrom = new Date();
+
+        const validTo = new Date(validFrom);
+        validTo.setFullYear(validTo.getFullYear() + 1);
+
         await strapi.documents('api::gift-voucher.gift-voucher' as any).create({
           data: {
             code,
@@ -569,8 +574,8 @@ async function createGiftVouchersForPaidOrder(orderDocumentId?: string | null) {
             currency: 'EUR',
             customerName: order.customerName || null,
             customerEmail: order.customerEmail || null,
-            validFrom: new Date().toISOString(),
-            validTo: item?.voucherValidTo || null,
+            validFrom: validFrom.toISOString(),
+            validTo: validTo.toISOString(),
             orderItemId: item?.id ? String(item.id) : null,
             sourceOrderInvoiceNumber: order.invoiceNumber || null,
             sourceOrder: order.documentId || null,
