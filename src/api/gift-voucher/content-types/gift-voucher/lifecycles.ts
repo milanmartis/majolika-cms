@@ -86,9 +86,9 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'darcekovy-poukaz-tvorenie-s-hlinou-tlacena-verzia': {
     file: 'Hlina poukaz.pdf',
-    labelCode: { x: 620, y: 190 },
-    valueCode: { x: 620, y: 174 },
-    labelValidUntil: { x: 620, y: 104 },
+    labelCode: { x: 620, y: 170 },
+    valueCode: { x: 620, y: 144 },
+    labelValidUntil: { x: 620, y: 100 },
     valueValidUntil: { x: 620, y: 80 },
     labelFontSize: 14,
     valueFontSize: 29,
