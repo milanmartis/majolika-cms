@@ -68,8 +68,8 @@ const PDF_BY_PRODUCT_SLUG: Record<
     file: 'Dva hrnčeky.pdf',
     labelCode: { x: 575, y: 120 },
     valueCode: { x: 575, y: 90 },
-    labelValidUntil: { x: 1093, y: 120 },
-    valueValidUntil: { x: 1093, y: 90 },
+    labelValidUntil: { x: 575, y: 75 },
+    valueValidUntil: { x: 780, y: 75 },
     labelFontSize: 14,
     valueFontSize: 33,
   },
@@ -260,7 +260,7 @@ async function createFilledVoucherPdf(voucher: any) {
   page.drawText(validUntilText, {
     x: cfg.valueValidUntil.x,
     y: cfg.valueValidUntil.y,
-    size: valueFontSize,
+    size: labelFontSize,
     font,
     color: rgb(0, 0, 0),
   });
@@ -353,12 +353,12 @@ function buildVoucherEmailHtml(voucher: any) {
       : 'Poukážku môžete uplatniť zadaním kódu v košíku alebo pri rezervácii podľa podmienok poukážky.';
 
   const productShortHtml = voucher.productShort
-    ? `<div style="margin-top:16px; font-size:14px; line-height:1.6; color:#444;">
-        ${escapeHtml(voucher.productShort)
-          .replace(/\\n/g, '<br>')
-          .replace(/\n/g, '<br>')}
-      </div>`
-    : '';
+      ? `<div style="margin-top:16px; font-size:14px; line-height:1.6; color:#444;">
+          ${String(voucher.productShort)
+            .replace(/\\n/g, '<br>')
+            .replace(/\n/g, '<br>')}
+        </div>`
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="sk">
