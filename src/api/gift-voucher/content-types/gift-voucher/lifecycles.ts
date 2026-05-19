@@ -106,22 +106,22 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'darcekovy-poukaz-malovanie-hrnceka-a-misky': {
     file: 'Miska_a_hrncek_darcekovy_poukaz.pdf',
-    labelCode: { x: 275, y: 142 },
+    labelCode: { x: 275, y: 149 },
     valueCode: { x: 275, y: 120 },
-    labelValidUntil: { x: 255, y: 96 },
-    valueValidUntil: { x: 255, y: 70 },
+    labelValidUntil: { x: 275, y: 90 },
+    valueValidUntil: { x: 275, y: 73 },
     labelFontSize: 14,
-    valueFontSize: 29,
+    valueFontSize: 27,
   },
 
   'prehliadka-vyroby-a-malovanie-keramiky': {
     file: 'Prehliadky a malovanie keramiky darcekovy poukaz.pdf',
-    labelCode: { x: 310, y: 118 },
-    valueCode: { x: 310, y: 102 },
-    labelValidUntil: { x: 310, y: 82 },
-    valueValidUntil: { x: 310, y: 66 },
+    labelCode: { x: 360, y: 148 },
+    valueCode: { x: 360, y: 120 },
+    labelValidUntil: { x: 360, y: 92 },
+    valueValidUntil: { x: 360, y: 84 },
     labelFontSize: 14,
-    valueFontSize: 17,
+    valueFontSize: 27,
   },
 
   'prehliadka-vyroby': {
