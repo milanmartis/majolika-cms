@@ -146,18 +146,18 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'vaza-a-pohar-elektronicky': {
     file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
-    labelCode: { x: 330, y: 118 },
-    valueCode: { x: 330, y: 102 },
-    labelValidUntil: { x: 330, y: 82 },
-    valueValidUntil: { x: 330, y: 66 },
+    labelCode: { x: 390, y: 130 },
+    valueCode: { x: 390, y: 107 },
+    labelValidUntil: { x: 390, y: 82 },
+    valueValidUntil: { x: 390, y: 66 },
     labelFontSize: 14,
-    valueFontSize: 17,
+    valueFontSize: 27,
   },
 
   'darcekovy-poukaz-vaza-a-pohar-fyzicky': {
     file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
-    labelCode: { x: 390, y: 128 },
-    valueCode: { x: 390, y: 110 },
+    labelCode: { x: 390, y: 130 },
+    valueCode: { x: 390, y: 107 },
     labelValidUntil: { x: 390, y: 82 },
     valueValidUntil: { x: 390, y: 66 },
     labelFontSize: 14,
