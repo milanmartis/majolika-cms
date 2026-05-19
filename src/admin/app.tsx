@@ -13,7 +13,7 @@ const isOrderCT = (model: string) => model === 'api::order.order';
  *    b) pokúsi sa o serverový logout (vymazanie HttpOnly cookie),
  *    c) hard redirect na /admin/auth/login.
  */
-const IDLE_MS = 10 * 60 * 1000; // 3 h; na test daj napr. 30 * 1000
+const IDLE_MS = 3 * 60 * 60 * 1000; // 3 h
 // const IDLE_MS = 3 * 60 * 60 * 1000; // 3 h; na test daj napr. 30 * 1000
 const ADMIN_BASE = '/admin';
 
