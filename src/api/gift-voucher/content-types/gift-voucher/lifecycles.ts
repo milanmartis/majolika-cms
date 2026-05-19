@@ -119,29 +119,29 @@ const PDF_BY_PRODUCT_SLUG: Record<
     labelCode: { x: 360, y: 148 },
     valueCode: { x: 360, y: 120 },
     labelValidUntil: { x: 360, y: 92 },
-    valueValidUntil: { x: 360, y: 84 },
+    valueValidUntil: { x: 360, y: 78 },
     labelFontSize: 14,
     valueFontSize: 27,
   },
 
   'prehliadka-vyroby': {
     file: 'Prehliadky vyroby.pdf',
-    labelCode: { x: 315, y: 118 },
-    valueCode: { x: 315, y: 102 },
-    labelValidUntil: { x: 315, y: 82 },
-    valueValidUntil: { x: 315, y: 66 },
+    labelCode: { x: 360, y: 148 },
+    valueCode: { x: 360, y: 120 },
+    labelValidUntil: { x: 360, y: 92 },
+    valueValidUntil: { x: 360, y: 78 },
     labelFontSize: 14,
-    valueFontSize: 17,
+    valueFontSize: 27,
   },
 
   'darcekovy-poukaz-malovanie-salky-s-podsalkou': {
     file: 'Šálka s podsalkou.pdf',
-    labelCode: { x: 565, y: 112 },
-    valueCode: { x: 565, y: 96 },
+    labelCode: { x: 565, y: 128 },
+    valueCode: { x: 565, y: 104 },
     labelValidUntil: { x: 565, y: 76 },
     valueValidUntil: { x: 565, y: 60 },
     labelFontSize: 14,
-    valueFontSize: 17,
+    valueFontSize: 27,
   },
 
   'vaza-a-pohar-elektronicky': {
@@ -156,12 +156,12 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'darcekovy-poukaz-vaza-a-pohar-fyzicky': {
     file: 'Váza a pohár vsetky udaje darcekovy poukaz.pdf',
-    labelCode: { x: 330, y: 118 },
-    valueCode: { x: 330, y: 102 },
-    labelValidUntil: { x: 330, y: 82 },
-    valueValidUntil: { x: 330, y: 66 },
+    labelCode: { x: 390, y: 128 },
+    valueCode: { x: 390, y: 110 },
+    labelValidUntil: { x: 390, y: 82 },
+    valueValidUntil: { x: 390, y: 66 },
     labelFontSize: 14,
-    valueFontSize: 17,
+    valueFontSize: 27,
   },
 };
 
