@@ -10,7 +10,7 @@ const POUKAZY_DIR = process.env.POUKAZY_DIR || path.join(process.cwd(), 'poukazy
 const PDF_LABELS: Record<string, { code: string; validUntil: string }> = {
   sk: {
     code: 'Kód poukážky:',
-    validUntil: 'Platnosť poukazu:',
+    validUntil: 'Platnosť:',
   },
   en: {
     code: 'Voucher number:',
@@ -87,7 +87,7 @@ const PDF_BY_PRODUCT_SLUG: Record<
   'darcekovy-poukaz-tvorenie-s-hlinou-tlacena-verzia': {
     file: 'Hlina poukaz.pdf',
     labelCode: { x: 620, y: 170 },
-    valueCode: { x: 620, y: 144 },
+    valueCode: { x: 620, y: 134 },
     labelValidUntil: { x: 620, y: 100 },
     valueValidUntil: { x: 620, y: 80 },
     labelFontSize: 14,
@@ -96,22 +96,22 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'darcekovy-poukaz-tvorenie-s-hlinou-elektronicky': {
     file: 'Hlina poukaz.pdf',
-    labelCode: { x: 520, y: 110 },
-    valueCode: { x: 520, y: 94 },
-    labelValidUntil: { x: 520, y: 74 },
-    valueValidUntil: { x: 520, y: 58 },
+    labelCode: { x: 620, y: 170 },
+    valueCode: { x: 620, y: 134 },
+    labelValidUntil: { x: 620, y: 100 },
+    valueValidUntil: { x: 620, y: 80 },
     labelFontSize: 14,
-    valueFontSize: 17,
+    valueFontSize: 29,
   },
 
   'darcekovy-poukaz-malovanie-hrnceka-a-misky': {
     file: 'Miska_a_hrncek_darcekovy_poukaz.pdf',
-    labelCode: { x: 255, y: 112 },
-    valueCode: { x: 255, y: 96 },
-    labelValidUntil: { x: 255, y: 76 },
-    valueValidUntil: { x: 255, y: 60 },
+    labelCode: { x: 275, y: 142 },
+    valueCode: { x: 275, y: 120 },
+    labelValidUntil: { x: 255, y: 96 },
+    valueValidUntil: { x: 255, y: 70 },
     labelFontSize: 14,
-    valueFontSize: 17,
+    valueFontSize: 29,
   },
 
   'prehliadka-vyroby-a-malovanie-keramiky': {
