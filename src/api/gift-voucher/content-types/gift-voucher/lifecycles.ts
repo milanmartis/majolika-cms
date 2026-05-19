@@ -76,10 +76,10 @@ const PDF_BY_PRODUCT_SLUG: Record<
 
   'darcekovy-poukaz-tvorenie-z-hliny-a-malovanie-vlastnorucne-vyrobenej-keramiky': {
     file: 'Hlina a malovanie, dvojdielny tvor poukaz.pdf',
-    labelCode: { x: 140, y: 110 },
-    valueCode: { x: 140, y: 96 },
-    labelValidUntil: { x: 240, y: 78 },
-    valueValidUntil: { x: 240, y: 64 },
+    labelCode: { x: 200, y: 100 },
+    valueCode: { x: 200, y: 78 },
+    labelValidUntil: { x: 300, y: 58 },
+    valueValidUntil: { x: 300, y: 46 },
     labelFontSize: 9,
     valueFontSize: 17,
   },
