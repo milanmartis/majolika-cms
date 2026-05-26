@@ -108,6 +108,7 @@ export default [
       origin: [
         'http://localhost:4200',                      // dev Angular
         'https://staging.dxzvn9ta3v1he.amplifyapp.com', // staging FE
+        'https://main.d1z40n1au5xe6q.amplifyapp.com',
         'https://majolika.sk',
         'https://www.majolika.sk',
         // CMS front (ak odtiaľ vôbec robíš XHR na API):
