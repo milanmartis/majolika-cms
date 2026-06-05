@@ -124,6 +124,7 @@ export default [
         'cache-control',
         'pragma',
         'x-skip-cache',
+        'x-skip-locale'
       ],
       credentials: true,
       keepHeaderOnError: true,
