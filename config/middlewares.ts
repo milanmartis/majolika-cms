@@ -123,6 +123,7 @@ export default [
         'X-Requested-With',
         'cache-control',
         'pragma',
+        'x-skip-cache',
       ],
       credentials: true,
       keepHeaderOnError: true,
