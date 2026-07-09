@@ -306,7 +306,7 @@ export default {
       });
 
       await sendEmail({
-        to: 'majolika@majolika.sk',
+        to: 'milanmartis@gmail.com',
         subject: subjectAdmin,
         html: htmlAdmin
       });
