@@ -27,32 +27,18 @@ function normalizeOrderNumber(orderNumber: string = ''): string {
 }
 
 async function findOrderByNumberAndEmail(orderNumberRaw: string, emailRaw: string) {
-  const orderNumber = normalizeOrderNumber(orderNumberRaw);
-  const email = normalizeEmail(emailRaw);
-
-  const orConditions: any[] = [
-    { invoiceNumber: orderNumber }
-  ];
-
-  const numericId = Number(orderNumber);
-
-  if (Number.isInteger(numericId) && numericId > 0) {
-    orConditions.push({ id: numericId });
+    const orderNumber = normalizeOrderNumber(orderNumberRaw);
+    const email = normalizeEmail(emailRaw);
+  
+    return await strapi.db.query('api::order.order').findOne({
+      where: {
+        $and: [
+          { invoiceNumber: orderNumber },
+          { customerEmail: email }
+        ]
+      }
+    });
   }
-
-  return await strapi.db.query('api::order.order').findOne({
-    where: {
-      $and: [
-        {
-          $or: orConditions
-        },
-        {
-          customerEmail: email
-        }
-      ]
-    }
-  });
-}
 
 function renderWithdrawalEmail(opts: {
   title: string;
