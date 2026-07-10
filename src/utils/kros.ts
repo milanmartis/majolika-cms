@@ -95,6 +95,95 @@ function toUtf16LeBuffer(input: string): Buffer {
   return Buffer.from(input, 'utf16le');
 }
 
+function base64UrlEncode(input: string): string {
+  return Buffer.from(input, 'utf8').toString('base64url');
+}
+
+function base64UrlDecode(input: string): string {
+  return Buffer.from(input, 'base64url').toString('utf8');
+}
+
+function invoiceLinkSecret(): string {
+  const secret = process.env.INVOICE_LINK_SECRET || '';
+  if (!secret) throw new Error('Missing INVOICE_LINK_SECRET');
+  return secret;
+}
+
+export function createPublicInvoiceToken(
+  orderId: number,
+  documentId: string,
+  expiresInSeconds = Number(process.env.INVOICE_LINK_TTL_SECONDS || 60 * 60 * 24 * 30)
+): string {
+  const payload = {
+    orderId,
+    documentId,
+    exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+  };
+
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signature = crypto
+    .createHmac('sha256', invoiceLinkSecret())
+    .update(encodedPayload)
+    .digest('base64url');
+
+  return `${encodedPayload}.${signature}`;
+}
+
+export function verifyPublicInvoiceToken(token: string): { orderId: number; documentId: string } | null {
+  try {
+    const [encodedPayload, suppliedSignature] = String(token || '').split('.');
+    if (!encodedPayload || !suppliedSignature) return null;
+
+    const expectedSignature = crypto
+      .createHmac('sha256', invoiceLinkSecret())
+      .update(encodedPayload)
+      .digest('base64url');
+
+    const supplied = Buffer.from(suppliedSignature);
+    const expected = Buffer.from(expectedSignature);
+    if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+      return null;
+    }
+
+    const payload = JSON.parse(base64UrlDecode(encodedPayload));
+    if (!payload?.orderId || !payload?.documentId || !payload?.exp) return null;
+    if (Number(payload.exp) < Math.floor(Date.now() / 1000)) return null;
+
+    return {
+      orderId: Number(payload.orderId),
+      documentId: String(payload.documentId),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function buildPublicInvoiceUrl(orderId: number, documentId: string): string {
+  const publicApiUrl = String(process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+  if (!publicApiUrl) throw new Error('Missing PUBLIC_API_URL');
+
+  const token = createPublicInvoiceToken(orderId, documentId);
+  return `${publicApiUrl}/api/kros/invoices/${encodeURIComponent(token)}`;
+}
+
+export async function fetchInvoiceFromKros(documentId: string): Promise<Response> {
+  const apiBase = String(process.env.KROS_API_BASE || '').replace(/\/$/, '');
+  const token = process.env.KROS_API_TOKEN || '';
+  const pathTemplate = process.env.KROS_INVOICE_PATH_TEMPLATE || '/api/invoices/{id}';
+
+  if (!apiBase) throw new Error('Missing KROS_API_BASE');
+  if (!token) throw new Error('Missing KROS_API_TOKEN');
+
+  const path = pathTemplate.replace('{id}', encodeURIComponent(documentId));
+  return fetch(`${apiBase}${path}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/pdf, application/json;q=0.9, */*;q=0.8',
+    },
+  });
+}
+
 export function verifyKrosSignature(rawBody: string, signature?: string | string[] | null): boolean {
   const secret = process.env.KROS_WEBHOOK_SECRET || '';
   if (!secret || !signature || Array.isArray(signature)) return false;
@@ -595,7 +684,6 @@ export async function applyKrosWebhook(payload: any) {
   const paymentStatus =
     related?.paymentStatus ?? null;
 
-  const apiUrl = payload?.apiUrl || null;
 
   let order: any = null;
 
@@ -641,10 +729,10 @@ export async function applyKrosWebhook(payload: any) {
   if (krosInvoiceNumber) {
     updateData.krosInvoiceNumber = String(krosInvoiceNumber);
   }
-  if (apiUrl && documentId) {
-    updateData.invoiceUrl = String(apiUrl).replace('{id}', String(documentId));
-  } else if (apiUrl) {
-    updateData.invoiceUrl = String(apiUrl);
+  let publicInvoiceUrl: string | null = null;
+  if (documentId) {
+    publicInvoiceUrl = buildPublicInvoiceUrl(order.id, String(documentId));
+    updateData.invoiceUrl = publicInvoiceUrl;
   }
   if (krosInvoiceNumber) {
     updateData.krosInvoiceIssuedAt = new Date().toISOString();
@@ -664,7 +752,7 @@ export async function applyKrosWebhook(payload: any) {
       await sendInvoiceReadyEmail(
         order.id,
         String(krosInvoiceNumber),
-        apiUrl || null
+        publicInvoiceUrl
       );
       strapi.log.info(`[KROS][EMAIL] invoice email sent for order #${order.id}`);
     } catch (e) {

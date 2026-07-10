@@ -1,22 +1,28 @@
 export default {
-    routes: [
-      {
-        method: 'POST',
-        path: '/kros/webhook',
-        handler: 'kros.webhook',
-        config: { auth: false },
-      },
-      {
-        method: 'POST',
-        path: '/kros/orders/:id/send',
-        handler: 'kros.sendOrder',
-        config: { auth: false },
-      },
-      {
-        method: 'POST',
-        path: '/kros/process-queue',
-        handler: 'kros.processQueue',
-        config: { auth: false },
-      },
-    ],
-  };
+  routes: [
+    {
+      method: 'POST',
+      path: '/kros/webhook',
+      handler: 'kros.webhook',
+      config: { auth: false },
+    },
+    {
+      method: 'POST',
+      path: '/kros/orders/:id/send',
+      handler: 'kros.sendOrder',
+      config: { auth: false },
+    },
+    {
+      method: 'POST',
+      path: '/kros/process-queue',
+      handler: 'kros.processQueue',
+      config: { auth: false },
+    },
+    {
+      method: 'GET',
+      path: '/kros/invoices/:token',
+      handler: 'kros.publicInvoice',
+      config: { auth: false },
+    },
+  ],
+};
