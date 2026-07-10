@@ -736,61 +736,120 @@ export async function processQueuedKrosOrders(limit = 10) {
   return { scanned: rows.length, processed: eligible.length };
 }
 
-async function sendInvoiceReadyEmail(orderId: number, invoiceNumber: string, invoiceUrl?: string | null) {
-    const order = await strapi.entityService.findOne('api::order.order', orderId, {
-      fields: ['customerEmail', 'customerName', 'orderLocale'] as any,
-    }) as any;
-  
-    if (!order?.customerEmail) return;
-  
-    const locale = String(order.orderLocale || 'sk').toLowerCase();
-  
-    const subject =
-      locale.startsWith('en')
-        ? `Invoice for order ${invoiceNumber}`
-        : locale.startsWith('de')
-          ? `Rechnung zur Bestellung ${invoiceNumber}`
-          : `Faktúra k objednávke ${invoiceNumber}`;
-  
-    const hello =
-      locale.startsWith('en')
-        ? `Hello${order.customerName ? `, ${order.customerName}` : ''},`
-        : locale.startsWith('de')
-          ? `Guten Tag${order.customerName ? `, ${order.customerName}` : ''},`
-          : `Dobrý deň${order.customerName ? `, ${order.customerName}` : ''},`;
-  
-    const intro =
-      locale.startsWith('en')
-        ? `Your invoice has been issued.`
-        : locale.startsWith('de')
-          ? `Ihre Rechnung wurde ausgestellt.`
-          : `Vaša faktúra bola vystavená.`;
-  
-    const invoiceLabel =
-      locale.startsWith('en')
-        ? `Invoice number`
-        : locale.startsWith('de')
-          ? `Rechnungsnummer`
-          : `Číslo faktúry`;
-  
-    const linkLabel =
-      locale.startsWith('en')
-        ? `View invoice`
-        : locale.startsWith('de')
-          ? `Rechnung zobraziť`
-          : `Zobraziť faktúru`;
-  
-    await sendEmail({
-      to: order.customerEmail,
-      subject,
-      html: `
-        <p>${hello}</p>
-        <p>${intro}</p>
-        <p><strong>${invoiceLabel}:</strong> ${invoiceNumber}</p>
-        ${invoiceUrl ? `<p><a href="${invoiceUrl}" target="_blank">${linkLabel}</a></p>` : ''}
-      `,
-    });
+async function sendInvoiceReadyEmail(
+  orderId: number,
+  invoiceNumber: string,
+  invoiceUrl?: string | null
+) {
+  const order = await strapi.entityService.findOne('api::order.order', orderId, {
+    fields: [
+      'customerEmail',
+      'customerName',
+      'orderLocale',
+      'krosDocumentId',
+    ] as any,
+  }) as any;
+
+  if (!order?.customerEmail) return;
+
+  const locale = String(order.orderLocale || 'sk').toLowerCase();
+
+  const subject =
+    locale.startsWith('en')
+      ? `Invoice for order ${invoiceNumber}`
+      : locale.startsWith('de')
+        ? `Rechnung zur Bestellung ${invoiceNumber}`
+        : `Faktúra k objednávke ${invoiceNumber}`;
+
+  const hello =
+    locale.startsWith('en')
+      ? `Hello${order.customerName ? `, ${order.customerName}` : ''},`
+      : locale.startsWith('de')
+        ? `Guten Tag${order.customerName ? `, ${order.customerName}` : ''},`
+        : `Dobrý deň${order.customerName ? `, ${order.customerName}` : ''},`;
+
+  const intro =
+    locale.startsWith('en')
+      ? `Your invoice has been issued and is attached to this email.`
+      : locale.startsWith('de')
+        ? `Ihre Rechnung wurde ausgestellt und ist dieser E-Mail beigefügt.`
+        : `Vaša faktúra bola vystavená a nájdete ju v prílohe tohto e-mailu.`;
+
+  const invoiceLabel =
+    locale.startsWith('en')
+      ? `Invoice number`
+      : locale.startsWith('de')
+        ? `Rechnungsnummer`
+        : `Číslo faktúry`;
+
+  const linkLabel =
+    locale.startsWith('en')
+      ? `View invoice`
+      : locale.startsWith('de')
+        ? `Rechnung anzeigen`
+        : `Zobraziť faktúru`;
+
+  let attachments: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+  }> | undefined;
+
+  try {
+    const { response } = await fetchInvoicePdfForOrder(
+      orderId,
+      order.krosDocumentId ? String(order.krosDocumentId) : null
+    );
+
+    const contentType = response.headers.get('content-type') || '';
+    const pdfBuffer = Buffer.from(await response.arrayBuffer());
+
+    if (!response.ok) {
+      throw new Error(
+        `KROS PDF download failed: HTTP ${response.status} ${pdfBuffer
+          .toString('utf8')
+          .slice(0, 500)}`
+      );
+    }
+
+    if (!contentType.toLowerCase().includes('application/pdf')) {
+      throw new Error(`KROS returned unexpected content type: ${contentType}`);
+    }
+
+    if (pdfBuffer.length < 5 || pdfBuffer.subarray(0, 5).toString() !== '%PDF-') {
+      throw new Error('KROS response is not a valid PDF file');
+    }
+
+    attachments = [
+      {
+        filename: `faktura-${String(invoiceNumber).replace(/[^a-zA-Z0-9._-]/g, '_')}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      },
+    ];
+
+    strapi.log.info(
+      `[KROS][EMAIL] PDF attached orderId=${orderId} invoice=${invoiceNumber} bytes=${pdfBuffer.length}`
+    );
+  } catch (e: any) {
+    // E-mail odošleme aj pri dočasnej chybe PDF. Zákazník má stále bezpečný odkaz.
+    strapi.log.error(
+      `[KROS][EMAIL] PDF attachment failed orderId=${orderId}: ${e?.message || e}`
+    );
   }
+
+  await sendEmail({
+    to: order.customerEmail,
+    subject,
+    html: `
+      <p>${hello}</p>
+      <p>${intro}</p>
+      <p><strong>${invoiceLabel}:</strong> ${invoiceNumber}</p>
+      ${invoiceUrl ? `<p><a href="${invoiceUrl}" target="_blank">${linkLabel}</a></p>` : ''}
+    `,
+    attachments,
+  });
+}
 
 export async function applyKrosWebhook(payload: any) {
   const requestId = payload?.requestId || null;
