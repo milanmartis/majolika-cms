@@ -118,6 +118,13 @@ export default {
       const contentType =
         response.headers.get('content-type') || 'application/octet-stream';
 
+        const isPdfByContentType =
+        contentType.toLowerCase().includes('application/pdf');
+      
+      const isPdfBySignature =
+        body.length >= 5 &&
+        body.subarray(0, 5).toString('ascii') === '%PDF-';
+
       if (!response.ok) {
         strapi.log.error(
           `[KROS][PUBLIC INVOICE] PDF failed ` +
@@ -130,11 +137,13 @@ export default {
         return;
       }
 
-      if (!contentType.toLowerCase().includes('application/pdf')) {
+      if (!isPdfByContentType && !isPdfBySignature) {
         strapi.log.error(
-          `[KROS][PUBLIC INVOICE] expected PDF, got ${contentType}`
+          `[KROS][PUBLIC INVOICE] expected PDF, got contentType=${contentType} ` +
+          `status=${response.status} size=${body.length} ` +
+          `prefix=${body.subarray(0, 100).toString('utf8')}`
         );
-
+      
         ctx.status = 502;
         ctx.body = 'KROS nevrátil PDF dokument.';
         return;
