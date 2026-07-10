@@ -684,7 +684,19 @@ function renderOrderEmail(opts: {
               <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td></tr>
           <tr><td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${esc(TT.total)}</td>
               <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td></tr>
-        </tbody>
+      
+                <tr>
+          <td>
+                <p style="margin-top:18px;padding-top:18px;border-top:1px solid #e5e5e5;">
+          <a href="https://www.majolika.sk/odstupenie-od-zmluvy"
+            target="_blank"
+            style="font-weight:bold;color:#0e29a0;">
+            Odstúpenie od zmluvy | Contract termination
+          </a>
+        </p>
+          </td>
+          </tr>
+              </tbody>
       </table>
     </div>
     <div class="footer">
@@ -697,13 +709,7 @@ function renderOrderEmail(opts: {
         <a href="tel:+421911980105">+421 911 980 105</a><br><br>
         Otváracie hodiny: Po–Pia 8:00–16:00 | So–Ne 10:00–16:00
       </p>
-        <p style="margin-top:18px;padding-top:18px;border-top:1px solid #e5e5e5;">
-          <a href="https://www.majolika.sk/odstupenie-od-zmluvy"
-            target="_blank"
-            style="font-weight:bold;color:#0e29a0;">
-            Odstúpenie od zmluvy | Contract termination
-          </a>
-        </p>
+
       <div class="footer-logo">
         <a href="https://www.majolika.sk"><img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" border=0 alt="SLM logo" width="200" /></a>
       </div>
