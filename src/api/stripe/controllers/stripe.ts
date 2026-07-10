@@ -60,6 +60,10 @@ type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' 
 type OrderRecord = {
   id: number;
   documentId: string;
+
+  invoiceNumber?: string | null;
+  invoiceUrl?: string | null;
+
   notes?: string | null;
   publicToken?: string | null;
 
@@ -943,6 +947,8 @@ async function runPostPaidFlow(orderId: number) {
     fields: [
       'id',
       'documentId',
+      'invoiceNumber',
+      'invoiceUrl',
       'orderLocale',
       'locale',          // ✅ dôležité pre jazyk emailu
       'notes',
@@ -990,6 +996,35 @@ async function runPostPaidFlow(orderId: number) {
   const orderNotes = freshOrder?.notes ? String(freshOrder.notes) : null;
   const giftWrap = normalizeGiftWrap((freshOrder as any).giftWrap);
 
+  let invoiceNumber: string | null =
+    freshOrder.invoiceNumber
+      ? String(freshOrder.invoiceNumber)
+      : null;
+
+  if (!invoiceNumber) {
+    try {
+      const issued = await issueInvoiceForOrder(freshOrder.id);
+
+      if (!issued?.invoiceNumber) {
+        throw new Error('Generated order number is empty');
+      }
+
+      invoiceNumber = String(issued.invoiceNumber);
+      freshOrder.invoiceNumber = invoiceNumber;
+
+      strapi.log.info(
+        `[ORDER_NUMBER][PAID] orderId=${freshOrder.id} invoiceNumber=${invoiceNumber}`
+      );
+    } catch (e) {
+      strapi.log.error(
+        `[ORDER_NUMBER][PAID] generation failed for orderId=${freshOrder.id}`,
+        e
+      );
+
+      throw e;
+    }
+  }
+
   await applyOrderGiftVoucher(freshOrder.id);
 
   try {
@@ -1011,8 +1046,8 @@ async function runPostPaidFlow(orderId: number) {
     freshOrder.customer?.phone ||
     '';
 
-    let invoiceNumber: string | null = (freshOrder as any).invoiceNumber || null;
-    let invoiceUrl: string | null = (freshOrder as any).invoiceUrl || null;
+
+    let invoiceUrl: string | null = freshOrder.invoiceUrl || null;
 
     try {
       const shouldSendToKros =
@@ -1029,29 +1064,9 @@ async function runPostPaidFlow(orderId: number) {
       strapi.log.error('[KROS][PAID] send failed:', e);
     }
 
-    try {
-      const inv = await issueInvoiceForOrder(freshOrder.id);
-      invoiceNumber = inv?.invoiceNumber || null;
-      // invoiceUrl = inv?.invoiceUrl || inv?.url || null;
-    
-      if (invoiceNumber || invoiceUrl) {
-        await strapi.db.query('api::order.order').update({
-          where: { id: freshOrder.id },
-          data: {
-            invoiceNumber: invoiceNumber,
-            invoiceUrl: invoiceUrl,
-          } as any,
-        });
-    
-        // aby ďalej v kóde už bolo freshOrder "aktuálne"
-        (freshOrder as any).invoiceNumber = invoiceNumber;
-        (freshOrder as any).invoiceUrl = invoiceUrl;
-      }
-    } catch (e) {
-      strapi.log.error('[INVOICE][PAID] issue failed:', e);
-    }
 
-  const docNo = invoiceNumber || String(freshOrder.id);
+
+    const docNo = String(invoiceNumber);
 
   // Previazanie bookingov
   if (freshOrder.temporaryId) {

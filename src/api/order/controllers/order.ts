@@ -4,6 +4,7 @@
 import { factories } from '@strapi/strapi';
 import { sendEmail } from '../../../utils/email';
 import { sendOrderToKros } from '../../../utils/kros';
+import { issueInvoiceForOrder } from '../../../utils/issue-invoice';
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
 
@@ -355,6 +356,14 @@ export default factories.createCoreController('api::order.order', ({ strapi }) =
       populate: ['items', 'deliveryAddress', 'deliveryDetails', 'customer'],
     }) as unknown as OrderWithShipping;
 
+    const issued = await issueInvoiceForOrder(order.id);
+
+    if (!issued?.invoiceNumber) {
+      throw new Error(`Order number generation failed for order ${order.id}`);
+    }
+
+    (order as any).invoiceNumber = String(issued.invoiceNumber);
+
     // ✅ locale finálne: payload.locale -> order.locale -> sk
     const orderLocale: AppLocale = normalizeLocale((order as any)?.orderLocale ?? localeFromPayload);
     const TT = t(orderLocale);
@@ -545,6 +554,8 @@ async publicGet(ctx: any) {
     {
       fields: [
         'invoiceNumber',
+        'krosInvoiceNumber',
+        'invoiceUrl',
         'orderStatus',
         'paymentStatus',
         'total',
@@ -578,7 +589,12 @@ async publicGet(ctx: any) {
 
   ctx.body = {
     id: order.id,
+  
+    // Číslo objednávky viditeľné zákazníkovi
     invoiceNumber: order.invoiceNumber ?? null,
+  
+    // Číslo faktúry/dokladu z KROSu
+    krosInvoiceNumber: order.krosInvoiceNumber ?? null,
     invoiceUrl: order.invoiceUrl ?? null,
     createdAt: order.createdAt ?? null,
 
@@ -734,6 +750,9 @@ async publicGet(ctx: any) {
         giftVoucherCode: order.giftVoucherCode ?? null,
         giftVoucherDiscount: order.giftVoucherDiscount ?? 0,
         giftVoucherStatus: order.giftVoucherStatus ?? null,
+        invoiceNumber: order.invoiceNumber ?? null,
+        krosInvoiceNumber: order.krosInvoiceNumber ?? null,
+        invoiceUrl: order.invoiceUrl ?? null,
 
         // 👇 vráť aj giftWrap, nech to vie FE/účty ukázať
         giftWrap: order.giftWrap ?? null,

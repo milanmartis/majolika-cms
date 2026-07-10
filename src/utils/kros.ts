@@ -32,7 +32,14 @@ type OrderItem = {
 
 type OrderRecord = {
   id: number;
+
+  // Číslo objednávky z invoice_counters, napr. 20260193
   invoiceNumber?: string | null;
+
+  // Číslo dokladu/faktúry vrátené KROS-om
+  krosInvoiceNumber?: string | null;
+  krosInvoiceIssuedAt?: string | null;
+
   invoiceUrl?: string | null;
 
   krosRequestId?: string | null;
@@ -332,6 +339,8 @@ export async function sendOrderToKros(orderId: number) {
     fields: [
       'id',
       'invoiceNumber',
+      'krosInvoiceNumber',
+      'krosInvoiceIssuedAt',
       'invoiceUrl',
       'krosRequestId',
       'krosStatus',
@@ -364,9 +373,26 @@ export async function sendOrderToKros(orderId: number) {
     },
   }) as unknown as OrderRecord | null;
 
-  if (!order) throw new Error(`Order ${orderId} not found`);
-  if (order.invoiceNumber) return { skipped: true, reason: 'already_invoiced' };
-  if (order.krosRequestId) return { skipped: true, reason: 'already_sent', requestId: order.krosRequestId };
+  if (!order) {
+    throw new Error(`Order ${orderId} not found`);
+  }
+  
+  if (order.krosDocumentId || order.krosInvoiceNumber) {
+    return {
+      skipped: true,
+      reason: 'already_processed_in_kros',
+      documentId: order.krosDocumentId || null,
+      krosInvoiceNumber: order.krosInvoiceNumber || null,
+    };
+  }
+  
+  if (order.krosRequestId) {
+    return {
+      skipped: true,
+      reason: 'already_sent',
+      requestId: order.krosRequestId,
+    };
+  }
 
   const payload = buildKrosPayload(order);
 
@@ -556,10 +582,10 @@ export async function applyKrosWebhook(payload: any) {
     entity?.data?.id ??
     null;
 
-    const invoiceNumber =
-    related?.documentNumber ??
-    entity?.data?.documentNumber ??
-    null;
+    const krosInvoiceNumber =
+      related?.documentNumber ??
+      entity?.data?.documentNumber ??
+      null;
 
     const variableSymbol =
     related?.variableSymbol ??
@@ -576,7 +602,11 @@ export async function applyKrosWebhook(payload: any) {
   if (requestId) {
     order = await strapi.db.query('api::order.order').findOne({
       where: { krosRequestId: String(requestId) },
-      select: ['id', 'invoiceNumber'],
+      select: [
+        'id',
+        'invoiceNumber',
+        'krosInvoiceNumber',
+      ],
     });
   }
 
@@ -585,7 +615,11 @@ export async function applyKrosWebhook(payload: any) {
     if (Number.isFinite(idCandidate)) {
       order = await strapi.db.query('api::order.order').findOne({
         where: { id: idCandidate },
-        select: ['id', 'invoiceNumber'],
+        select: [
+          'id',
+          'invoiceNumber',
+          'krosInvoiceNumber',
+        ],
       });
     }
   }
@@ -600,14 +634,21 @@ export async function applyKrosWebhook(payload: any) {
     krosLastWebhook: payload,
   };
 
-  if (documentId) updateData.krosDocumentId = String(documentId);
-  if (invoiceNumber) updateData.invoiceNumber = String(invoiceNumber);
+  if (documentId) {
+    updateData.krosDocumentId = String(documentId);
+  }
+  
+  if (krosInvoiceNumber) {
+    updateData.krosInvoiceNumber = String(krosInvoiceNumber);
+  }
   if (apiUrl && documentId) {
     updateData.invoiceUrl = String(apiUrl).replace('{id}', String(documentId));
   } else if (apiUrl) {
     updateData.invoiceUrl = String(apiUrl);
   }
-  if (invoiceNumber) updateData.invoiceIssuedAt = new Date().toISOString();
+  if (krosInvoiceNumber) {
+    updateData.krosInvoiceIssuedAt = new Date().toISOString();
+  }
 
   // ak zapneš notifikácie o úhradách v KROS, paymentStatus príde vo webhooku
   if (paymentStatus === 3) {
@@ -618,9 +659,13 @@ export async function applyKrosWebhook(payload: any) {
     data: updateData,
   });
 
-  if (invoiceNumber && !order.invoiceNumber) {
+  if (krosInvoiceNumber && !order.krosInvoiceNumber) {
     try {
-      await sendInvoiceReadyEmail(order.id, String(invoiceNumber), apiUrl || null);
+      await sendInvoiceReadyEmail(
+        order.id,
+        String(krosInvoiceNumber),
+        apiUrl || null
+      );
       strapi.log.info(`[KROS][EMAIL] invoice email sent for order #${order.id}`);
     } catch (e) {
       strapi.log.error(`[KROS][EMAIL] failed for order #${order.id}:`, e);
@@ -630,6 +675,7 @@ export async function applyKrosWebhook(payload: any) {
   return {
     matched: true,
     orderId: order.id,
-    invoiceNumber: invoiceNumber || null,
+    orderNumber: order.invoiceNumber || null,
+    krosInvoiceNumber: krosInvoiceNumber || null,
   };
 }

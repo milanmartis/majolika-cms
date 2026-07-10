@@ -26,17 +26,23 @@ function normalizeOrderNumber(orderNumber: string = ''): string {
   return String(orderNumber).trim();
 }
 
-async function findOrderByNumberAndEmail(orderNumberRaw: string, emailRaw: string) {
-    const orderNumber = normalizeOrderNumber(orderNumberRaw);
-    const email = normalizeEmail(emailRaw);
-  
+async function findOrderByNumberAndEmail(
+    orderNumberRaw: string,
+    emailRaw: string
+  ) {
+    const orderNumber = String(orderNumberRaw)
+      .trim()
+      .replace(/^#/, '');
+
+    const email = String(emailRaw)
+      .trim()
+      .toLowerCase();
+
     return await strapi.db.query('api::order.order').findOne({
       where: {
-        $and: [
-          { invoiceNumber: orderNumber },
-          { customerEmail: email }
-        ]
-      }
+        invoiceNumber: orderNumber,
+        customerEmail: email,
+      },
     });
   }
 

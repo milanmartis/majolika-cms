@@ -1276,6 +1276,33 @@ export default () => ({
 
     // 4A) NE-KARTA – prelinkuj bookingy + pošli emaily + redirect na success
     if (!isCard) {
+      let invoiceNumber: string;
+    
+      try {
+        const issued = await issueInvoiceForOrder((order as any).id);
+    
+        if (!issued?.invoiceNumber) {
+          throw new Error('Generated order number is empty');
+        }
+    
+        invoiceNumber = String(issued.invoiceNumber);
+    
+        // issueInvoiceForOrder už číslo zapísal do DB.
+        // Toto aktualizuje iba objekt v pamäti pre ďalší kód.
+        (order as any).invoiceNumber = invoiceNumber;
+    
+        strapi.log.info(
+          `[ORDER_NUMBER][NON-CARD] orderId=${(order as any).id} invoiceNumber=${invoiceNumber}`
+        );
+      } catch (e) {
+        strapi.log.error(
+          `[ORDER_NUMBER][NON-CARD] generation failed for orderId=${(order as any).id}`,
+          e
+        );
+    
+        throw e;
+      }
+    
       if (voucherEntity && voucherDiscount > 0) {
         const remaining = Number(voucherEntity.remainingValue ?? voucherEntity.amount ?? 0);
         const newRemaining = Number(Math.max(0, remaining - voucherDiscount).toFixed(2));
@@ -1287,7 +1314,8 @@ export default () => ({
             status: newRemaining > 0 ? 'active' : 'used',
             usedAt: newRemaining > 0 ? null : new Date(),
             usedByOrder: (order as any).id,
-            usedByOrderInvoiceNumber: (order as any).invoiceNumber ?? null,
+            // usedByOrderInvoiceNumber: (order as any).invoiceNumber ?? null,
+            usedByOrderInvoiceNumber: invoiceNumber,
             reservedAt: null,
           },
         });
@@ -1318,8 +1346,6 @@ export default () => ({
         strapi.log.error('[GCAL][NON-CARD] recalc failed:', e);
       }
 
-      let invoiceNumber: string | null = null;
-      let invoiceUrl: string | null = null;
       
       try {
         const shouldSendToKros =
@@ -1334,22 +1360,7 @@ export default () => ({
         strapi.log.error('[KROS][NON-CARD] send failed:', e);
       }
 
-      try {
-        const inv = await issueInvoiceForOrder((order as any).id);
-        invoiceNumber = inv?.invoiceNumber || null;
-        // invoiceUrl = inv?.invoiceUrl || inv?.url || null;
 
-        if (invoiceNumber || invoiceUrl) {
-          await strapi.entityService.update('api::order.order', (order as any).id, {
-            data: {
-              invoiceNumber: invoiceNumber,
-              invoiceUrl: invoiceUrl
-            } as any
-          });
-        }
-      } catch (e) {
-        strapi.log.error('[INVOICE][NON-CARD] issue failed:', e);
-      }
 
       const baseDeliverySummary = summarizeDelivery(delivery, locale);
       const urgencySuffix =
@@ -1397,7 +1408,7 @@ export default () => ({
       const orderNo = (order as any).id;
       const orderDate = formatNow(locale);
       const deliveryHuman = humanDelivery(deliveryMethod, locale);
-      const numberForEmail = String(invoiceNumber || orderNo);
+      const numberForEmail = invoiceNumber;
 
       const subject = TT.subjectConfirm(numberForEmail);
 
