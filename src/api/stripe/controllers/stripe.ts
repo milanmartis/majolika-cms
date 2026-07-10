@@ -697,6 +697,13 @@ function renderOrderEmail(opts: {
         <a href="tel:+421911980105">+421 911 980 105</a><br><br>
         Otváracie hodiny: Po–Pia 8:00–16:00 | So–Ne 10:00–16:00
       </p>
+        <p style="margin-top:18px;padding-top:18px;border-top:1px solid #e5e5e5;">
+          <a href="https://www.majolika.sk/odstupenie-od-zmluvy"
+            target="_blank"
+            style="font-weight:bold;color:#0e29a0;">
+            Odstúpenie od zmluvy | Contract termination
+          </a>
+        </p>
       <div class="footer-logo">
         <a href="https://www.majolika.sk"><img src="https://www.majolika.sk/assets/img/logo-SLM-modre.gif" border=0 alt="SLM logo" width="200" /></a>
       </div>
