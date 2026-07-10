@@ -111,12 +111,10 @@ function invoiceLinkSecret(): string {
 
 export function createPublicInvoiceToken(
   orderId: number,
-  documentId: string,
   expiresInSeconds = Number(process.env.INVOICE_LINK_TTL_SECONDS || 60 * 60 * 24 * 30)
 ): string {
   const payload = {
     orderId,
-    documentId,
     exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
   };
 
@@ -129,7 +127,7 @@ export function createPublicInvoiceToken(
   return `${encodedPayload}.${signature}`;
 }
 
-export function verifyPublicInvoiceToken(token: string): { orderId: number; documentId: string } | null {
+export function verifyPublicInvoiceToken(token: string): { orderId: number } | null {
   try {
     const [encodedPayload, suppliedSignature] = String(token || '').split('.');
     if (!encodedPayload || !suppliedSignature) return null;
@@ -141,47 +139,183 @@ export function verifyPublicInvoiceToken(token: string): { orderId: number; docu
 
     const supplied = Buffer.from(suppliedSignature);
     const expected = Buffer.from(expectedSignature);
-    if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+
+    if (
+      supplied.length !== expected.length ||
+      !crypto.timingSafeEqual(supplied, expected)
+    ) {
       return null;
     }
 
     const payload = JSON.parse(base64UrlDecode(encodedPayload));
-    if (!payload?.orderId || !payload?.documentId || !payload?.exp) return null;
-    if (Number(payload.exp) < Math.floor(Date.now() / 1000)) return null;
+    const orderId = Number(payload?.orderId);
+    const exp = Number(payload?.exp);
 
-    return {
-      orderId: Number(payload.orderId),
-      documentId: String(payload.documentId),
-    };
+    if (!Number.isFinite(orderId) || !Number.isFinite(exp)) return null;
+    if (exp < Math.floor(Date.now() / 1000)) return null;
+
+    return { orderId };
   } catch {
     return null;
   }
 }
 
-export function buildPublicInvoiceUrl(orderId: number, documentId: string): string {
+export function buildPublicInvoiceUrl(orderId: number): string {
   const publicApiUrl = String(process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
   if (!publicApiUrl) throw new Error('Missing PUBLIC_API_URL');
 
-  const token = createPublicInvoiceToken(orderId, documentId);
+  const token = createPublicInvoiceToken(orderId);
   return `${publicApiUrl}/api/kros/invoices/${encodeURIComponent(token)}`;
 }
 
-export async function fetchInvoiceFromKros(documentId: string): Promise<Response> {
+type KrosInvoiceListItem = {
+  id: number | string;
+  externalId?: string | null;
+  variableSymbol?: string | null;
+  documentNumber?: string | null;
+  orderNumber?: string | null;
+  pdfReportLink?: string | null;
+};
+
+type KrosInvoiceListResponse = {
+  data?: KrosInvoiceListItem[];
+};
+
+function getKrosApiConfig() {
   const apiBase = String(process.env.KROS_API_BASE || '').replace(/\/$/, '');
-  const token = process.env.KROS_API_TOKEN || '';
-  const pathTemplate = process.env.KROS_INVOICE_PATH_TEMPLATE || '/api/invoices/{id}';
+  const token = String(process.env.KROS_API_TOKEN || '');
 
   if (!apiBase) throw new Error('Missing KROS_API_BASE');
   if (!token) throw new Error('Missing KROS_API_TOKEN');
 
-  const path = pathTemplate.replace('{id}', encodeURIComponent(documentId));
-  return fetch(`${apiBase}${path}`, {
+  return { apiBase, token };
+}
+
+export async function findKrosInvoiceForOrder(
+  orderId: number
+): Promise<KrosInvoiceListItem | null> {
+  const { apiBase, token } = getKrosApiConfig();
+
+  const wantedExternalId = `eshop-order-${orderId}`;
+  const wantedVariableSymbol = String(orderId);
+  const top = Number(process.env.KROS_LIST_PAGE_SIZE || 100);
+  const maxPages = Number(process.env.KROS_LIST_MAX_PAGES || 100);
+
+  for (let page = 0, skip = 0; page < maxPages; page += 1, skip += top) {
+    const url = `${apiBase}/api/invoices?top=${top}&skip=${skip}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    });
+
+    const text = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`KROS invoice list failed: HTTP ${response.status} ${text}`);
+    }
+
+    let parsed: KrosInvoiceListResponse;
+    try {
+      parsed = text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(`KROS invoice list returned invalid JSON: ${text.slice(0, 500)}`);
+    }
+
+    const invoices = Array.isArray(parsed.data) ? parsed.data : [];
+
+    const byExternalId = invoices.find(
+      (invoice) => String(invoice.externalId || '') === wantedExternalId
+    );
+    if (byExternalId) return byExternalId;
+
+    const byVariableSymbol = invoices.find(
+      (invoice) => String(invoice.variableSymbol || '') === wantedVariableSymbol
+    );
+    if (byVariableSymbol) return byVariableSymbol;
+
+    if (invoices.length < top) return null;
+  }
+
+  return null;
+}
+
+export async function resolveKrosInvoiceForOrder(
+  orderId: number,
+  storedDocumentId?: string | null
+): Promise<KrosInvoiceListItem> {
+  const { apiBase, token } = getKrosApiConfig();
+
+  if (storedDocumentId) {
+    const detailUrl =
+      `${apiBase}/api/invoices/` +
+      encodeURIComponent(String(storedDocumentId));
+
+    const detailResponse = await fetch(detailUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (detailResponse.ok) {
+      const detail = (await detailResponse.json()) as KrosInvoiceListItem;
+      if (detail?.id && detail?.pdfReportLink) return detail;
+    } else {
+      strapi.log.warn(
+        `[KROS][RESOLVE] invalid stored ID orderId=${orderId} ` +
+        `documentId=${storedDocumentId} status=${detailResponse.status}`
+      );
+    }
+  }
+
+  const invoice = await findKrosInvoiceForOrder(orderId);
+
+  if (!invoice) {
+    throw new Error(`KROS invoice for order ${orderId} was not found`);
+  }
+  if (!invoice.id) {
+    throw new Error(`KROS invoice for order ${orderId} has no ID`);
+  }
+  if (!invoice.pdfReportLink) {
+    throw new Error(`KROS invoice ${invoice.id} has no pdfReportLink`);
+  }
+
+  return invoice;
+}
+
+export async function fetchInvoicePdfForOrder(
+  orderId: number,
+  storedDocumentId?: string | null
+): Promise<{ response: Response; invoice: KrosInvoiceListItem }> {
+  const { apiBase, token } = getKrosApiConfig();
+  const invoice = await resolveKrosInvoiceForOrder(orderId, storedDocumentId);
+  const pdfUrl = String(invoice.pdfReportLink || '');
+
+  if (!pdfUrl) {
+    throw new Error(`KROS invoice ${invoice.id} has no PDF URL`);
+  }
+
+  const allowedOrigin = new URL(apiBase).origin;
+  const pdfOrigin = new URL(pdfUrl).origin;
+
+  if (pdfOrigin !== allowedOrigin) {
+    throw new Error(`Unexpected KROS PDF URL origin: ${pdfOrigin}`);
+  }
+
+  const response = await fetch(pdfUrl, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
-      Accept: 'application/pdf, application/json;q=0.9, */*;q=0.8',
+      Accept: 'application/pdf',
     },
   });
+
+  return { response, invoice };
 }
 
 export function verifyKrosSignature(rawBody: string, signature?: string | string[] | null): boolean {
@@ -731,7 +865,7 @@ export async function applyKrosWebhook(payload: any) {
   }
   let publicInvoiceUrl: string | null = null;
   if (documentId) {
-    publicInvoiceUrl = buildPublicInvoiceUrl(order.id, String(documentId));
+    publicInvoiceUrl = buildPublicInvoiceUrl(order.id);
     updateData.invoiceUrl = publicInvoiceUrl;
   }
   if (krosInvoiceNumber) {

@@ -2,7 +2,7 @@
 
 import {
   applyKrosWebhook,
-  fetchInvoiceFromKros,
+  fetchInvoicePdfForOrder,
   processQueuedKrosOrders,
   sendOrderToKros,
   verifyKrosSignature,
@@ -28,34 +28,17 @@ export default {
         ? ctx.request.body
         : JSON.stringify(ctx.request.body || {});
 
-    const signature =
-      ctx.request.headers['x-kros-signature-256'];
+    const signature = ctx.request.headers['x-kros-signature-256'];
 
-    strapi.log.info(
-      `[KROS][WEBHOOK][RAW] ${rawBody}`
-    );
-
-    strapi.log.info(
-      `[KROS][WEBHOOK][SIGNATURE] ${String(signature || '')}`
-    );
+    strapi.log.info(`[KROS][WEBHOOK][RAW] ${rawBody}`);
 
     if (process.env.KROS_WEBHOOK_SECRET) {
-      const valid = verifyKrosSignature(
-        rawBody,
-        signature as string
-      );
+      const valid = verifyKrosSignature(rawBody, signature as string);
 
       if (!valid) {
-        strapi.log.warn(
-          '[KROS][WEBHOOK] invalid signature'
-        );
-
+        strapi.log.warn('[KROS][WEBHOOK] invalid signature');
         ctx.status = 401;
-        ctx.body = {
-          ok: false,
-          error: 'Invalid signature',
-        };
-
+        ctx.body = { ok: false, error: 'Invalid signature' };
         return;
       }
     }
@@ -67,23 +50,15 @@ export default {
 
     try {
       const result = await applyKrosWebhook(payload);
-
       ctx.status = 200;
-      ctx.body = {
-        ok: true,
-        result,
-      };
+      ctx.body = { ok: true, result };
     } catch (e: any) {
       strapi.log.error(
         '[KROS][WEBHOOK] processing failed:',
         e?.message || e
       );
-
       ctx.status = 500;
-      ctx.body = {
-        ok: false,
-        error: 'Webhook processing failed',
-      };
+      ctx.body = { ok: false, error: 'Webhook processing failed' };
     }
   },
 
@@ -95,225 +70,112 @@ export default {
         return ctx.badRequest('Invalid order id');
       }
 
-      const result = await sendOrderToKros(id);
-
-      ctx.body = result;
+      ctx.body = await sendOrderToKros(id);
     } catch (e: any) {
-      strapi.log.error(
-        '[KROS][SEND] failed:',
-        e?.message || e
-      );
-
-      ctx.throw(
-        500,
-        e?.message || 'KROS send failed'
-      );
+      strapi.log.error('[KROS][SEND] failed:', e?.message || e);
+      ctx.throw(500, e?.message || 'KROS send failed');
     }
   },
 
   async processQueue(ctx: any) {
     try {
-      const result =
-        await processQueuedKrosOrders(10);
-
-      ctx.body = {
-        ok: true,
-        ...result,
-      };
+      const result = await processQueuedKrosOrders(10);
+      ctx.body = { ok: true, ...result };
     } catch (e: any) {
-      strapi.log.error(
-        '[KROS][QUEUE] process failed:',
-        e?.message || e
-      );
-
-      ctx.throw(
-        500,
-        e?.message || 'Queue processing failed'
-      );
+      strapi.log.error('[KROS][QUEUE] failed:', e?.message || e);
+      ctx.throw(500, e?.message || 'Queue processing failed');
     }
   },
 
   async publicInvoice(ctx: any) {
-    const token = String(
-      ctx.params.token || ''
-    );
-
-    const verified =
-      verifyPublicInvoiceToken(token);
+    const token = String(ctx.params.token || '');
+    const verified = verifyPublicInvoiceToken(token);
 
     if (!verified) {
       ctx.status = 403;
-      ctx.body =
-        'Odkaz na faktúru je neplatný alebo vypršal.';
-
+      ctx.body = 'Odkaz na faktúru je neplatný alebo vypršal.';
       return;
     }
 
-    const order = await strapi.db
-      .query('api::order.order')
-      .findOne({
-        where: {
-          id: verified.orderId,
-        },
-        select: [
-          'id',
-          'krosDocumentId',
-          'krosInvoiceNumber',
-        ],
-      });
+    const order = await strapi.db.query('api::order.order').findOne({
+      where: { id: verified.orderId },
+      select: ['id', 'krosDocumentId', 'krosInvoiceNumber'],
+    });
 
     if (!order) {
       ctx.status = 404;
-      ctx.body =
-        'Objednávka nebola nájdená.';
-
-      return;
-    }
-
-    const storedDocumentId = String(
-      order.krosDocumentId || ''
-    );
-
-    if (
-      !storedDocumentId ||
-      storedDocumentId !==
-        String(verified.documentId)
-    ) {
-      ctx.status = 404;
-      ctx.body =
-        'Faktúra nebola nájdená.';
-
+      ctx.body = 'Objednávka nebola nájdená.';
       return;
     }
 
     try {
-      strapi.log.info(
-        `[KROS][PUBLIC INVOICE] requesting ` +
-        `orderId=${order.id} ` +
-        `documentId=${storedDocumentId}`
+      const { response, invoice } = await fetchInvoicePdfForOrder(
+        order.id,
+        order.krosDocumentId ? String(order.krosDocumentId) : null
       );
 
-      const response =
-        await fetchInvoiceFromKros(
-          storedDocumentId
-        );
-
+      const body = Buffer.from(await response.arrayBuffer());
       const contentType =
-        response.headers.get('content-type') ||
-        'application/octet-stream';
-
-      const body = Buffer.from(
-        await response.arrayBuffer()
-      );
+        response.headers.get('content-type') || 'application/octet-stream';
 
       if (!response.ok) {
-        const errorText =
-          body.toString('utf8');
-
         strapi.log.error(
-          `[KROS][PUBLIC INVOICE] download failed ` +
-          `orderId=${order.id} ` +
-          `documentId=${storedDocumentId} ` +
-          `status=${response.status} ` +
-          `contentType=${contentType} ` +
-          `response=${errorText}`
+          `[KROS][PUBLIC INVOICE] PDF failed ` +
+            `orderId=${order.id} documentId=${invoice.id} ` +
+            `status=${response.status} response=${body.toString('utf8')}`
         );
 
         ctx.status = 502;
-
-        // Dočasne počas testovania:
-        ctx.body = {
-          error:
-            'Faktúru sa nepodarilo načítať.',
-          krosStatus: response.status,
-          krosContentType: contentType,
-          krosResponse: errorText,
-          orderId: order.id,
-          documentId: storedDocumentId,
-        };
-
+        ctx.body = 'Faktúru sa nepodarilo načítať.';
         return;
       }
 
-      const upstreamDisposition =
-        response.headers.get(
-          'content-disposition'
+      if (!contentType.toLowerCase().includes('application/pdf')) {
+        strapi.log.error(
+          `[KROS][PUBLIC INVOICE] expected PDF, got ${contentType}`
         );
 
-      const invoiceNumber =
-        safeFilename(
-          String(
-            order.krosInvoiceNumber ||
-              order.id
-          )
-        );
+        ctx.status = 502;
+        ctx.body = 'KROS nevrátil PDF dokument.';
+        return;
+      }
 
-      ctx.set(
-        'Content-Type',
-        contentType
-      );
+      const resolvedDocumentId = String(invoice.id);
 
-      ctx.set(
-        'Cache-Control',
-        'private, no-store, max-age=0'
-      );
+      if (String(order.krosDocumentId || '') !== resolvedDocumentId) {
+        await strapi.entityService.update('api::order.order', order.id, {
+          data: {
+            krosDocumentId: resolvedDocumentId,
+          } as any,
+        });
 
-      ctx.set(
-        'X-Content-Type-Options',
-        'nosniff'
-      );
-
-      if (upstreamDisposition) {
-        ctx.set(
-          'Content-Disposition',
-          upstreamDisposition
-        );
-      } else if (
-        contentType.includes(
-          'application/pdf'
-        )
-      ) {
-        ctx.set(
-          'Content-Disposition',
-          `inline; filename="faktura-${invoiceNumber}.pdf"`
-        );
-      } else if (
-        contentType.includes(
-          'application/json'
-        )
-      ) {
-        ctx.set(
-          'Content-Disposition',
-          `inline; filename="faktura-${invoiceNumber}.json"`
-        );
-      } else {
-        ctx.set(
-          'Content-Disposition',
-          `inline; filename="faktura-${invoiceNumber}"`
+        strapi.log.info(
+          `[KROS][PUBLIC INVOICE] corrected document ID ` +
+            `orderId=${order.id} new=${resolvedDocumentId}`
         );
       }
 
+      const invoiceNumber = safeFilename(
+        String(order.krosInvoiceNumber || order.id)
+      );
+
+      ctx.set('Content-Type', 'application/pdf');
+      ctx.set(
+        'Content-Disposition',
+        `inline; filename="faktura-${invoiceNumber}.pdf"`
+      );
+      ctx.set('Cache-Control', 'private, no-store, max-age=0');
+      ctx.set('X-Content-Type-Options', 'nosniff');
       ctx.status = 200;
       ctx.body = body;
     } catch (e: any) {
       strapi.log.error(
-        `[KROS][PUBLIC INVOICE] failed ` +
-        `orderId=${order.id} ` +
-        `documentId=${storedDocumentId}: ` +
-        `${e?.message || e}`
+        `[KROS][PUBLIC INVOICE] failed orderId=${order.id}: ` +
+          `${e?.message || e}`
       );
 
       ctx.status = 502;
-
-      // Dočasne počas testovania:
-      ctx.body = {
-        error:
-          'Faktúru sa nepodarilo načítať.',
-        detail:
-          e?.message || String(e),
-        orderId: order.id,
-        documentId: storedDocumentId,
-      };
+      ctx.body = 'Faktúru sa nepodarilo načítať.';
     }
   },
 };
