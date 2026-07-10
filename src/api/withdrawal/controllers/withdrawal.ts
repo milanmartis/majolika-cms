@@ -489,7 +489,7 @@ export default {
       });
 
       await sendEmail({
-        to: 'milanmartis@gmail.com',
+        to: 'majolika@majolika.sk, katarina.borisova@majolika.sk, milanmartis@gmail.com',
         subject: subjectAdmin,
         html: htmlAdmin
       });
