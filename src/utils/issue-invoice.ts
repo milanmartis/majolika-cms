@@ -10,7 +10,12 @@ export async function issueInvoiceForOrder(orderId: string | number) {
   return await strapi.db.connection.transaction(async (trx: any) => {
     // 1) načítaj iba potrebné polia
     const order = await trx(ORDERS_TABLE)
-      .select("id", "created_at", "invoice_number")
+      .select(
+        "id",
+        "created_at",
+        "invoice_number",
+        "customer_order_number"
+      )
       .where({ id })
       .first();
 

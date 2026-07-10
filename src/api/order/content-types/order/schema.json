@@ -9,6 +9,12 @@
   "options": { "draftAndPublish": false, "timestamps": true },
   "attributes": {
     "invoiceNumber": { "type": "string", "unique": true },
+    "krosInvoiceNumber": {
+      "type": "string"
+    },
+    "krosInvoiceIssuedAt": {
+      "type": "datetime"
+    },
     "publicToken": { "type": "string", "unique": true },
     "invoiceIssuedAt": { "type": "datetime" },
     "customerName": { "type": "string", "required": true },
@@ -77,6 +83,8 @@
       "inversedBy": "orders",
       "required": true
     },
+
+    
 
     "paymentMethod": {
       "type": "enumeration",
