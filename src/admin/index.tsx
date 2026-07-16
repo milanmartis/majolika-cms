@@ -44,6 +44,18 @@ type HeaderActionFn = (args: {
   documentId?: number | string;
 }) => { label: string; onClick: () => Promise<boolean | void> } | null;
 
+type DocumentActionFn = (args: {
+  model: string;
+  documentId?: number | string;
+  document?: any;
+  collectionType?: string;
+}) => {
+  label: string;
+  position?: string | string[];
+  onClick?: (event?: any) => Promise<void> | void;
+  disabled?: boolean;
+} | null;
+
 // ---- obsah modalu pre hromadnú zmenu statusu
 const StatusModalContent = ({
   ids,
@@ -172,6 +184,7 @@ const extension = {
       addEditViewSidePanel: (arr: EditPanelFn[]) => void;
       addBulkAction: (arr: BulkActionFn[]) => void;
       addDocumentHeaderAction: (arr: HeaderActionFn[]) => void;
+      addDocumentAction: (arr: DocumentActionFn[]) => void;
     };
 
     if (!apis) return;
@@ -286,6 +299,35 @@ const extension = {
       };
     };
     apis.addBulkAction([ResendConfirmationAction]);
+
+    // 6) Row action v List view: „...“ menu každého riadku (position: table-row)
+    const ResendConfirmationRowAction: DocumentActionFn = ({ model, documentId }) => {
+      const { toggleNotification } = useNotification();
+      const { post } = getFetchClient();
+
+      if (model !== 'api::order.order' || !documentId) return null;
+
+      return {
+        label: 'Znova odoslať potvrdenie',
+        position: ['table-row'],
+        onClick: async () => {
+          try {
+            const res: any = await post(`/orders/${documentId}/resend-confirmation`, {});
+            toggleNotification({
+              type: 'success',
+              message: `Potvrdenie odoslané: ${res?.data?.to ?? ''}`,
+            });
+          } catch (e: any) {
+            toggleNotification({
+              type: 'danger',
+              message:
+                e?.response?.data?.error?.message || 'Odoslanie potvrdenia zlyhalo.',
+            });
+          }
+        },
+      };
+    };
+    apis.addDocumentAction([ResendConfirmationRowAction]);
   },
 };
 
