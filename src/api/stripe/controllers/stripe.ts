@@ -1286,14 +1286,33 @@ async function runPostPaidFlow(orderId: number) {
     locale: 'sk',
   });
 
-  try {
-    if (to) {
-      await sendEmail({ to, subject: TT.subjectPaid, html: customerEmailHtml });
+  // Zákaznícke potvrdenie – so záznamom stavu (aby sa zlyhanie nestratilo ticho)
+  if (to) {
+    try {
+      const info: any = await sendEmail({ to, subject: TT.subjectPaid, html: customerEmailHtml });
       strapi.log.info(`[EMAIL] Sent to customer [redacted] for order #${freshOrder.id}`);
-    } else {
-      strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${docNo}`);
+      await strapi.db.query('api::order.order').update({
+        where: { id: freshOrder.id },
+        data: {
+          confirmationEmailStatus: 'sent',
+          confirmationEmailSentAt: new Date(),
+          confirmationEmailError: null,
+          confirmationEmailMessageId: info?.messageId ?? null,
+        },
+      }).catch(() => {});
+    } catch (e: any) {
+      strapi.log.error('[COMGATE][EMAIL] customer send failed:', e);
+      await strapi.db.query('api::order.order').update({
+        where: { id: freshOrder.id },
+        data: { confirmationEmailStatus: 'failed', confirmationEmailError: String(e?.message || e) },
+      }).catch(() => {});
     }
+  } else {
+    strapi.log.warn(`[EMAIL] Chýba zákaznícky e-mail pri objednávke #${docNo}`);
+  }
 
+  // Admin notifikácie – nezávisle od zákazníckeho emailu
+  try {
     await sendEmail({
       to: 'majolika@majolika.sk',
       subject: `Nová objednávka #${docNo} - zaplatené`,
@@ -1316,7 +1335,7 @@ async function runPostPaidFlow(orderId: number) {
 
     strapi.log.info(`[EMAIL] Sent to admin for order #${docNo}`);
   } catch (e) {
-    strapi.log.error('[COMGATE][EMAIL] send failed:', e);
+    strapi.log.error('[COMGATE][EMAIL][ADMIN] send failed:', e);
   }
 
   // Packeta AUTO create

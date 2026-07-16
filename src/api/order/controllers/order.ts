@@ -5,6 +5,7 @@ import { factories } from '@strapi/strapi';
 import { sendEmail } from '../../../utils/email';
 import { sendOrderToKros } from '../../../utils/kros';
 import { issueInvoiceForOrder } from '../../../utils/issue-invoice';
+import { sendAndRecordConfirmation } from '../../../utils/order-confirmation';
 
 type DeliveryMethod = 'pickup' | 'post_office' | 'packeta_box' | 'post_courier' | 'digital_product';
 
@@ -706,6 +707,52 @@ async publicGet(ctx: any) {
   
       // ✅ počas testovania vráť konkrétnu chybu (nie generickú)
       return ctx.throw(502, msg);
+    }
+  },
+
+  // POST /orders/:id/resend-confirmation
+  // Znova odošle potvrdenie objednávky zákazníkovi z uložených dát a zapíše stav.
+  // Param :id môže byť číselné id alebo documentId (admin panel posiela documentId).
+  async resendConfirmation(ctx) {
+    const raw = String(ctx.params.id ?? '').trim();
+    if (!raw) return ctx.badRequest('Missing order id');
+
+    const body = ctx.request.body || {};
+    const apology = body?.apology === true || body?.data?.apology === true;
+
+    const populateObj = {
+      items: true,
+      deliveryAddress: true,
+      deliveryDetails: true,
+      billingAddress: true,
+    };
+
+    let order: any = null;
+    const numId = Number(raw);
+    if (Number.isInteger(numId) && String(numId) === raw) {
+      order = await strapi.entityService.findOne('api::order.order', numId, {
+        populate: ['items', 'deliveryAddress', 'deliveryDetails', 'billingAddress'],
+      });
+    }
+    if (!order) {
+      order = await strapi.db.query('api::order.order').findOne({
+        where: { documentId: raw },
+        populate: populateObj,
+      });
+    }
+
+    if (!order) return ctx.notFound('Order not found');
+    if (!order.customerEmail) return ctx.badRequest('Order has no customer email');
+
+    try {
+      const result = await sendAndRecordConfirmation(order, { apology });
+      strapi.log.info(
+        `[ORDER][RESEND] order #${order.id} -> ${order.customerEmail} (${result.status})`
+      );
+      ctx.body = { ok: true, orderId: order.id, to: order.customerEmail, ...result };
+    } catch (e: any) {
+      strapi.log.error(`[ORDER][RESEND] order #${order.id} failed:`, e);
+      return ctx.throw(502, e?.message || 'Resend failed');
     }
   },
 

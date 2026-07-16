@@ -162,6 +162,15 @@
     "krosLastPayload": { "type": "json" },
     "krosLastWebhook": { "type": "json" },
 
+    "confirmationEmailStatus": {
+      "type": "enumeration",
+      "enum": ["pending", "sent", "failed"],
+      "default": "pending"
+    },
+    "confirmationEmailSentAt": { "type": "datetime" },
+    "confirmationEmailError": { "type": "text" },
+    "confirmationEmailMessageId": { "type": "string" },
+
     "createdGiftVouchers": {
       "type": "relation",
       "relation": "oneToMany",

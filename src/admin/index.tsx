@@ -7,6 +7,7 @@ import {
   Field,
   SingleSelect,
   SingleSelectOption,
+  Typography,
 } from '@strapi/design-system';
 import { getFetchClient, useNotification } from '@strapi/strapi/admin';
 
@@ -105,6 +106,64 @@ const StatusModalContent = ({
   );
 };
 
+// ---- obsah modalu pre hromadné znovu-odoslanie potvrdenia
+const ResendConfirmationModal = ({
+  ids,
+  onClose,
+}: {
+  ids: (number | string)[];
+  onClose: () => void;
+}) => {
+  const { post } = getFetchClient();
+  const { toggleNotification } = useNotification();
+  const [loading, setLoading] = React.useState(false);
+  const [apology, setApology] = React.useState(false);
+
+  const run = async () => {
+    setLoading(true);
+    let ok = 0;
+    let fail = 0;
+    for (const id of ids) {
+      try {
+        await post(`/orders/${id}/resend-confirmation`, { apology });
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    toggleNotification({
+      type: fail ? 'warning' : 'success',
+      message: `Potvrdenie – odoslané: ${ok}, zlyhalo: ${fail}`,
+    });
+    setLoading(false);
+    onClose();
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <Typography>
+        Znova odoslať potvrdenie objednávky pre <strong>{ids.length}</strong> objednávok?
+      </Typography>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          type="checkbox"
+          checked={apology}
+          onChange={(e) => setApology(e.target.checked)}
+        />
+        <Typography variant="pi">Pridať vetu o dodatočnom zaslaní (technický výpadok)</Typography>
+      </label>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <Button variant="tertiary" onClick={onClose}>
+          Zrušiť
+        </Button>
+        <Button onClick={run} loading={loading}>
+          Odoslať
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const extension = {
   register(_app: any) {},
 
@@ -177,6 +236,56 @@ const extension = {
       };
     };
     apis.addDocumentHeaderAction([MarkDeliveredHeader]);
+
+    // 4) Header action v Edit view: „Znova odoslať potvrdenie“ zákazníkovi
+    const ResendConfirmationHeader: HeaderActionFn = ({ model, documentId }) => {
+      const { toggleNotification } = useNotification();
+      const { post } = getFetchClient();
+
+      if (model !== 'api::order.order' || !documentId) return null;
+
+      return {
+        label: 'Znova odoslať potvrdenie',
+        onClick: async () => {
+          try {
+            const res: any = await post(`/orders/${documentId}/resend-confirmation`, {});
+            toggleNotification({
+              type: 'success',
+              message: `Potvrdenie odoslané: ${res?.data?.to ?? ''}`,
+            });
+            return true; // CM refreshne dokument (zmení sa confirmationEmailStatus)
+          } catch (e: any) {
+            toggleNotification({
+              type: 'danger',
+              message:
+                e?.response?.data?.error?.message || 'Odoslanie potvrdenia zlyhalo.',
+            });
+          }
+        },
+      };
+    };
+    apis.addDocumentHeaderAction([ResendConfirmationHeader]);
+
+    // 5) Bulk action v List view: „Znova odoslať potvrdenie“ pre označené objednávky
+    const ResendConfirmationAction: BulkActionFn = ({ model, documents }) => {
+      if (model !== 'api::order.order') return null;
+      const ids = (documents ?? [])
+        .map((d) => d.documentId)
+        .filter(Boolean) as (number | string)[];
+
+      return {
+        label: 'Znova odoslať potvrdenie',
+        disabled: ids.length === 0,
+        dialog: {
+          type: 'modal',
+          title: 'Znova odoslať potvrdenie',
+          content: ({ onClose }) => (
+            <ResendConfirmationModal ids={ids} onClose={onClose} />
+          ),
+        },
+      };
+    };
+    apis.addBulkAction([ResendConfirmationAction]);
   },
 };
 

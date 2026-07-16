@@ -1559,9 +1559,28 @@ export default () => ({
         adminEmails.push('prehliadky@majolika.sk');
       }
 
+      // Zákaznícke potvrdenie – so záznamom stavu (aby sa zlyhanie nestratilo ticho)
       try {
-        await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
+        const info: any = await sendEmail({ to: customer.email, subject, html: customerEmailHtml });
+        await strapi.db.query('api::order.order').update({
+          where: { id: (order as any).id },
+          data: {
+            confirmationEmailStatus: 'sent',
+            confirmationEmailSentAt: new Date(),
+            confirmationEmailError: null,
+            confirmationEmailMessageId: info?.messageId ?? null,
+          },
+        }).catch(() => {});
+      } catch (e: any) {
+        strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
+        await strapi.db.query('api::order.order').update({
+          where: { id: (order as any).id },
+          data: { confirmationEmailStatus: 'failed', confirmationEmailError: String(e?.message || e) },
+        }).catch(() => {});
+      }
 
+      // Admin notifikácie – nezávisle od zákazníckeho emailu
+      try {
         await sendEmail({
           to: 'majolika@majolika.sk',
           subject: TT.subjectNewOrder(numberForEmail),
@@ -1573,9 +1592,8 @@ export default () => ({
           subject: TT.subjectNewOrder(numberForEmail),
           html: adminEmailHtml,
         });
-
       } catch (e) {
-        strapi.log.error('[ORDER][EMAIL][NON-CARD] send failed:', e);
+        strapi.log.error('[ORDER][EMAIL][NON-CARD][ADMIN] send failed:', e);
       }
 
       return { checkoutUrl: `${FRONTEND_URL}/checkout/success?order=${(order as any).id}`, sessionUrl: null };
