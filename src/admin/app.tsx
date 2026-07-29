@@ -98,6 +98,30 @@ function mountIdleLogout() {
   armTimer();
 }
 
+/**
+ * CKEditor: obmedz výšku editora, nech text scrolluje VNÚTRI a lišta
+ * (bold/italic/…) ostane vždy viditeľná aj pri dlhom obsahu.
+ */
+function injectCkeditorStyles() {
+  const id = 'ckeditor-height-fix';
+  if (document.getElementById(id)) return;
+  const style = document.createElement('style');
+  style.id = id;
+  style.textContent = `
+    .ck.ck-editor__editable_inline {
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+    /* lišta ostane prilepená hore v rámci editora */
+    .ck.ck-editor__top .ck-sticky-panel__content {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 export default {
 
   config: {
@@ -106,12 +130,15 @@ export default {
       releases: false,
     },
   },
-  
+
   register(_app: StrapiApp) {},
 
   bootstrap(app: StrapiApp) {
     // 1) spusti idle guard
     mountIdleLogout();
+
+    // 1b) CKEditor – fixná výška + viditeľná lišta
+    injectCkeditorStyles();
 
     // 2) tvoj Packeta action v Content Manageri
     const cm = app.getPlugin('content-manager');
