@@ -7,6 +7,11 @@ export default ({ env }) => {
 
   // 2) Vrátime konfiguráciu všetkých pluginov
   return {
+    // WYSIWYG editor (CKEditor) – ukladá HTML
+    ckeditor: {
+      enabled: true,
+    },
+
     // Internationalization
     i18n: {
       enabled: true,

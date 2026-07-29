@@ -33,7 +33,8 @@
       "pluginOptions": { "i18n": { "localized": true } }
     },
     "content": {
-      "type": "richtext",
+      "type": "customField",
+      "customField": "plugin::ckeditor.CKEditor",
       "required": true,
       "pluginOptions": { "i18n": { "localized": true } }
     },
