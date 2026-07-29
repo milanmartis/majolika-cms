@@ -34,12 +34,10 @@
     },
     "content": {
       "type": "customField",
-      "customField": "plugin::ckeditor.CKEditor",
+      "customField": "plugin::ckeditor5.CKEditor",
       "required": true,
       "options": {
-        "preset": "standard",
-        "output": "HTML",
-        "licenseKey": "GPL"
+        "preset": "defaultHtml"
       },
       "pluginOptions": { "i18n": { "localized": true } }
     },

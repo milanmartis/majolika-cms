@@ -7,8 +7,8 @@ export default ({ env }) => {
 
   // 2) Vrátime konfiguráciu všetkých pluginov
   return {
-    // WYSIWYG editor (CKEditor) – ukladá HTML
-    ckeditor: {
+    // WYSIWYG editor (CKEditor 5, self-hosted @_sh/strapi-plugin-ckeditor) – ukladá HTML, licencia GPL
+    ckeditor5: {
       enabled: true,
     },
 

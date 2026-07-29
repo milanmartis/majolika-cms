@@ -15,12 +15,12 @@
     "upgrade:dry": "npx @strapi/upgrade latest --dry"
   },
   "dependencies": {
+    "@_sh/strapi-plugin-ckeditor": "^7.1.1",
     "@aws-sdk/client-lambda": "^3.812.0",
     "@aws-sdk/client-s3": "^3.208.0",
     "@aws-sdk/client-ses": "^3.848.0",
     "@aws-sdk/lib-storage": "^3.208.0",
     "@aws-sdk/middleware-flexible-checksums": "^3.208.0",
-    "@ckeditor/strapi-plugin-ckeditor": "^1.1.2",
     "@koa/bodyparser": "^6.0.0",
     "@pdf-lib/fontkit": "^1.1.1",
     "@strapi/plugin-cloud": "5.31.2",
@@ -42,6 +42,7 @@
     "fontkit": "^2.0.4",
     "google-auth-library": "^10.2.0",
     "googleapis": "^164.0.0",
+    "marked": "^4.3.0",
     "nodemailer": "^7.0.5",
     "otplib": "^12.0.1",
     "p-retry": "^7.1.0",
