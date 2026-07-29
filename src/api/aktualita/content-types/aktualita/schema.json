@@ -36,6 +36,11 @@
       "type": "customField",
       "customField": "plugin::ckeditor.CKEditor",
       "required": true,
+      "options": {
+        "preset": "standard",
+        "output": "HTML",
+        "licenseKey": "GPL"
+      },
       "pluginOptions": { "i18n": { "localized": true } }
     },
 
