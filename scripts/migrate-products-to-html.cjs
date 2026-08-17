@@ -45,22 +45,40 @@ function looksLikeHtml(s) {
   return /<\/(p|h[1-6]|ul|ol|li|strong|em|a|blockquote|div|span|br)\b/i.test(v)
     || /<(p|h[1-6]|ul|ol|br|strong|em|li)\b[^>]*>/i.test(v);
 }
-function escapeHtml(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-// plain / literalBN -> HTML (rovnako ako aktuality, cez marked)
-function toHtml(raw) {
+function hasLiteralN(s) { return /\\r\\n|\\n|\\r/.test(String(s || '')); }
+// prázdny odsek: <p></p>, <p> </p>, <p>&nbsp;</p>, <p><br></p> …
+const EMPTY_P_RE = /<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>/gi;
+function hasEmptyP(s) { return new RegExp(EMPTY_P_RE.source, 'i').test(String(s || '')); }
+
+// Plain / literálny \n text -> HTML odseky (rovnako ako aktuality, cez marked)
+function mdToHtml(raw) {
   let s = String(raw || '');
   s = s.replace(/\\r\\n|\\n|\\r/g, '\n'); // literálne \n / \r\n -> skutočný newline (= Enter)
   s = s.replace(/\n{3,}/g, '\n\n');       // 3+ prázdnych riadkov zredukuj na jeden odsek
   return String(marked.parse(s)).trim();
 }
-function needsConversion(c) {
+
+// HTML obsah, ktorý má vnútri literálne \n / prázdne odseky -> vyčisti (bez re-parsovania HTML)
+function cleanHtml(raw) {
+  let s = String(raw || '');
+  s = s.replace(/\\r\\n|\\n|\\r/g, '\n');                          // literálne \n -> skutočný newline
+  s = s.replace(/>\s*\n+\s*</g, '><');                             // newliny medzi tagmi -> preč (štrukturálny šum)
+  s = s.replace(EMPTY_P_RE, '');                                   // prázdne odseky (veľké medzery) -> preč
+  s = s.replace(/\n+/g, '<br>');                                   // zvyšné newliny v texte -> <br>
+  s = s.replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>');              // zredukuj kopu <br>
+  s = s.replace(/(<(?:p|li|h[1-6])[^>]*>)\s*(?:<br\s*\/?>\s*)+/gi, '$1'); // <br> hneď po otvorení bloku -> preč
+  s = s.replace(/(?:<br\s*\/?>\s*)+(<\/(?:p|li|h[1-6])>)/gi, '$1');       // <br> hneď pred zatvorením bloku -> preč
+  return s.trim();
+}
+
+// Treba niečo robiť? prázdne = nie; čisté HTML (bez \n a bez prázdnych <p>) = nie; inak áno.
+function needsWork(c) {
   if (!c || !String(c).trim()) return false;
-  if (looksLikeHtml(c)) return false;
+  if (looksLikeHtml(c)) return hasLiteralN(c) || hasEmptyP(c);
   return true;
+}
+function convertValue(c) {
+  return looksLikeHtml(c) ? cleanHtml(c) : mdToHtml(c);
 }
 
 function makeClient() {
@@ -105,15 +123,17 @@ async function main() {
     console.log(`Načítaných riadkov: ${rows.length}\n`);
 
     const toUpdate = [];
-    const stat = { short_convert: 0, short_skipHtml: 0, short_empty: 0, describe_convert: 0, describe_skipHtml: 0, describe_empty: 0 };
+    const stat = { short_convert: 0, short_skipClean: 0, short_empty: 0, describe_convert: 0, describe_skipClean: 0, describe_empty: 0 };
     for (const r of rows) {
       let changed = false;
       const next = { id: r.id, short: r.short, describe: r.describe };
       for (const col of COLUMNS) {
         const v = r[col];
         if (!v || !String(v).trim()) { stat[col + '_empty']++; continue; }
-        if (looksLikeHtml(v)) { stat[col + '_skipHtml']++; continue; }
-        next[col] = toHtml(v);
+        if (!needsWork(v)) { stat[col + '_skipClean']++; continue; }
+        const converted = convertValue(v);
+        if (converted === v) { stat[col + '_skipClean']++; continue; }
+        next[col] = converted;
         stat[col + '_convert']++;
         changed = true;
       }
