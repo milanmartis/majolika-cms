@@ -640,6 +640,10 @@ async publicGet(ctx: any) {
   
     if (!order) return ctx.notFound('Order not found');
     if (order.deliveryMethod !== 'packeta_box') return ctx.badRequest('Order is not Packeta delivery');
+    // Idempotencia: nevytváraj druhú zásielku, ak už existuje
+    if (order.packetaShipmentId) {
+      return ctx.badRequest(`Objednávka už má vytvorenú Packeta zásielku (${order.packetaShipmentId}).`);
+    }
     if (!order.deliveryDetails?.packetaBoxId) return ctx.badRequest('Missing Packeta pickup point');
     if (!order.documentId) return ctx.throw(500, 'Order has no documentId (unexpected in Strapi v5)');
   
@@ -707,6 +711,34 @@ async publicGet(ctx: any) {
   
       // ✅ počas testovania vráť konkrétnu chybu (nie generickú)
       return ctx.throw(502, msg);
+    }
+  },
+
+  // GET /orders/:id/packeta/label – stiahne PDF štítok pre Packeta zásielku
+  async packetaLabel(ctx) {
+    const id = Number(ctx.params.id);
+    if (!Number.isFinite(id)) return ctx.badRequest('Invalid order id');
+
+    const order = (await strapi.documents('api::order.order').findFirst({
+      filters: { id },
+    })) as any;
+
+    if (!order) return ctx.notFound('Order not found');
+    if (!order.packetaShipmentId) {
+      return ctx.badRequest('Objednávka nemá vytvorenú Packeta zásielku.');
+    }
+
+    try {
+      const pdf: Buffer = await strapi
+        .service('api::packeta.packeta')
+        .getLabelPdf(order.packetaShipmentId);
+
+      ctx.set('Content-Type', 'application/pdf');
+      ctx.set('Content-Disposition', `inline; filename="packeta-${order.id}.pdf"`);
+      ctx.body = pdf;
+    } catch (e: any) {
+      strapi.log.error('[PACKETA][LABEL] failed:', e?.message || e);
+      return ctx.throw(502, e?.message || 'Packeta label failed');
     }
   },
 

@@ -976,6 +976,12 @@ export default () => ({
 
     validateDelivery(delivery);
 
+    // Packeta (packeta_box) vyžaduje telefón – bez neho sa zásielka na Packeta API nedá vytvoriť.
+    // Backendová poistka (nezávisle od frontendu), aby žiadna Packeta objednávka nevznikla bez telefónu.
+    if (delivery.method === 'packeta_box' && !String(customer.phone || '').trim()) {
+      throw new Error('Telefón je povinný pre doručenie cez Packetu (Packeta box).');
+    }
+
     // =========================
     // 🎁 normalizácia giftWrap z FE (aby bol stabilný DB + email)
     // =========================

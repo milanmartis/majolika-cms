@@ -994,6 +994,8 @@ async function runPostPaidFlow(orderId: number) {
       'billingIcDph',
       'giftVoucherCode',
       'giftVoucherDiscount',
+      'packetaShipmentId',
+      'parcelWeightKg',
     ] as any,
     populate: {
       deliveryAddress: true,
@@ -1354,20 +1356,32 @@ async function runPostPaidFlow(orderId: number) {
     strapi.log.error('[COMGATE][EMAIL][ADMIN] send failed:', e);
   }
 
-  // Packeta AUTO create
+  // Packeta AUTO create – idempotentne + s ULOŽENÍM výsledku do objednávky
   try {
     const autoCreate = String(process.env.PACKETA_AUTO_CREATE_ON_PAID || '').toLowerCase() === 'true';
-    if (autoCreate && freshOrder?.deliveryMethod === 'packeta_box' && freshOrder?.deliveryDetails?.packetaBoxId) {
+    const alreadyShipped = !!(freshOrder as any)?.packetaShipmentId;
+
+    if (alreadyShipped) {
+      strapi.log.info(`[PACKETA][AUTO] order #${freshOrder.id} už má zásielku (${(freshOrder as any).packetaShipmentId}) – preskočené`);
+    } else if (autoCreate && freshOrder?.deliveryMethod === 'packeta_box' && freshOrder?.deliveryDetails?.packetaBoxId) {
       strapi.log.info('[PACKETA][AUTO] Creating shipment for order #' + freshOrder.id);
-      const result = await (strapi as any).service('api::packeta.packeta').createShipmentFromOrder(freshOrder);
-      try {
-        await strapi.db.query('api::order.order').update({
-          where: { id: freshOrder.id },
-          data: {} as any,
-        });
-      } catch {
-        strapi.log.info('[PACKETA][AUTO] Shipment created (not persisted in order): ' + JSON.stringify(result));
-      }
+      const result = await (strapi as any).service('api::packeta.packeta').createShipmentFromOrder(freshOrder, {
+        weightKg: Number((freshOrder as any).parcelWeightKg) || undefined,
+      });
+
+      await strapi.db.query('api::order.order').update({
+        where: { id: freshOrder.id },
+        data: {
+          packetaShipmentId: result?.shipmentId ?? null,
+          packetaTrackingNumber: result?.trackingNumber ?? null,
+          packetaLabelUrl: result?.labelUrl ?? null,
+          packetaStatus: 'created',
+          deliveryStatus: 'label_created',
+          fulfillmentStatus: 'processing',
+        } as any,
+      });
+
+      strapi.log.info(`[PACKETA][AUTO] Shipment created & saved for order #${freshOrder.id} (shipmentId=${result?.shipmentId ?? '-'}, tracking=${result?.trackingNumber ?? '-'})`);
     }
   } catch (e: any) {
     strapi.log.error('[PACKETA][AUTO] createShipment failed:', e?.message || e);

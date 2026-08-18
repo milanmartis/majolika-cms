@@ -163,4 +163,56 @@ export default () => ({
       labelUrl: null,
     };
   },
+
+  /**
+   * Stiahne PDF štítok pre danú zásielku (packetId zo shipmentId).
+   * Vráti Buffer s PDF (Packeta vracia base64 v <result>).
+   */
+  async getLabelPdf(
+    shipmentId: string,
+    opts?: { format?: string; offset?: number }
+  ): Promise<Buffer> {
+    const API_URL  = process.env.PACKETA_API_BASE || 'https://www.zasilkovna.cz/api/rest';
+    const PASSWORD = process.env.PACKETA_API_PASSWORD;
+
+    if (!PASSWORD) throw new Error('Missing PACKETA_API_PASSWORD');
+    if (!shipmentId) throw new Error('Missing shipmentId (packetId)');
+
+    const format = opts?.format || process.env.PACKETA_LABEL_FORMAT || 'A6 on A4';
+    const offset = Number.isFinite(Number(opts?.offset)) ? Number(opts?.offset) : 0;
+
+    const xmlBody = `
+<packetLabelPdf>
+  <apiPassword>${escapeXml(PASSWORD)}</apiPassword>
+  <packetId>${escapeXml(shipmentId)}</packetId>
+  <format>${escapeXml(format)}</format>
+  <offset>${offset}</offset>
+</packetLabelPdf>`.trim();
+
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/xml; charset=utf-8', 'Accept': 'text/xml,application/xml' },
+      body: xmlBody,
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Packeta label failed: HTTP ${res.status} body=${text.slice(0, 300)}`);
+    }
+    if (extractTag(text, 'faultCode')) {
+      throw new Error(extractTag(text, 'faultString') || extractTag(text, 'string') || 'Packeta label fault');
+    }
+
+    const status = extractTag(text, 'status');
+    if (status && status.toLowerCase() !== 'ok') {
+      throw new Error(extractTag(text, 'string') || `Packeta label API status: ${status}`);
+    }
+
+    const b64 = extractTag(text, 'result');
+    if (!b64) {
+      throw new Error(`Packeta label: chýba <result> v odpovedi: ${text.slice(0, 300)}`);
+    }
+
+    return Buffer.from(b64.replace(/\s+/g, ''), 'base64');
+  },
 });

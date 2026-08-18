@@ -197,6 +197,34 @@ export default {
           variant: 'default' as const,
         };
       }) as any,
+
+      // Packeta štítok (PDF) – zobrazí sa len pri packeta_box objednávke, ktorá už má zásielku
+      ((props: any) => {
+        const { model, document, documentId } = props;
+        if (!isOrderCT(model) || !document || !documentId) return null;
+
+        const attrs =
+          (document as any).data?.attributes ??
+          (document as any).data ??
+          (document as any);
+
+        const orderId = attrs?.id ?? (document as any)?.id;
+        const hasShipment = Boolean(attrs?.packetaShipmentId);
+
+        if (attrs?.deliveryMethod !== 'packeta_box' || !hasShipment || !orderId) {
+          return null;
+        }
+
+        return {
+          label: 'Packeta štítok (PDF)',
+          position: 'panel' as const,
+          onClick: () => {
+            window.open('/api/orders/' + orderId + '/packeta/label', '_blank');
+          },
+          variant: 'secondary' as const,
+        };
+      }) as any,
+
       ...actions,
     ]);
   },
