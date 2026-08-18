@@ -55,6 +55,21 @@ async function main() {
       console.log(`  #${r.id}  ${String(r.customer_name || '').slice(0, 25).padEnd(25)}  tel: ${tel}`);
     }
 
+    if (Number(s.bez_telefonu) > 0) {
+      const missing = await client.query(`
+        SELECT id, customer_name, created_at
+        FROM orders
+        WHERE delivery_method = 'packeta_box'
+          AND (customer_phone IS NULL OR btrim(customer_phone) = '')
+        ORDER BY id DESC
+      `);
+      console.log('\n=== Packeta objednávky BEZ telefónu (id, meno, dátum) ===');
+      for (const r of missing.rows) {
+        const d = r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : '?';
+        console.log(`  #${r.id}  ${d}  ${String(r.customer_name || '').slice(0, 30)}`);
+      }
+    }
+
     if (Number(s.bez_telefonu) === 0) {
       console.log('\n✅ Všetky Packeta objednávky majú telefón → frontend ho posiela správne.');
     } else {
