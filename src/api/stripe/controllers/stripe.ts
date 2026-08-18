@@ -174,6 +174,7 @@ const I18N = {
     totalCol: 'Spolu',
     shipping: 'Doprava',
     paymentFee: 'Poplatok za dobierku',
+    voucherLabel: 'Darčeková poukážka',
     total: 'Celkom',
     orderNoteTitle: 'Poznámka k objednávke',
 
@@ -228,6 +229,7 @@ const I18N = {
     totalCol: 'Total',
     shipping: 'Shipping',
     paymentFee: 'Cash on delivery fee',
+    voucherLabel: 'Gift voucher',
     total: 'Total',
     orderNoteTitle: 'Order note',
 
@@ -276,6 +278,7 @@ const I18N = {
     totalCol: 'Summe',
     shipping: 'Versand',
     paymentFee: 'Nachnahmegebühr',
+    voucherLabel: 'Geschenkgutschein',
     total: 'Gesamt',
     orderNoteTitle: 'Bestellhinweis',
 
@@ -615,11 +618,16 @@ function renderOrderEmail(opts: {
   orderNotes?: string | null;
   billingHtml?: string | null;
 
+  // 👇 darčeková poukážka
+  giftVoucherCode?: string | null;
+  giftVoucherDiscount?: number | null;
+
   // 👇 i18n
   locale?: AppLocale;
 }) {
   const locale: AppLocale = normalizeLocale(opts.locale);
   const TT = t(locale);
+  const voucherDiscount = Number(opts.giftVoucherDiscount || 0);
 
   const itemsRows = renderItemsRows(opts.items, locale);
   const giftWrapHtml = opts.giftWrapHtml || '';
@@ -682,6 +690,8 @@ function renderOrderEmail(opts: {
               <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.shippingFee)}</td></tr>
           <tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${esc(TT.paymentFee)}</td>
               <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td></tr>
+          ${voucherDiscount > 0 ? `<tr><td style="padding:8px 12px;border-top:2px solid #eee;color:#0e7c33;">${esc(TT.voucherLabel)}${opts.giftVoucherCode ? ` (${esc(String(opts.giftVoucherCode))})` : ''}</td>
+              <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#0e7c33;">−${money(voucherDiscount)}</td></tr>` : ''}
           <tr><td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${esc(TT.total)}</td>
               <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td></tr>
       
@@ -982,6 +992,8 @@ async function runPostPaidFlow(orderId: number) {
       'billingIco',
       'billingDic',
       'billingIcDph',
+      'giftVoucherCode',
+      'giftVoucherDiscount',
     ] as any,
     populate: {
       deliveryAddress: true,
@@ -1217,6 +1229,8 @@ async function runPostPaidFlow(orderId: number) {
     giftWrapHtml: giftWrapHtmlCustomer,
     orderNotes,
     billingHtml,
+    giftVoucherCode: (freshOrder as any).giftVoucherCode ?? null,
+    giftVoucherDiscount: Number((freshOrder as any).giftVoucherDiscount || 0),
     locale,
   });
 
@@ -1283,6 +1297,8 @@ async function runPostPaidFlow(orderId: number) {
     giftWrapHtml: giftWrapHtmlAdmin,
     orderNotes,
     billingHtml,
+    giftVoucherCode: (freshOrder as any).giftVoucherCode ?? null,
+    giftVoucherDiscount: Number((freshOrder as any).giftVoucherDiscount || 0),
     locale: 'sk',
   });
 

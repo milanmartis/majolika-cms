@@ -135,6 +135,7 @@ const I18N = {
     payment_onsite: 'platba na mieste',
     payment_post: 'platba na pošte',
     payment_noncard: 'nekartová platba',
+    payment_voucher: 'uhradené darčekovou poukážkou',
 
     delivery_pickup: 'osobný odber',
     delivery_post_office: 'pošta',
@@ -148,6 +149,7 @@ const I18N = {
     totalCol: 'Spolu',
     shippingFee: 'Poplatok za dopravu',
     paymentFee: 'Poplatok za dobierku',
+    voucherLabel: 'Darčeková poukážka',
     total: 'Celkom',
 
     orderNoteTitle: 'Poznámka k objednávke',
@@ -221,6 +223,7 @@ const I18N = {
     payment_onsite: 'pay on site',
     payment_post: 'pay at post office',
     payment_noncard: 'non-card payment',
+    payment_voucher: 'paid by gift voucher',
 
     delivery_pickup: 'store pickup',
     delivery_post_office: 'post office',
@@ -234,6 +237,7 @@ const I18N = {
     totalCol: 'Total',
     shippingFee: 'Shipping fee',
     paymentFee: 'Cash on delivery fee',
+    voucherLabel: 'Gift voucher',
     total: 'Grand total',
 
     orderNoteTitle: 'Order note',
@@ -307,6 +311,7 @@ const I18N = {
     payment_onsite: 'Zahlung vor Ort',
     payment_post: 'Zahlung in der Postfiliale',
     payment_noncard: 'Zahlung ohne Karte',
+    payment_voucher: 'mit Geschenkgutschein bezahlt',
 
     delivery_pickup: 'Abholung',
     delivery_post_office: 'Post',
@@ -320,6 +325,7 @@ const I18N = {
     totalCol: 'Summe',
     shippingFee: 'Versandkosten',
     paymentFee: 'Nachnahmegebühr',
+    voucherLabel: 'Geschenkgutschein',
     total: 'Gesamt',
 
     orderNoteTitle: 'Hinweis zur Bestellung',
@@ -613,10 +619,15 @@ function renderEmail(opts: {
   invoiceNumber: string | null;
   giftWrap?: GiftWrapPayload | null;
 
+  // ✅ darčeková poukážka
+  giftVoucherCode?: string | null;
+  giftVoucherDiscount?: number | null;
+
   // ✅ nové
   locale: AppLocale;
 }) {
   const TT = t(opts.locale);
+  const voucherDiscount = Number(opts.giftVoucherDiscount || 0);
 
   const itemsRows = renderItemsRows(opts.items, opts.locale);
   const giftWrapHtml = renderGiftWrapHtml(opts.giftWrap, opts.locale);
@@ -686,6 +697,11 @@ function renderEmail(opts: {
             <td style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${escapeHtml(TT.paymentFee)}</td>
             <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#333;">${money(opts.paymentFee)}</td>
           </tr>
+          ${voucherDiscount > 0 ? `
+          <tr>
+            <td style="padding:8px 12px;border-top:2px solid #eee;color:#0e7c33;">${escapeHtml(TT.voucherLabel)}${opts.giftVoucherCode ? ` (${escapeHtml(String(opts.giftVoucherCode))})` : ''}</td>
+            <td align="right" style="padding:8px 12px;border-top:2px solid #eee;color:#0e7c33;">−${money(voucherDiscount)}</td>
+          </tr>` : ''}
           <tr>
             <td style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${escapeHtml(TT.total)}</td>
             <td align="right" style="padding:10px 12px;border-top:1px solid #eee;font-weight:700;color:#111;">${money(opts.totalWithShipping)}</td>
@@ -1286,8 +1302,10 @@ export default () => ({
       } as any,
     });
 
-    // 4A) NE-KARTA – prelinkuj bookingy + pošli emaily + redirect na success
-    if (!isCard) {
+    // 4A) NE-KARTA alebo 0 € na úhradu (napr. plne uhradené poukážkou) – dokonči objednávku bez Comgate.
+    //     Comgate neprijme platbu 0 € (Error 1306), preto takúto objednávku spracujeme rovno ako zaplatenú.
+    const noPaymentNeeded = totalWithShipping <= 0;
+    if (!isCard || noPaymentNeeded) {
       let invoiceNumber: string;
     
       try {
@@ -1332,7 +1350,21 @@ export default () => ({
           },
         });
       }
-    
+
+      // Ak nie je čo platiť (0 €) – objednávka je uhradená (poukážkou): označ ako paid/applied/confirmed.
+      if (noPaymentNeeded) {
+        await strapi.db.query('api::order.order').update({
+          where: { id: (order as any).id },
+          data: {
+            paymentStatus: 'paid',
+            orderStatus: 'confirmed',
+            ...(voucherEntity ? { giftVoucherStatus: 'applied' } : {}),
+          },
+        }).catch((e: any) => strapi.log.warn(`[CHECKOUT][ZERO-PAY] status update failed: ${String(e)}`));
+        (order as any).paymentStatus = 'paid';
+        strapi.log.info(`[CHECKOUT][ZERO-PAY] order #${(order as any).id} fully covered (0 €) → paid without Comgate`);
+      }
+
       try {
         if ((order as any).temporaryId) {
           const res = await strapi.db.query('api::event-booking.event-booking').updateMany({
@@ -1427,7 +1459,20 @@ export default () => ({
       let bodyCustomerHtml = '';
       let bodyAdminIntro = '';
 
-      if (paymentMethod === 'bank') {
+      if (noPaymentNeeded) {
+        // Plne uhradené poukážkou – žiadna platba (žiadny bankový blok)
+        bodyCustomerHtml = `
+          <p>${escapeHtml(TT.hello)}</p>
+          <p>${escapeHtml(TT.thanksOrderMajolika)}</p>
+          <p><b>${escapeHtml(TT.orderDetails)}</b><br/>
+          • ${escapeHtml(TT.orderNumber)}: ${escapeHtml(numberForEmail)}<br/>
+          • ${escapeHtml(TT.date)}: ${escapeHtml(orderDate)}<br/>
+          • ${escapeHtml(TT.paymentMethod)}: ${escapeHtml(TT.payment_voucher)}<br/>
+          • ${escapeHtml(TT.deliveryMethod)}: ${escapeHtml(deliveryHuman)}</p>
+          <p>${escapeHtml(TT.moreInfoLater)}</p>
+        `;
+        bodyAdminIntro = `${TT.adminPaymentPrefix} ${TT.payment_voucher}`;
+      } else if (paymentMethod === 'bank') {
         bodyCustomerHtml = `
           <p>${escapeHtml(TT.hello)}</p>
           <p>${escapeHtml(TT.thanksOrder)}</p>
@@ -1472,6 +1517,9 @@ export default () => ({
         orderNotes,
         billingHtml,
         invoiceNumber,
+
+        giftVoucherCode: voucherEntity?.code ?? null,
+        giftVoucherDiscount: voucherDiscount,
 
         giftWrap,
         locale,
@@ -1549,6 +1597,9 @@ export default () => ({
         orderNotes,
         billingHtml,
         invoiceNumber,
+
+        giftVoucherCode: voucherEntity?.code ?? null,
+        giftVoucherDiscount: voucherDiscount,
 
         giftWrap,
         locale,
