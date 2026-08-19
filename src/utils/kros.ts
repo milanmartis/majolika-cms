@@ -851,6 +851,86 @@ async function sendInvoiceReadyEmail(
   });
 }
 
+/**
+ * Email „platba prijatá" – zákazníkovi aj adminovi.
+ * Volá sa z KROS webhooku, keď KROS potvrdí úhradu (paymentStatus === 3).
+ */
+async function sendPaymentReceivedEmail(orderId: number) {
+  const order = await strapi.entityService.findOne('api::order.order', orderId, {
+    fields: [
+      'customerEmail',
+      'customerName',
+      'invoiceNumber',
+      'orderLocale',
+      'total',
+      'totalWithShipping',
+      'paymentMethod',
+    ] as any,
+  }) as any;
+
+  if (!order) return;
+
+  const locale = String(order.orderLocale || 'sk').toLowerCase();
+  const isEn = locale.startsWith('en');
+  const isDe = locale.startsWith('de');
+
+  const num = order.invoiceNumber || String(order.id);
+  const amount = Number(order.totalWithShipping ?? order.total ?? 0).toFixed(2);
+
+  const subject = isEn ? `Payment received – order ${num}`
+    : isDe ? `Zahlung erhalten – Bestellung ${num}`
+    : `Platba prijatá – objednávka ${num}`;
+
+  const hello = isEn ? `Hello${order.customerName ? `, ${order.customerName}` : ''},`
+    : isDe ? `Guten Tag${order.customerName ? `, ${order.customerName}` : ''},`
+    : `Dobrý deň${order.customerName ? `, ${order.customerName}` : ''},`;
+
+  const body = isEn ? `we have received your payment for order ${num}. Thank you!`
+    : isDe ? `wir haben Ihre Zahlung für die Bestellung ${num} erhalten. Vielen Dank!`
+    : `prijali sme Vašu platbu za objednávku ${num}. Ďakujeme!`;
+
+  const amountLabel = isEn ? 'Amount' : isDe ? 'Betrag' : 'Suma';
+
+  // Zákazník
+  if (order.customerEmail) {
+    try {
+      await sendEmail({
+        to: order.customerEmail,
+        subject,
+        html: `
+          <p>${hello}</p>
+          <p>${body}</p>
+          <p><strong>${amountLabel}:</strong> ${amount} €</p>
+        `,
+      });
+    } catch (e) {
+      strapi.log.error(`[KROS][PAID_EMAIL] customer send failed order #${orderId}:`, e);
+    }
+  }
+
+  // Admin
+  const adminEmails = [
+    'info@appdesign.sk',
+    'objednavky@majolika.sk',
+    'romana.uhercikova@majolika.sk',
+    'katarina.borisova@majolika.sk',
+  ];
+  try {
+    await sendEmail({
+      to: adminEmails.join(','),
+      subject: `[ADMIN] Platba prijatá – objednávka ${num}`,
+      html: `
+        <p>Platba prijatá k objednávke <strong>${num}</strong> (potvrdené v KROSe).</p>
+        <p>Zákazník: ${order.customerName || '-'} (${order.customerEmail || '-'})</p>
+        <p>Suma: ${amount} €</p>
+        <p>Spôsob platby: ${order.paymentMethod || '-'}</p>
+      `,
+    });
+  } catch (e) {
+    strapi.log.error(`[KROS][PAID_EMAIL] admin send failed order #${orderId}:`, e);
+  }
+}
+
 export async function applyKrosWebhook(payload: any) {
   const requestId = payload?.requestId || null;
   const topStatus = payload?.status ?? null;
@@ -887,6 +967,7 @@ export async function applyKrosWebhook(payload: any) {
         'id',
         'invoiceNumber',
         'krosInvoiceNumber',
+        'paymentStatus',
       ],
     });
   }
@@ -950,6 +1031,17 @@ export async function applyKrosWebhook(payload: any) {
       strapi.log.info(`[KROS][EMAIL] invoice email sent for order #${order.id}`);
     } catch (e) {
       strapi.log.error(`[KROS][EMAIL] failed for order #${order.id}:`, e);
+    }
+  }
+
+  // Platba potvrdená v KROSe (paymentStatus === 3) → „platba prijatá" email zákazníkovi aj adminovi.
+  // Idempotentne: len pri prechode z ne-paid na paid (aby sa neposielal opakovane pri ďalších webhookoch).
+  if (paymentStatus === 3 && order.paymentStatus !== 'paid') {
+    try {
+      await sendPaymentReceivedEmail(order.id);
+      strapi.log.info(`[KROS][PAID_EMAIL] sent for order #${order.id}`);
+    } catch (e) {
+      strapi.log.error(`[KROS][PAID_EMAIL] failed for order #${order.id}:`, e);
     }
   }
 
