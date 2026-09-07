@@ -1,9 +1,10 @@
 /**
- * Nájde duplicitné darčekové poukážky (dôsledok race condition pri potvrdení platby).
+ * Nájde SKUTOČNÉ duplicitné poukážky = kde počet poukážok na order_item_id
+ * PREVYŠUJE množstvo (quantity) danej položky. Legitímne qty-2+ nákupy NEoznačí.
  * Len ČÍTA. node scripts/find-duplicate-vouchers.cjs
  *
- * Zoskupuje podľa order_item_id (identita položky) aj podľa meta.sourceOrderId (objednávka).
- * Poukážky s rovnakým order_item_id = tá istá položka → viac poukážok = podozrivý duplikát.
+ * quantity sa berie z meta.sourceItem.quantity (fallback 1).
+ * V skupine sa ponechá prvých `quantity` poukážok (najnižšie id), zvyšok = duplikát.
  */
 'use strict';
 require('dotenv').config();
@@ -25,67 +26,61 @@ function makeClient() {
   });
 }
 
+// vráti mapu order_item_id -> { itemQty, vouchers:[...], excessIds:[...] }
+async function findGroups(client) {
+  const q = await client.query(`
+    WITH ranked AS (
+      SELECT gv.id, gv.code, gv.status, gv.order_item_id, gv.customer_name, gv.amount,
+             gv.used_at, gv.created_at,
+             gv.meta ->> 'sourceOrderId' AS source_order_id,
+             COALESCE(NULLIF(gv.meta -> 'sourceItem' ->> 'quantity', '')::int, 1) AS item_qty,
+             ROW_NUMBER() OVER (PARTITION BY gv.order_item_id ORDER BY gv.id) AS rn,
+             COUNT(*)   OVER (PARTITION BY gv.order_item_id) AS cnt
+      FROM gift_vouchers gv
+      WHERE gv.order_item_id IS NOT NULL AND btrim(gv.order_item_id) <> ''
+    )
+    SELECT * FROM ranked
+    WHERE cnt > item_qty
+    ORDER BY order_item_id, id
+  `);
+  const groups = {};
+  for (const r of q.rows) {
+    (groups[r.order_item_id] ||= { itemQty: r.item_qty, sourceOrderId: r.source_order_id, customer: r.customer_name, rows: [] }).rows.push(r);
+  }
+  return groups;
+}
+
 async function main() {
   const client = makeClient();
   await client.connect();
   try {
-    // Diagnostika
-    const diag = await client.query(`
-      SELECT
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE order_item_id IS NOT NULL AND btrim(order_item_id) <> '') AS s_item_id,
-        COUNT(*) FILTER (WHERE source_order_invoice_number IS NOT NULL AND btrim(source_order_invoice_number) <> '') AS s_invoice,
-        COUNT(*) FILTER (WHERE meta ->> 'sourceOrderId' IS NOT NULL) AS s_source_order_id
-      FROM gift_vouchers
-    `);
-    const d = diag.rows[0];
-    console.log(`\n=== Diagnostika poukážok ===`);
-    console.log(`Spolu: ${d.total} | s order_item_id: ${d.s_item_id} | s invoice: ${d.s_invoice} | s meta.sourceOrderId: ${d.s_source_order_id}\n`);
+    const groups = await findGroups(client);
+    const keys = Object.keys(groups);
+    console.log(`\n=== Skupiny s počtom poukážok > quantity: ${keys.length} ===\n`);
 
-    async function reportGroups(keyExpr, label) {
-      const q = await client.query(`
-        WITH dupes AS (
-          SELECT ${keyExpr} AS k
-          FROM gift_vouchers
-          WHERE ${keyExpr} IS NOT NULL AND btrim(${keyExpr}::text) <> ''
-          GROUP BY ${keyExpr}
-          HAVING COUNT(*) > 1
-        )
-        SELECT gv.id, gv.code, gv.status, gv.order_item_id, gv.customer_name,
-               gv.meta ->> 'sourceOrderId' AS source_order_id,
-               gv.source_order_invoice_number AS invoice, gv.amount, gv.created_at,
-               ${keyExpr} AS grp
-        FROM gift_vouchers gv
-        JOIN dupes ON dupes.k = ${keyExpr}
-        ORDER BY grp, gv.id
-      `);
-      const byGrp = {};
-      for (const r of q.rows) (byGrp[r.grp] ||= []).push(r);
-      const grps = Object.keys(byGrp);
-      console.log(`\n===== Zoskupené podľa: ${label} — skupín s 2+: ${grps.length} =====`);
-      const suspects = [];
-      for (const g of grps) {
-        const rows = byGrp[g];
-        console.log(`\n── ${label}=${g}  (${rows[0].customer_name || '-'})`);
-        for (const r of rows) {
-          const t = r.created_at ? new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 19) : '?';
-          console.log(`     id=${r.id}  ${r.code}  status=${r.status}  itemId=${r.order_item_id || '-'}  order=${r.source_order_id || '-'}  amount=${r.amount}  ${t}`);
+    let excessIds = [];
+    let usedExcess = [];
+    for (const k of keys) {
+      const g = groups[k];
+      console.log(`── item_id=${k}  qty=${g.itemQty}  poukážok=${g.rows.length}  (${g.customer || '-'}, order=${g.sourceOrderId || '-'})`);
+      g.rows.forEach((r, idx) => {
+        const keep = idx < g.itemQty; // prvých qty ponecháme
+        const t = r.created_at ? new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 19) : '?';
+        const usedFlag = (r.status === 'used' || r.used_at) ? '  🔴 POUŽITÁ' : '';
+        console.log(`     id=${r.id}  ${r.code}  status=${r.status}  amount=${r.amount}  ${t}  → ${keep ? 'PONECHAŤ' : 'DUPLIKÁT'}${usedFlag}`);
+        if (!keep) {
+          excessIds.push(r.id);
+          if (r.status === 'used' || r.used_at) usedExcess.push(r.id);
         }
-        // navrhni na zrušenie: ponechaj najnižšie id, ostatné = duplikáty
-        const sorted = rows.slice().sort((a, b) => a.id - b.id);
-        suspects.push(...sorted.slice(1).map((x) => x.id));
-      }
-      return suspects;
+      });
+      console.log('');
     }
 
-    const byItem = await reportGroups(`order_item_id`, 'order_item_id');
-    const byOrder = await reportGroups(`meta ->> 'sourceOrderId'`, 'meta.sourceOrderId');
-
-    const allSuspects = Array.from(new Set([...byItem, ...byOrder])).sort((a, b) => a - b);
-    console.log(`\n=== SÚHRN ===`);
-    console.log(`Duplikáty navrhnuté na zrušenie (ponechá sa vždy najnižšie id v skupine): ${allSuspects.length}`);
-    if (allSuspects.length) console.log(`IDs: ${allSuspects.join(', ')}`);
-    console.log(`\nNič sa nezmenilo (len čítanie).\n`);
+    console.log(`=== SÚHRN ===`);
+    console.log(`Skutočných duplikátov na zrušenie: ${excessIds.length}`);
+    if (excessIds.length) console.log(`IDs: ${excessIds.join(', ')}`);
+    if (usedExcess.length) console.log(`🔴 POZOR – z toho POUŽITÉ (rieš ručne, cancel ich preskočí): ${usedExcess.join(', ')}`);
+    console.log(`\nNič sa nezmenilo (len čítanie). Cancel skript použije rovnakú logiku.\n`);
   } finally {
     await client.end();
   }

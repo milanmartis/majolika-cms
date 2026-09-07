@@ -1,14 +1,10 @@
 /**
- * Zruší (status = 'cancelled') duplicitné darčekové poukážky (dôsledok race pri platbe).
- * Ruší LEN presne zadané ID a LEN ak sú 'active' (použité/iné preskočí). So zálohou + restore.
+ * Zruší (status = 'cancelled') SKUTOČNÉ duplicitné poukážky = nadbytok nad quantity položky.
+ * Rovnaká detekcia ako find-duplicate-vouchers.cjs. Ruší len 'active' (použité preskočí).
  *
- *   node scripts/cancel-duplicate-vouchers.cjs            # DRY-RUN (nič nezmení)
- *   node scripts/cancel-duplicate-vouchers.cjs --apply    # zruší + záloha do scripts/backups/
- *   node scripts/cancel-duplicate-vouchers.cjs --restore=scripts/backups/vouchers-XXXX.json
- *
- * Overený zoznam duplikátov (ponechá sa vždy najnižšie id na order_item_id):
- *   35, 59, 68, 71, 73, 84, 85, 87, 89, 90, 91, 95, 96, 100, 103
- * (NEobsahuje 55 a 98 – to sú legitímne rôzne poukážky, nie duplikáty!)
+ *   node scripts/cancel-duplicate-vouchers.cjs            # DRY-RUN
+ *   node scripts/cancel-duplicate-vouchers.cjs --apply    # zruší + záloha
+ *   node scripts/cancel-duplicate-vouchers.cjs --restore=scripts/backups/vouchers-cancel-XXXX.json
  */
 'use strict';
 require('dotenv').config();
@@ -16,15 +12,9 @@ const fs = require('fs');
 const path = require('path');
 const { Client } = require('pg');
 
-const DEFAULT_IDS = [35, 59, 68, 71, 73, 84, 85, 87, 89, 90, 91, 95, 96, 100, 103];
-
 const APPLY = process.argv.includes('--apply');
 const restoreArg = process.argv.find((a) => a.startsWith('--restore='));
 const RESTORE_FILE = restoreArg ? restoreArg.split('=').slice(1).join('=') : null;
-const idsArg = process.argv.find((a) => a.startsWith('--ids='));
-const IDS = idsArg
-  ? idsArg.split('=')[1].split(',').map((s) => Number(s.trim())).filter(Number.isFinite)
-  : DEFAULT_IDS;
 
 function makeClient() {
   const useSsl = String(process.env.DATABASE_SSL || '').toLowerCase() === 'true';
@@ -40,6 +30,22 @@ function makeClient() {
     password: process.env.DATABASE_PASSWORD || 'strapi',
     ssl,
   });
+}
+
+// nadbytočné poukážky = v skupine order_item_id nad rámec quantity (rn > qty)
+async function findExcess(client) {
+  const q = await client.query(`
+    WITH ranked AS (
+      SELECT gv.id, gv.code, gv.status, gv.order_item_id, gv.customer_name, gv.amount, gv.used_at, gv.cancelled_at,
+             COALESCE(NULLIF(gv.meta -> 'sourceItem' ->> 'quantity', '')::int, 1) AS item_qty,
+             ROW_NUMBER() OVER (PARTITION BY gv.order_item_id ORDER BY gv.id) AS rn,
+             COUNT(*)   OVER (PARTITION BY gv.order_item_id) AS cnt
+      FROM gift_vouchers gv
+      WHERE gv.order_item_id IS NOT NULL AND btrim(gv.order_item_id) <> ''
+    )
+    SELECT * FROM ranked WHERE cnt > item_qty AND rn > item_qty ORDER BY id
+  `);
+  return q.rows;
 }
 
 async function restore(client) {
@@ -59,31 +65,23 @@ async function main() {
   try {
     if (RESTORE_FILE) { await restore(client); return; }
 
-    console.log(`\n${APPLY ? '✍️  RUŠENIE DUPLIKÁTOV' : '🔎 DRY-RUN (nič sa nezmení)'}  – ${IDS.length} poukážok\n`);
-
-    const res = await client.query(
-      `SELECT id, code, status, cancelled_at, used_at, used_by_order_invoice_number, customer_name, order_item_id, amount
-       FROM gift_vouchers WHERE id = ANY($1::int[]) ORDER BY id`,
-      [IDS]
-    );
-    const found = new Map(res.rows.map((r) => [r.id, r]));
+    const excess = await findExcess(client);
+    console.log(`\n${APPLY ? '✍️  RUŠENIE DUPLIKÁTOV' : '🔎 DRY-RUN (nič sa nezmení)'}  – nadbytočných poukážok: ${excess.length}\n`);
 
     const toCancel = [];
-    let usedCount = 0;
-    for (const id of IDS) {
-      const v = found.get(id);
-      if (!v) { console.log(`  id=${id}  ❌ NENÁJDENÁ`); continue; }
-      const wasUsed = v.status === 'used' || v.used_at;
-      if (wasUsed) {
-        usedCount++;
-        console.log(`  id=${id}  ${v.code}  🔴 POUŽITÁ (status=${v.status}, used_at=${v.used_at || '-'}, order=${v.used_by_order_invoice_number || '-'}) → PRESKOČENÉ, rieš ručne!`);
+    let used = 0;
+    for (const v of excess) {
+      if (v.status === 'used' || v.used_at) {
+        used++;
+        console.log(`  id=${v.id}  ${v.code}  🔴 POUŽITÁ (status=${v.status}, used_at=${v.used_at || '-'}) → PRESKOČENÉ, rieš ručne`);
         continue;
       }
-      if (v.status !== 'active') { console.log(`  id=${id}  ${v.code}  ⚠️ status=${v.status} → PRESKOČENÉ (nie active)`); continue; }
-      console.log(`  id=${id}  ${v.code}  ${v.customer_name || '-'}  amount=${v.amount}  → zruším`);
+      if (v.status !== 'active') { console.log(`  id=${v.id}  ${v.code}  ⚠️ status=${v.status} → PRESKOČENÉ`); continue; }
+      console.log(`  id=${v.id}  ${v.code}  ${v.customer_name || '-'}  amount=${v.amount}  → zruším`);
       toCancel.push(v);
     }
-    console.log(`\n🔴 Použitých duplikátov: ${usedCount}  |  Na zrušenie (nepoužité active): ${toCancel.length}`);
+
+    console.log(`\n🔴 Použitých: ${used}  |  Na zrušenie (nepoužité active): ${toCancel.length}`);
 
     if (!APPLY) { console.log('\nDry-run hotový. Pre reálne zrušenie pridaj --apply.\n'); return; }
     if (!toCancel.length) { console.log('\nNiet čo rušiť.\n'); return; }
