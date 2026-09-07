@@ -1054,15 +1054,10 @@ async function runPostPaidFlow(orderId: number) {
 
   await applyOrderGiftVoucher(freshOrder.id);
 
-  try {
-    await strapi
-      .service('api::gift-voucher.gift-voucher')
-      .createForPaidOrder(freshOrder.documentId || freshOrder.id);
-  
-    strapi.log.info(`[GIFT_VOUCHER][PAID_FLOW] checked/created for order #${freshOrder.id}`);
-  } catch (e) {
-    strapi.log.error(`[GIFT_VOUCHER][PAID_FLOW] create failed for order #${freshOrder.id}:`, e);
-  }
+  // Poznámka: generovanie darčekových poukážok pri zaplatenej objednávke rieši
+  // order lifecycle (createGiftVouchersForPaidOrder) s atomickou poistkou proti duplicitám.
+  // Predtým tu bolo volanie `gift-voucher.createForPaidOrder(...)`, ktorá metóda v service
+  // neexistuje (padalo potichu) – odstránené.
 
   strapi.log.info(`[EMAIL][PAID] notes="${orderNotes ?? ''}"`);
   strapi.log.info(`[EMAIL][PAID] giftWrap=${giftWrap ? 'YES' : 'NO'}`);

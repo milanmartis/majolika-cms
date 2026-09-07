@@ -171,6 +171,8 @@
     "confirmationEmailError": { "type": "text" },
     "confirmationEmailMessageId": { "type": "string" },
 
+    "giftVouchersGeneratedAt": { "type": "datetime" },
+
     "createdGiftVouchers": {
       "type": "relation",
       "relation": "oneToMany",

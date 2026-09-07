@@ -522,6 +522,8 @@ function isGiftVoucherItem(item: OrderItem): boolean {
 async function createGiftVouchersForPaidOrder(orderDocumentId?: string | null) {
   if (!orderDocumentId) return;
 
+  let claimedOrderId: number | null = null;
+
   try {
     const order = await fetchOrderForVoucher(orderDocumentId);
 
@@ -540,6 +542,19 @@ async function createGiftVouchersForPaidOrder(orderDocumentId?: string | null) {
       strapi.log.info(`[ORDER][LC][VOUCHER] vouchers already exist for order ${orderDocumentId}, count=${existing.length}`);
       return;
     }
+
+    // ATOMICKÁ POISTKA proti race: Comgate potvrdí platbu naraz viacerými kanálmi
+    // (webhook + return redirect + status), každý spustí tento lifecycle. „Zamkneme"
+    // objednávku jedným podmieneným updatom – prejde len JEDEN paralelný beh (ostatné count=0).
+    const claim = await strapi.db.query('api::order.order').updateMany({
+      where: { id: (order as any).id, giftVouchersGeneratedAt: { $null: true } } as any,
+      data: { giftVouchersGeneratedAt: new Date() } as any,
+    });
+    if (!claim || claim.count !== 1) {
+      strapi.log.info(`[ORDER][LC][VOUCHER] order ${orderDocumentId} už je zamknutá/vygenerovaná – skip (count=${claim?.count})`);
+      return;
+    }
+    claimedOrderId = (order as any).id;
 
     const items = Array.isArray(order.items) ? order.items : [];
     const voucherItems = items.filter(isGiftVoucherItem);
@@ -603,6 +618,13 @@ async function createGiftVouchersForPaidOrder(orderDocumentId?: string | null) {
     strapi.log.info(`[ORDER][LC][VOUCHER] created ${createdCount} voucher(s) for order ${orderDocumentId}`);
   } catch (e) {
     strapi.log.error('[ORDER][LC][VOUCHER] createGiftVouchersForPaidOrder error', e);
+    // Ak sme objednávku zamkli, ale generovanie zlyhalo – odomkni, nech sa dá zopakovať.
+    if (claimedOrderId != null) {
+      await strapi.db.query('api::order.order').updateMany({
+        where: { id: claimedOrderId },
+        data: { giftVouchersGeneratedAt: null } as any,
+      }).catch(() => {});
+    }
   }
 }
 
