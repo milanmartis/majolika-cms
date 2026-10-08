@@ -75,8 +75,9 @@ export default ({ env }) => {
           baseUrl: env('CDN_URL'),
         },
         actionOptions: {
-          upload:       { ACL: undefined },
-          uploadStream: { ACL: undefined },
+          // Cache-Control na S3 objektoch – názvy súborov majú hash, takže dlhá cache je bezpečná.
+          upload:       { ACL: undefined, CacheControl: 'public, max-age=31536000, immutable' },
+          uploadStream: { ACL: undefined, CacheControl: 'public, max-age=31536000, immutable' },
           delete:       {},
         },
       },
