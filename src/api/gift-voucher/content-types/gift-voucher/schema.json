@@ -14,7 +14,6 @@
   "attributes": {
     "code": {
       "type": "string",
-      "required": true,
       "unique": true
     },
     "voucherStatus": {
@@ -120,7 +119,7 @@
     "generationSource": {
       "type": "enumeration",
       "enum": ["manual", "auto_paid_order"],
-      "default": "auto_paid_order"
+      "default": "manual"
     },
     "sourceOrder": {
       "type": "relation",

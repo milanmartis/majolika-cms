@@ -586,6 +586,7 @@ async function createGiftVouchersForPaidOrder(orderDocumentId?: string | null) {
           data: {
             code,
             voucherStatus: 'active',
+            generationSource: 'auto_paid_order',
             voucherType,
             title: item?.productName || 'Darčeková poukážka',
             productName: item?.productName || null,

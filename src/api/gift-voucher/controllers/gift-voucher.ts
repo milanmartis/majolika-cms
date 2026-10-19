@@ -88,6 +88,7 @@ export default factories.createCoreController(
               data: {
                 code,
                 voucherStatus: 'active',
+                generationSource: 'auto_paid_order',
                 voucherType: item?.voucherType === 'value' ? 'value' : 'service',
                 title: item?.productName || 'Darčeková poukážka',
                 productName: item?.productName || null,

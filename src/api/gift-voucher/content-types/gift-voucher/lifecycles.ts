@@ -453,6 +453,24 @@ function buildVoucherEmailHtml(voucher: any) {
 }
 
 export default {
+  async beforeCreate(event: any) {
+    try {
+      const data = event.params?.data;
+      if (!data) return;
+
+      // Ak kód nie je zadaný (napr. manuálne vytvorenie v admine), vygeneruj unikátny.
+      if (!data.code || !String(data.code).trim()) {
+        data.code = await strapi
+          .service('api::gift-voucher.gift-voucher')
+          .generateUniqueCode();
+      } else {
+        data.code = String(data.code).trim().toUpperCase();
+      }
+    } catch (e) {
+      strapi.log.error('[GIFT_VOUCHER][beforeCreate] code generation failed', e);
+    }
+  },
+
   async afterCreate(event: any) {
     try {
       const created = event.result as any;
