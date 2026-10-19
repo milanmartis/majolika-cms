@@ -36,7 +36,7 @@ function makeClient() {
 async function findExcess(client) {
   const q = await client.query(`
     WITH ranked AS (
-      SELECT gv.id, gv.code, gv.status, gv.order_item_id, gv.customer_name, gv.amount, gv.used_at, gv.cancelled_at,
+      SELECT gv.id, gv.code, gv.voucher_status AS status, gv.order_item_id, gv.customer_name, gv.amount, gv.used_at, gv.cancelled_at,
              COALESCE(NULLIF(gv.meta -> 'sourceItem' ->> 'quantity', '')::int, 1) AS item_qty,
              ROW_NUMBER() OVER (PARTITION BY gv.order_item_id ORDER BY gv.id) AS rn,
              COUNT(*)   OVER (PARTITION BY gv.order_item_id) AS cnt
@@ -53,7 +53,7 @@ async function restore(client) {
   const rows = JSON.parse(fs.readFileSync(path.resolve(RESTORE_FILE), 'utf8'));
   let ok = 0;
   for (const r of rows) {
-    await client.query(`UPDATE gift_vouchers SET status = $1, cancelled_at = $2 WHERE id = $3`, [r.status, r.cancelled_at, r.id]);
+    await client.query(`UPDATE gift_vouchers SET voucher_status = $1, cancelled_at = $2 WHERE id = $3`, [r.status, r.cancelled_at, r.id]);
     ok++;
   }
   console.log(`Restore hotový: ✅ ${ok}\n`);
@@ -96,7 +96,7 @@ async function main() {
     const now = new Date().toISOString();
     let ok = 0;
     for (const v of toCancel) {
-      await client.query(`UPDATE gift_vouchers SET status = 'cancelled', cancelled_at = $1 WHERE id = $2 AND status = 'active'`, [now, v.id]);
+      await client.query(`UPDATE gift_vouchers SET voucher_status = 'cancelled', cancelled_at = $1 WHERE id = $2 AND voucher_status = 'active'`, [now, v.id]);
       ok++;
     }
     console.log(`\nHotovo: ✅ ${ok} zrušených.`);

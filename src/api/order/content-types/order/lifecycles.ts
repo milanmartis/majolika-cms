@@ -585,7 +585,7 @@ async function createGiftVouchersForPaidOrder(orderDocumentId?: string | null) {
         await strapi.documents('api::gift-voucher.gift-voucher' as any).create({
           data: {
             code,
-            status: 'active',
+            voucherStatus: 'active',
             voucherType,
             title: item?.productName || 'Darčeková poukážka',
             productName: item?.productName || null,

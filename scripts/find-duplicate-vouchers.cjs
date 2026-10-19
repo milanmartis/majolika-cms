@@ -30,7 +30,7 @@ function makeClient() {
 async function findGroups(client) {
   const q = await client.query(`
     WITH ranked AS (
-      SELECT gv.id, gv.code, gv.status, gv.order_item_id, gv.customer_name, gv.amount,
+      SELECT gv.id, gv.code, gv.voucher_status AS status, gv.order_item_id, gv.customer_name, gv.amount,
              gv.used_at, gv.created_at,
              gv.meta ->> 'sourceOrderId' AS source_order_id,
              COALESCE(NULLIF(gv.meta -> 'sourceItem' ->> 'quantity', '')::int, 1) AS item_qty,

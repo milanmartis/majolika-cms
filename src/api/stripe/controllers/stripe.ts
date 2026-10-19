@@ -902,7 +902,7 @@ async function applyOrderGiftVoucher(orderId: number) {
     where: { id: voucher.id },
     data: {
       remainingValue: newRemaining,
-      status: newRemaining > 0 ? 'active' : 'used',
+      voucherStatus: newRemaining > 0 ? 'active' : 'used',
       usedAt: newRemaining > 0 ? null : new Date(),
       usedByOrder: order.id,
       usedByOrderInvoiceNumber: order.invoiceNumber ?? null,
@@ -937,11 +937,11 @@ async function releaseOrderGiftVoucher(orderId: number) {
     where: { code: order.giftVoucherCode },
   }) as any;
 
-  if (voucher && voucher.status === 'reserved') {
+  if (voucher && voucher.voucherStatus === 'reserved') {
     await strapi.db.query('api::gift-voucher.gift-voucher').update({
       where: { id: voucher.id },
       data: {
-        status: 'active',
+        voucherStatus: 'active',
         reservedAt: null,
       },
     });

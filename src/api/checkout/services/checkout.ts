@@ -1184,7 +1184,7 @@ export default () => ({
       voucherEntity = await strapi.db.query('api::gift-voucher.gift-voucher').findOne({
         where: {
           code,
-          status: 'active',
+          voucherStatus: 'active',
         },
       });
 
@@ -1208,7 +1208,7 @@ export default () => ({
         await strapi.db.query('api::gift-voucher.gift-voucher').update({
           where: { id: voucherEntity.id },
           data: {
-            status: 'reserved',
+            voucherStatus: 'reserved',
             reservedAt: new Date(),
           },
         });
@@ -1347,7 +1347,7 @@ export default () => ({
           where: { id: voucherEntity.id },
           data: {
             remainingValue: newRemaining,
-            status: newRemaining > 0 ? 'active' : 'used',
+            voucherStatus: newRemaining > 0 ? 'active' : 'used',
             usedAt: newRemaining > 0 ? null : new Date(),
             usedByOrder: (order as any).id,
             // usedByOrderInvoiceNumber: (order as any).invoiceNumber ?? null,
@@ -1697,7 +1697,7 @@ export default () => ({
           await strapi.db.query('api::gift-voucher.gift-voucher').update({
             where: { id: voucherEntity.id },
             data: {
-              status: 'active',
+              voucherStatus: 'active',
               reservedAt: null,
             },
           });

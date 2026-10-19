@@ -17,7 +17,7 @@
       "required": true,
       "unique": true
     },
-    "status": {
+    "voucherStatus": {
       "type": "enumeration",
       "enum": ["active", "reserved", "used", "expired", "cancelled"],
       "default": "active",

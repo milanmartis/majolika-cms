@@ -87,7 +87,7 @@ export default factories.createCoreController(
             const createdVoucher = await strapi.documents('api::gift-voucher.gift-voucher' as any).create({
               data: {
                 code,
-                status: 'active',
+                voucherStatus: 'active',
                 voucherType: item?.voucherType === 'value' ? 'value' : 'service',
                 title: item?.productName || 'Darčeková poukážka',
                 productName: item?.productName || null,

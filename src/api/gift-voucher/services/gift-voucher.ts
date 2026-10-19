@@ -73,7 +73,7 @@ export default factories.createCoreService(
         };
       }
 
-      if (voucher.status === 'used') {
+      if (voucher.voucherStatus === 'used') {
         return {
           valid: false,
           reason: 'used',
@@ -81,7 +81,7 @@ export default factories.createCoreService(
         };
       }
 
-      if (voucher.status === 'cancelled') {
+      if (voucher.voucherStatus === 'cancelled') {
         return {
           valid: false,
           reason: 'cancelled',
@@ -89,7 +89,7 @@ export default factories.createCoreService(
         };
       }
 
-      if (voucher.status === 'expired') {
+      if (voucher.voucherStatus === 'expired') {
         return {
           valid: false,
           reason: 'expired',
@@ -152,7 +152,7 @@ export default factories.createCoreService(
         await strapi.documents('api::gift-voucher.gift-voucher' as any).update({
           documentId: voucher.documentId,
           data: {
-            status: 'used',
+            voucherStatus: 'used',
             usedAt: new Date().toISOString(),
             usedByOrder: orderDocumentId,
             usedByOrderInvoiceNumber: orderInvoiceNumber || null,
@@ -195,7 +195,7 @@ export default factories.createCoreService(
           documentId: voucher.documentId,
           data: {
             remainingValue: nextRemaining,
-            status: nextStatus,
+            voucherStatus: nextStatus,
             usedAt: nextRemaining <= 0 ? new Date().toISOString() : voucher.usedAt ?? null,
             usedByOrder: nextRemaining <= 0 ? orderDocumentId : voucher.usedByOrder?.documentId ?? null,
             usedByOrderInvoiceNumber:
