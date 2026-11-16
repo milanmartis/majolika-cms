@@ -13,6 +13,10 @@
  *   # Pridať krátku vetu o dodatočnom zaslaní kvôli výpadku:
  *   node scripts/resend-order-emails.cjs --ids=101,102,103 --send --apology
  *
+ *   # Poslať AJ adminom notifikáciu o objednávke (bez ospravedlnenia):
+ *   node scripts/resend-order-emails.cjs --ids=101,102,103 --send --apology --admin
+ *   # (admin príjemcov sa dá prepísať cez --admin-to=a@b.sk,c@d.sk)
+ *
  *   # Prepísať cieľový email (test) – pošle VŠETKO na túto adresu:
  *   node scripts/resend-order-emails.cjs --ids=101 --send --to=milanmartis@gmail.com
  *
@@ -41,7 +45,19 @@ const kv = Object.fromEntries(
 
 const SEND = flags.has('--send');           // bez tohto = dry-run
 const APOLOGY = flags.has('--apology');     // pridať vetu o výpadku
+const ADMIN = flags.has('--admin');         // poslať aj adminom notifikáciu o objednávke
 const OVERRIDE_TO = kv.to || null;          // presmerovať všetko na 1 adresu (test)
+
+// admin príjemcovia (rovnako ako produkčná notifikácia o novej objednávke); override cez --admin-to=a@b,c@d
+const DEFAULT_ADMIN_EMAILS = [
+  'info@appdesign.sk',
+  'objednavky@majolika.sk',
+  'romana.uhercikova@majolika.sk',
+  'katarina.borisova@majolika.sk',
+];
+const ADMIN_RECIPIENTS = (kv['admin-to']
+  ? String(kv['admin-to']).split(',').map((s) => s.trim()).filter(Boolean)
+  : DEFAULT_ADMIN_EMAILS);
 
 const idsFromKv = (kv.ids || '')
   .split(',')
@@ -206,7 +222,7 @@ function renderItemsRows(items) {
   }).join('');
 }
 
-function renderEmail(order, TT, locale) {
+function renderEmail(order, TT, locale, opts = {}) {
   const num = order.invoiceNumber || String(order.id);
   const shippingFee = Number(order.shippingFee || 0);
   const paymentFee = Number(order.paymentFee || 0);
@@ -222,7 +238,8 @@ function renderEmail(order, TT, locale) {
        </div>`
     : '';
 
-  const apologyHtml = APOLOGY
+  const showApology = opts.apology ?? APOLOGY;
+  const apologyHtml = showApology
     ? `<p style="background:#fff8e1;border:1px solid #ffe0a3;padding:12px;color:#5f4300;">${esc(TT.apology)}</p>`
     : '';
 
@@ -321,7 +338,8 @@ async function main() {
   console.log(`\n${SEND ? '📤 REÁLNE ODOSLANIE' : '🔎 DRY-RUN (nič sa neodošle)'}`);
   console.log(`   Objednávky: ${ORDER_IDS.join(', ')}`);
   if (OVERRIDE_TO) console.log(`   ⚠️  Všetko presmerované na: ${OVERRIDE_TO}`);
-  if (APOLOGY) console.log('   + ospravedlňujúca veta');
+  if (APOLOGY) console.log('   + ospravedlňujúca veta (len zákazník)');
+  if (ADMIN) console.log(`   + admin notifikácia na: ${OVERRIDE_TO || ADMIN_RECIPIENTS.join(', ')}`);
   console.log('');
 
   const appContext = await compileStrapi();
@@ -332,7 +350,7 @@ async function main() {
   const from = process.env.MAIL_FROM || (user ? `"MAJOLIKA MODRA" <${user}>` : undefined);
   const replyTo = process.env.MAIL_REPLY_TO || undefined;
 
-  let ok = 0, skipped = 0, failed = 0;
+  let ok = 0, skipped = 0, failed = 0, adminOk = 0, adminFailed = 0;
 
   for (const id of ORDER_IDS) {
     const order = await app.entityService.findOne('api::order.order', id, {
@@ -378,10 +396,30 @@ async function main() {
       }).catch(() => {});
       failed++;
     }
+
+    // --admin: notifikácia adminom o objednávke (bez ospravedlnenia; stav objednávky sa nemení)
+    if (ADMIN) {
+      const adminTo = OVERRIDE_TO || ADMIN_RECIPIENTS.join(',');
+      try {
+        const adminHtml = renderEmail(order, TT, locale, { apology: false });
+        const adminInfo = await transporter.sendMail({
+          from,
+          to: adminTo,
+          subject: `[ADMIN] Nová objednávka #${num}`,
+          html: adminHtml,
+          replyTo,
+        });
+        console.log(`         👤 admin notifikácia → ${adminTo} (messageId=${adminInfo.messageId})`);
+        adminOk++;
+      } catch (e) {
+        console.log(`         ❌ admin notifikácia CHYBA: ${e && e.message ? e.message : String(e)}`);
+        adminFailed++;
+      }
+    }
   }
 
   console.log('');
-  if (SEND) console.log(`Hotovo: ✅ ${ok} odoslaných, ⚠️ ${skipped} preskočených, ❌ ${failed} chýb.`);
+  if (SEND) console.log(`Hotovo: ✅ ${ok} zákazníkom, ⚠️ ${skipped} preskočených, ❌ ${failed} chýb.${ADMIN ? `  |  Admin: 👤 ${adminOk} odoslaných, ❌ ${adminFailed} chýb.` : ''}`);
   else console.log(`Dry-run hotový. Pre reálne odoslanie pridaj --send.`);
 
   await app.destroy();
