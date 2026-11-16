@@ -104,6 +104,16 @@ const PDF_BY_PRODUCT_SLUG: Record<
     valueFontSize: 29,
   },
 
+  'darcekovy-poukaz-tvorenie-z-hliny': {
+    file: 'Hlina poukaz.pdf',
+    labelCode: { x: 620, y: 170 },
+    valueCode: { x: 620, y: 134 },
+    labelValidUntil: { x: 620, y: 100 },
+    valueValidUntil: { x: 620, y: 80 },
+    labelFontSize: 14,
+    valueFontSize: 29,
+  },
+
   'darcekovy-poukaz-malovanie-hrnceka-a-misky': {
     file: 'Miska_a_hrncek_darcekovy_poukaz.pdf',
     labelCode: { x: 275, y: 149 },
